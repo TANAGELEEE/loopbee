@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>檢視者模式 今日</title>
+
+<link rel="stylesheet" href="./loop.css">
+</head>
+<body>
+<x-dc>
+
+<style>body{margin:0}</style>
+
+<div class="lp" style="min-height:1240px">
+  <header class="top">
+    <div class="brand"><span class="mark" aria-hidden="true"></span>Loopbee<span class="chip" style="margin-left:6px">檢視者 · alice</span></div>
+    <nav class="nav" aria-label="主導覽"><a href="#" class="on" aria-current="page">今日</a><a href="#">Loops</a><a href="#">Runs</a><a href="Artifacts.dc.html">產物</a><a href="Digest.dc.html">日報</a></nav>
+    <div class="tools">
+      <span class="chip ok"><span class="st ok" aria-hidden="true">✓</span>已同步 16:20</span>
+      <button class="btn ghost sm" aria-label="語言">EN ▾</button>
+      <button class="ib" aria-label="重新整理"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg></button>
+    </div>
+  </header>
+
+  <main class="page">
+    <div class="bn" style="margin:6px 0 4px"><span class="st idle" aria-hidden="true" style="margin-top:2px"> </span><div style="font-size:12.5px"><b style="font-weight:600">唯讀</b> · 資料來自 acme/all-docs（分支 loopbee-data）· 最近同步 16:20。運行中的項目顯示最近一次發布的快照，不是即時畫面。</div></div>
+
+    <div class="sec" style="margin-top:14px"><h2>今日</h2><span class="note">2026 年 10 月 10 日 週六 · Asia/Taipei</span></div>
+    <div class="kpis">
+      <div class="kpi"><div class="v">1</div><div class="l">運行中（快照）</div><div class="b">SEO / GEO · alice-mbp</div></div>
+      <div class="kpi"><div class="v">2</div><div class="l">待人工處理</div><div class="b">由執行者處理 · 私有項目不顯示</div></div>
+      <div class="kpi"><div class="v">4</div><div class="l">今日 Runs</div><div class="b">1 完成 · 1 預算耗盡 · 1 中斷 · 1 運行</div></div>
+      <div class="kpi"><div class="v">8</div><div class="l">今日產物</div><div class="b">報告 4 · 差異 3 · 快照 1</div></div>
+      <div class="kpi"><div class="v">1</div><div class="l">中斷／失敗</div><div class="b">1 中斷待核對</div></div>
+    </div>
+
+    <div class="cols">
+      <div class="main">
+        <div class="sec"><h2>需要處理</h2><span class="note">2 項 · 只有執行者能操作</span></div>
+        <div class="grp">
+          <div class="row">
+            <span class="idot" style="--c:#d9774a"></span>
+            <div class="grow"><div class="nm">hotfix PR 待審核</div><div class="sub">生產日誌 · BUG-4821 · 狀態以 cc-nexs 為準</div></div>
+            <div style="text-align:right"><span class="chip warn"><span class="st warn" aria-hidden="true">!</span>等待 cc-nexs 審核</span><div class="sub" style="margin-top:3px">自 09:34</div></div>
+            <span class="chip">由 lee-mac 處理</span>
+          </div>
+          <div class="row">
+            <span class="idot" style="--c:#2f9e8f"></span>
+            <div class="grow"><div class="nm">SEO / GEO 08:00 的 Run 已中斷</div><div class="sub">進程已退出，等待執行者核對</div></div>
+            <div style="text-align:right"><span class="chip warn"><span class="st lost" aria-hidden="true">?</span>待核對</span></div>
+            <span class="chip">由 alice-mbp 處理（你）</span>
+          </div>
+        </div>
+
+        <div class="sec"><h2>今日 Runs</h2><span class="note">4 次 · 來自 2 位執行者</span></div>
+        <div class="grp">
+          <a class="row r link" href="#">
+            <div style="display:flex;align-items:center;gap:10px;min-width:0"><span class="idot" style="--c:#2f9e8f"></span><div style="min-width:0"><div class="nm">SEO / GEO 可見度</div><div class="sub mono">seo-1530-b7 · alice-mbp</div></div></div>
+            <span class="sx"><span class="st run" aria-hidden="true">●</span>運行中</span>
+            <span class="chip mut">快照 16:10</span>
+            <div><div class="sub t2">第 1 輪 · 技術驗證</div></div>
+            <div class="c-time"><div class="sub t2">15:30 起</div></div>
+          </a>
+          <a class="row r link" href="#">
+            <div style="display:flex;align-items:center;gap:10px;min-width:0"><span class="idot" style="--c:#5b8def"></span><div style="min-width:0"><div class="nm">React Doctor 100/100</div><div class="sub mono">rd-1100-e4 · lee-mac</div></div></div>
+            <span class="sx"><span class="st ok" aria-hidden="true">✓</span>已結束</span>
+            <span class="chip warn">預算耗盡</span>
+            <div><div class="sub t2">3 / 3 輪 · 71 → 84</div><div class="sub">剩餘 9 項</div></div>
+            <div class="c-time"><div class="sub t2">11:00 起</div><div class="sub">52 分</div></div>
+          </a>
+          <a class="row r link" href="#">
+            <div style="display:flex;align-items:center;gap:10px;min-width:0"><span class="idot" style="--c:#d9774a"></span><div style="min-width:0"><div class="nm">生產日誌 ERROR／WARN</div><div class="sub mono">log-0900-9f · lee-mac</div></div></div>
+            <span class="sx"><span class="st ok" aria-hidden="true">✓</span>已結束</span>
+            <span class="chip ok">完成</span>
+            <div><div class="sub t2">14 個指紋 · 3 個新增</div></div>
+            <div class="c-time"><div class="sub t2">09:00 起</div><div class="sub">21 分</div></div>
+          </a>
+          <a class="row r link" href="#">
+            <div style="display:flex;align-items:center;gap:10px;min-width:0"><span class="idot" style="--c:#2f9e8f"></span><div style="min-width:0"><div class="nm">SEO / GEO 可見度</div><div class="sub mono">seo-0800-a1 · alice-mbp</div></div></div>
+            <span class="sx"><span class="st lost" aria-hidden="true">?</span>已中斷</span>
+            <span class="chip warn">待核對</span>
+            <div><div class="sub t2">最後事件 08:19</div></div>
+            <div class="c-time"><div class="sub t2">08:00 起</div></div>
+          </a>
+        </div>
+        <div class="sub" style="margin-top:8px">CRM 召回郵件為私有 Loop，不發布到倉庫，所以這裡不會出現，也不計入統計。</div>
+      </div>
+
+      <div class="side">
+        <div class="sec"><h2>今日產物</h2><span class="note">8 件</span></div>
+        <div class="grp">
+          <a class="row link" href="#"><span class="tag">MD</span><div class="grow"><div class="nm">問題摘要與影響分析</div><div class="sub">生產日誌 · lee-mac · 09:21</div></div></a>
+          <a class="row link" href="#"><span class="tag">JSON</span><div class="grow"><div class="nm">診斷前後對比</div><div class="sub">React Doctor · lee-mac · 11:48</div></div></a>
+          <a class="row link" href="#"><span class="tag">DIFF</span><div class="grow"><div class="nm">修改差異（r1、r2）</div><div class="sub">React Doctor · lee-mac · 11:49</div></div></a>
+          <a class="row link" href="#"><span class="tag">TXT</span><div class="grow"><div class="nm">test-r3.txt</div><div class="sub">未發布 · 內容留在執行者本機（雜湊 7c1e…）</div></div><span class="chip mut">僅雜湊</span></a>
+          <a class="row link" href="#"><span class="tag">SNAP</span><div class="grow"><div class="nm">SEO 基線快照</div><div class="sub">SEO / GEO · alice-mbp · 15:41</div></div></a>
+        </div>
+
+        <div class="sec"><h2>定義變更</h2></div>
+        <div class="grp">
+          <div class="row"><div class="grow"><div class="nm">SEO / GEO v5</div><div class="sub">alice 修改 · 在你這台電腦尚未核准執行</div></div><span class="chip warn">未核准</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="src"><span>來源 acme/all-docs@loopbee-data</span><span>拉取 16:20</span><span>資料契約 v1 · 相容</span></div>
+  </main>
+</div>
+</x-dc>
+
+</body>
+</html>

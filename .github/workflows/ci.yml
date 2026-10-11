@@ -1,0 +1,80 @@
+name: Verify Loopbee
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  core:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test -tags nogui ./...
+      - run: go vet -tags nogui ./...
+      - run: go build -tags nogui ./cmd/loopbee
+      - if: runner.os == 'Linux'
+        run: go test -race -tags nogui ./...
+      - if: runner.os == 'macOS'
+        run: sh scripts/build-macos.sh
+      - if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/build-windows.ps1 -DesktopTest
+      - if: runner.os == 'Windows'
+        run: go test ./cmd/loopbee
+      - if: runner.os == 'Windows'
+        run: go vet ./cmd/loopbee
+      - if: runner.os == 'Windows'
+        run: go test -tags desktoptest ./cmd/loopbee -run TestDesktopBrowserArgs
+      - if: runner.os == 'Windows'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:LOOPBEE_NATIVE_TEST_BINARY = (Resolve-Path 'bin/loopbee.exe').Path
+          go test ./cmd/loopbee -run TestNativeDesktopLifecycle -v -count=1 -timeout 90s
+      - if: runner.os == 'Windows'
+        run: npm ci
+      - if: runner.os == 'Windows'
+        run: npm run test:desktop
+        env:
+          LOOPBEE_DESKTOP_EXE: .test-data/loopbee-desktop-test.exe
+      - if: runner.os == 'Windows' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-desktop-evidence
+          path: docs/evidence/windows-*
+      - if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Loopbee-windows-amd64
+          path: |
+            bin/Loopbee-windows-amd64.zip
+            bin/Loopbee-windows-amd64.zip.sha256
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: go build -tags nogui -o bin/loopbee ./cmd/loopbee
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ui-evidence
+          path: docs/evidence

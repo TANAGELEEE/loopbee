@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>手機 今日</title>
+
+<link rel="stylesheet" href="./loop.css">
+</head>
+<body>
+<x-dc>
+
+<style>body{margin:0}</style>
+
+<div class="lp m" style="width:390px;min-height:1180px">
+  <header class="top">
+    <div class="brand"><span class="mark" aria-hidden="true"></span>Loopbee</div>
+    <div class="tools"><button class="ib" aria-label="重新整理"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg></button></div>
+  </header>
+  <nav class="mnav" aria-label="主導覽"><a href="#" class="on" aria-current="page">今日</a><a href="#">Loops</a><a href="#">Runs</a><a href="#">產物</a><a href="#">日報</a></nav>
+
+  <main class="page">
+    <div class="sub" style="margin:4px 0 10px">10 月 10 日 週六 · 資料更新於 15:57</div>
+    <div class="kpis">
+      <div class="kpi"><div class="v">1</div><div class="l">運行中</div></div>
+      <div class="kpi"><div class="v">3</div><div class="l">待人工處理</div></div>
+      <div class="kpi"><div class="v">11</div><div class="l">今日產物</div></div>
+      <div class="kpi"><div class="v">1</div><div class="l">中斷／失敗</div></div>
+    </div>
+
+    <div class="sec"><h2>需要你處理</h2><span class="note">3 項</span></div>
+    <div class="grp">
+      <div class="row" style="flex-wrap:wrap;align-items:flex-start">
+        <span class="idot" style="--c:#c95b9a;margin-top:6px"></span>
+        <div class="grow"><div class="nm">郵件草稿待確認</div><div class="sub">CRM 召回郵件 · 12 封草稿 · 已等 1 小時 52 分</div></div>
+        <div style="flex-basis:100%;display:flex;gap:8px;align-items:center"><span class="chip warn"><span class="st warn" aria-hidden="true">!</span>等待人工閘門</span><span style="flex:1"></span><a class="btn" href="#">審閱草稿</a></div>
+      </div>
+      <div class="row" style="flex-wrap:wrap;align-items:flex-start">
+        <span class="idot" style="--c:#d9774a;margin-top:6px"></span>
+        <div class="grow"><div class="nm">hotfix PR 待審核</div><div class="sub">生產日誌 · BUG-4821 · 狀態以 cc-nexs 為準</div></div>
+        <div style="flex-basis:100%;display:flex;gap:8px;align-items:center"><span class="chip warn"><span class="st warn" aria-hidden="true">!</span>等待審核</span><span style="flex:1"></span><a class="btn" href="#">在 cc-nexs 開啟</a></div>
+      </div>
+      <div class="row" style="flex-wrap:wrap;align-items:flex-start">
+        <span class="idot" style="--c:#76767f;margin-top:6px"></span>
+        <div class="grow"><div class="nm">昨日日報投遞結果未知</div><div class="sub">10-09 18:00 · 請求逾時，可能已送達</div></div>
+        <div style="flex-basis:100%;display:flex;gap:8px;align-items:center"><span class="chip warn"><span class="st lost" aria-hidden="true">?</span>投遞未知</span><span style="flex:1"></span><a class="btn" href="#">核對</a></div>
+      </div>
+    </div>
+
+    <div class="sec"><h2>今日 Runs</h2><span class="note">5 次</span></div>
+    <div class="grp">
+      <a class="row" href="#"><span class="idot" style="--c:#2f9e8f"></span><div class="grow"><div class="nm">SEO / GEO 可見度</div><div class="sub">第 1 輪 · 技術驗證 · 15:30 起</div></div><span class="sx"><span class="st run" aria-hidden="true">●</span>運行中</span></a>
+      <a class="row" href="#"><span class="idot" style="--c:#c95b9a"></span><div class="grow"><div class="nm">CRM 召回郵件</div><div class="sub">草稿 12 封 · 14:00 起</div></div><span class="chip warn">等待閘門</span></a>
+      <a class="row" href="#"><span class="idot" style="--c:#5b8def"></span><div class="grow"><div class="nm">React Doctor</div><div class="sub">3 / 3 輪 · 71 → 84 · 11:00 起</div></div><span class="chip warn">預算耗盡</span></a>
+      <a class="row" href="#"><span class="idot" style="--c:#d9774a"></span><div class="grow"><div class="nm">生產日誌</div><div class="sub">14 個指紋 · 3 個新增 · 09:00 起</div></div><span class="chip ok">完成</span></a>
+      <a class="row" href="#"><span class="idot" style="--c:#2f9e8f"></span><div class="grow"><div class="nm">SEO / GEO 可見度</div><div class="sub">心跳逾時 · 08:00 起</div></div><span class="chip warn"><span class="st lost" aria-hidden="true">?</span>待核對</span></a>
+    </div>
+    <div class="src" style="font-size:11px">資料更新於 15:57 · 5 個 Run 未歸檔</div>
+  </main>
+</div>
+</x-dc>
+
+</body>
+</html>

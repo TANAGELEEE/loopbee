@@ -1,0 +1,13 @@
+# Notifications
+
+Channels are queued and recorded independently, so one failure does not block the others. Test and business notifications share the delivery path; all channels default to disabled. Automatic retries, up to three, apply only to explicit HTTP 429 responses. Network errors/timeouts become unknown and are not automatically retried because delivery may already have occurred. Manual retry creates an independent Delivery without rerunning the business Loop.
+
+Feishu sends webhook messages with `msg_type=text`; Telegram uses sendMessage in plain text; Bark uses JSON at `/push`; macOS uses system notifications. Long text is split into chunks of 1,800 UTF-8 bytes without breaking characters, leaving protocol headroom. Failure after partial delivery does not automatically resend the whole digest. Responses are limited to 64 KiB, requests time out after 12 seconds, redirects are prohibited, and errors never echo URLs or tokens.
+
+References: [Telegram sendMessage](https://core.telegram.org/bots/api#sendmessage), [Feishu custom bots](https://open.feishu.cn/document/client-docs/bot-v3/add-custom-bot), [Bark API V2](https://github.com/Finb/bark-server/blob/master/docs/API_V2.md). Telegram documents a 1–4,096-character body. Bark documents JSON fields; this does not establish a shared server-side length limit. The dynamically loaded Feishu page did not provide complete verifiable limit text, so this implementation uses conservative chunking and still requires live channel acceptance. Signed Feishu webhooks are not implemented; use an unsigned test bot with its access controls configured appropriately.
+
+The three language settings are independent. Daily digests use DigestLanguage and DigestTimezone with their own Cron trigger. Changing the digest language does not alter agent prompts or interface language. Notification credentials never enter Git; use an env:VARIABLE_NAME reference if the keychain is unavailable.
+
+Windows desktop notifications invoke WinRT Toast through the system Windows PowerShell. A fixed script reads XML-escaped, Base64-encoded messages from stdin; message content is never interpolated into commands. Loopbee's display name is registered under a per-user AppUserModelId. Processes are hidden; a 15-second timeout becomes unknown, while an explicit system error becomes failed. `sent` means Windows accepted the notification; Do Not Disturb may still hide the banner. Clicking a notification to open the app is not currently supported.
+
+Native Windows Toast submission and Credential Manager access have passed live local tests. Real Feishu, Telegram, Bark, and macOS notification delivery have not been tested. External channel states are covered by local httptest cases.

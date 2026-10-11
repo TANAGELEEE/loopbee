@@ -1,0 +1,7 @@
+.tools/
+bin/
+.test-data/
+node_modules/
+*.log
+.DS_Store
+

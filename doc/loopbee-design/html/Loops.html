@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>Loop 列表</title>
+
+<link rel="stylesheet" href="./loop.css">
+</head>
+<body>
+<x-dc>
+
+<style>body{margin:0}.lrow{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) 150px 34px 28px;gap:14px;align-items:center}@media (max-width:760px){.lrow{display:flex;flex-wrap:wrap}}</style>
+
+<div class="lp" style="min-height:720px">
+  <header class="top">
+    <div class="brand"><span class="mark" aria-hidden="true"></span>Loopbee</div>
+    <nav class="nav" aria-label="主導覽">
+      <a href="Main.dc.html">今日</a>
+      <a href="Loops.dc.html" class="on" aria-current="page">Loopbee</a>
+      <a href="Runs.dc.html">Runs</a>
+      <a href="Artifacts.dc.html">產物</a>
+      <a href="Digest.dc.html">日報</a>
+    </nav>
+    <div class="tools">
+      <a class="btn" href="Import.dc.html">＋ 新增 Loop</a>
+      <button class="ib" aria-label="設定"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+    </div>
+  </header>
+
+  <main class="page" style="max-width:1200px">
+    <div class="sec" style="margin-top:10px">
+      <h2>Loops</h2><span class="note">4 個啟用 · 1 個草稿</span>
+      <div class="act">
+        <div class="seg" role="tablist" aria-label="分類"><button class="on" role="tab" aria-selected="true">全部</button><button role="tab" aria-selected="false">工程</button><button role="tab" aria-selected="false">成長</button><button role="tab" aria-selected="false">營運</button></div>
+        <input class="inp" style="width:180px;height:28px;padding:4px 10px" aria-label="搜尋 Loop" placeholder="搜尋名稱或用途">
+      </div>
+    </div>
+
+    <div class="grp" style="overflow:visible">
+      <div class="row lrow link" style="border-radius:12px 12px 0 0">
+        <div style="display:flex;gap:10px;align-items:center;min-width:0"><span class="idot" style="--c:#d9774a"></span><div style="min-width:0"><div class="nm">生產日誌 ERROR／WARN</div><div class="sub">查詢、去重、影響分析、銜接 cc-nexs hotfix · 每日 09:00</div></div></div>
+        <div><span class="chip ok"><span class="st ok" aria-hidden="true">✓</span>完成</span><div class="sub" style="margin-top:3px">今日 09:00 · 3 個新問題</div></div>
+        <div><div class="sub t2">下次 明天 09:00</div><div class="sub">v12</div></div>
+        <button class="tg" role="switch" aria-checked="true" aria-label="啟用 生產日誌 ERROR／WARN"></button>
+        <button class="ib" aria-label="更多操作">⋯</button>
+      </div>
+      <div class="row lrow link">
+        <div style="display:flex;gap:10px;align-items:center;min-width:0"><span class="idot" style="--c:#2f9e8f"></span><div style="min-width:0"><div class="nm">SEO / GEO 可見度</div><div class="sub">基線、機會分析、改進、技術驗證、效果觀察 · 每日 08:00</div></div></div>
+        <div><span class="sx"><span class="st run" aria-hidden="true">●</span>運行中</span><div class="sub" style="margin-top:3px">15:30 起 · 接續中斷的 Run</div></div>
+        <div><div class="sub t2">下次 明天 08:00</div><div class="sub">v4</div></div>
+        <button class="tg" role="switch" aria-checked="true" aria-label="啟用 SEO / GEO 可見度"></button>
+        <button class="ib" aria-label="更多操作">⋯</button>
+      </div>
+      <div class="row lrow link" style="position:relative;background:var(--card2)">
+        <div style="display:flex;gap:10px;align-items:center;min-width:0"><span class="idot" style="--c:#5b8def"></span><div style="min-width:0"><div class="nm">React Doctor 100/100</div><div class="sub">掃描、小批修復、測試、重掃 · 每日 11:00</div></div></div>
+        <div><span class="chip warn">預算耗盡</span><div class="sub" style="margin-top:3px">今日 11:00 · 71 → 84</div></div>
+        <div><div class="sub t2">下次 明天 11:00</div><div class="sub">v7</div></div>
+        <button class="tg" role="switch" aria-checked="true" aria-label="啟用 React Doctor 100/100"></button>
+        <button class="ib" aria-label="更多操作" aria-expanded="true" style="background:var(--card)">⋯</button>
+        <!-- 選單開啟狀態：錨點下方、可滾動、保留鍵盤選取 -->
+        <div role="menu" style="position:absolute;right:14px;top:44px;z-index:5;width:210px;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(20,20,30,.14);padding:5px">
+          <div role="menuitem" class="row" style="min-height:32px;padding:5px 10px;border:0;border-radius:6px;background:var(--acc-bg)"><span class="nm" style="font-weight:550">手動執行</span></div>
+          <div role="menuitem" class="row" style="min-height:32px;padding:5px 10px;border:0"><span class="nm" style="font-weight:450">暫停後續排程</span></div>
+          <div role="menuitem" class="row" style="min-height:32px;padding:5px 10px;border:0"><span class="nm" style="font-weight:450">複製為新 Loop</span></div>
+          <div role="menuitem" class="row" style="min-height:32px;padding:5px 10px;border:0"><span class="nm" style="font-weight:450">編輯定義</span></div>
+          <hr class="hair" style="margin:4px 0">
+          <div role="menuitem" class="row" style="min-height:32px;padding:5px 10px;border:0"><span class="nm" style="font-weight:450;color:var(--err-t)">停用 Loop</span></div>
+        </div>
+      </div>
+      <div class="row lrow link">
+        <div style="display:flex;gap:10px;align-items:center;min-width:0"><span class="idot" style="--c:#c95b9a"></span><div style="min-width:0"><div class="nm">CRM 召回郵件</div><div class="sub">行為分析、分群、草稿、人工確認 · 每日 14:00 · 僅草稿</div></div></div>
+        <div><span class="chip warn"><span class="st warn" aria-hidden="true">!</span>等待人工閘門</span><div class="sub" style="margin-top:3px">今日 14:00 · 12 封草稿</div></div>
+        <div><div class="sub t2">下次 明天 14:00</div><div class="sub">v3</div></div>
+        <button class="tg" role="switch" aria-checked="true" aria-label="啟用 CRM 召回郵件"></button>
+        <button class="ib" aria-label="更多操作">⋯</button>
+      </div>
+      <div class="row lrow link" style="opacity:.92">
+        <div style="display:flex;gap:10px;align-items:center;min-width:0"><span class="idot" style="--c:#76767f"></span><div style="min-width:0"><div class="nm">Lighthouse 每日檢查 <span class="chip mut" style="margin-left:6px">草稿</span></div><div class="sub">尚有 3 個缺口，未啟用</div></div></div>
+        <div><span class="chip mut">尚未運行</span></div>
+        <div><div class="sub t2">未排程</div></div>
+        <button class="tg" role="switch" aria-checked="false" aria-label="啟用 Lighthouse 每日檢查"></button>
+        <button class="ib" aria-label="更多操作">⋯</button>
+      </div>
+      <div class="foot" style="border-radius:0 0 12px 12px">顯示 2 個已停用的 Loop ⌄</div>
+    </div>
+
+    <div class="sec"><h2>從模板新增</h2><span class="note">借鑑 Loopy 模板庫的流程，匯入後仍須通過缺口檢查</span><div class="act"><a href="Import.dc.html">貼上自己的流程 ›</a></div></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(262px,1fr));gap:10px">
+      <a class="card sm" href="Import.dc.html" style="display:block"><div class="nm">SEO / GEO visibility loop</div><div class="sub t2" style="margin:3px 0 8px">每天觀察，有新證據才改動</div><span class="chip">模板 · 未核實內容</span></a>
+      <a class="card sm" href="Import.dc.html" style="display:block"><div class="nm">React Doctor 100/100</div><div class="sub t2" style="margin:3px 0 8px">掃描、修復、重掃到達標</div><span class="chip ok">已新增</span></a>
+      <a class="card sm" href="Import.dc.html" style="display:block"><div class="nm">用自然語言描述</div><div class="sub t2" style="margin:3px 0 8px">說明日常工作，由 Agent 整理成定義</div><span class="chip">新增</span></a>
+    </div>
+  </main>
+</div>
+</x-dc>
+
+</body>
+</html>

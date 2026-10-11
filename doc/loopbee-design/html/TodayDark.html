@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>今日總覽 深色</title>
+
+<link rel="stylesheet" href="./loop.css">
+</head>
+<body>
+<x-dc>
+
+<style>body{margin:0;background:#1a1a1e}</style>
+
+<div class="lp dark" style="min-height:800px">
+  <header class="top">
+    <div class="brand"><span class="mark" aria-hidden="true"></span>Loopbee</div>
+    <nav class="nav" aria-label="主導覽">
+      <a href="#" class="on" aria-current="page">今日</a><a href="#">Loops</a><a href="#">Runs</a><a href="Artifacts.dc.html">產物</a><a href="Digest.dc.html">日報</a>
+    </nav>
+    <div class="tools">
+      <a class="btn" href="#">＋ 新增 Loop</a>
+      <button class="ib" aria-label="重新整理"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg></button>
+    </div>
+  </header>
+  <main class="page">
+    <div class="sec" style="margin-top:10px"><h2>今日</h2><span class="note">2026 年 10 月 10 日 週六 · Asia/Taipei</span><div class="act"><span class="sx"><span class="st ok" aria-hidden="true">✓</span>資料更新於 15:57 · lee-mac</span></div></div>
+    <div class="kpis">
+      <div class="kpi"><div class="v">1</div><div class="l">運行中</div><div class="b">SEO / GEO · 第 1 輪</div></div>
+      <div class="kpi"><div class="v">3</div><div class="l">待人工處理</div><div class="b">2 個閘門 · 1 個投遞未知</div></div>
+      <div class="kpi"><div class="v">5</div><div class="l">今日 Runs</div><div class="b">1 完成 · 1 預算耗盡 · 1 等待 · 1 中斷 · 1 運行</div></div>
+      <div class="kpi"><div class="v">11</div><div class="l">今日產物</div><div class="b">報告 4 · 差異 3 · 快照 2 · 草稿 2</div></div>
+      <div class="kpi"><div class="v">1</div><div class="l">中斷／失敗</div><div class="b">1 中斷待核對 · 0 失敗</div></div>
+    </div>
+
+    <div class="sec"><h2>需要你處理</h2><span class="note">3 項</span></div>
+    <div class="grp">
+      <div class="row"><span class="idot" style="--c:#e07fb5"></span><div class="grow"><div class="nm">郵件草稿待確認</div><div class="sub">CRM 召回郵件 · 12 封草稿 v2 · 第一階段只產生草稿，不自動發送</div></div><div style="text-align:right"><span class="chip warn"><span class="st warn" aria-hidden="true">!</span>等待人工閘門</span><div class="sub" style="margin-top:3px">14:06 起 · 已等 1 小時 52 分</div></div><a class="btn" href="#">審閱草稿</a></div>
+      <div class="row"><span class="idot" style="--c:#ee8f66"></span><div class="grow"><div class="nm">hotfix PR 待審核</div><div class="sub">生產日誌 · BUG-4821 · 流程狀態以 cc-nexs 為準</div></div><div style="text-align:right"><span class="chip warn"><span class="st warn" aria-hidden="true">!</span>等待 cc-nexs 審核</span><div class="sub" style="margin-top:3px">09:34 起</div></div><a class="btn" href="#">在 cc-nexs 開啟</a></div>
+      <div class="row"><span class="idot" style="--c:#8b8b94"></span><div class="grow"><div class="nm">昨日日報的飛書投遞結果未知</div><div class="sub">每日摘要 · 10-09 18:00 · 請求逾時，可能已送達</div></div><div style="text-align:right"><span class="chip warn"><span class="st lost" aria-hidden="true">?</span>投遞未知</span></div><div style="display:flex;gap:6px"><a class="btn" href="#">核對</a><a class="btn" href="#">補送</a></div></div>
+    </div>
+
+    <div class="sec"><h2>今日 Runs</h2><span class="note">5 次 · 1 運行中</span></div>
+    <div class="grp">
+      <div class="row r"><div style="display:flex;align-items:center;gap:10px;min-width:0"><span class="idot" style="--c:#4cc2b0"></span><div><div class="nm">SEO / GEO 可見度</div><div class="sub mono">seo-1530-b7</div></div></div><span class="sx"><span class="st run" aria-hidden="true">●</span>運行中</span><span class="chip mut">尚無結果</span><div><div class="sub t2">第 1 輪 · 技術驗證</div></div><div class="c-time"><div class="sub t2">15:30 起</div></div></div>
+      <div class="row r"><div style="display:flex;align-items:center;gap:10px;min-width:0"><span class="idot" style="--c:#7ea6f5"></span><div><div class="nm">React Doctor 100/100</div><div class="sub mono">rd-1100-e4</div></div></div><span class="sx"><span class="st ok" aria-hidden="true">✓</span>已結束</span><span class="chip warn">預算耗盡</span><div><div class="sub t2">3 / 3 輪 · 71 → 84</div></div><div class="c-time"><div class="sub t2">11:00 起</div></div></div>
+      <div class="row r"><div style="display:flex;align-items:center;gap:10px;min-width:0"><span class="idot" style="--c:#ee8f66"></span><div><div class="nm">生產日誌 ERROR／WARN</div><div class="sub mono">log-0900-9f</div></div></div><span class="sx"><span class="st ok" aria-hidden="true">✓</span>已結束</span><span class="chip ok">完成</span><div><div class="sub t2">14 個指紋 · 3 個新增</div></div><div class="c-time"><div class="sub t2">09:00 起</div></div></div>
+      <div class="row r"><div style="display:flex;align-items:center;gap:10px;min-width:0"><span class="idot" style="--c:#4cc2b0"></span><div><div class="nm">SEO / GEO 可見度</div><div class="sub mono">seo-0800-a1</div></div></div><span class="sx"><span class="st lost" aria-hidden="true">?</span>已中斷</span><span class="chip warn">待核對</span><div><div class="sub t2">心跳逾時 · 最後事件 08:19</div></div><div class="c-time"><div class="sub t2">08:00 起</div></div></div>
+    </div>
+  </main>
+</div>
+</x-dc>
+
+</body>
+</html>

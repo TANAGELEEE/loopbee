@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>手機 Run 詳情</title>
+
+<link rel="stylesheet" href="./loop.css">
+</head>
+<body>
+<x-dc>
+
+<style>body{margin:0}.vf{display:flex;flex-direction:column;gap:0}.vn{display:flex;gap:12px;align-items:flex-start;position:relative;padding-bottom:14px}.vn:not(:last-child)::before{content:"";position:absolute;left:7px;top:18px;bottom:0;border-left:1.5px solid var(--line)}.vn.lb::before{border-left-style:dashed}</style>
+
+<div class="lp m" style="width:390px;min-height:1300px">
+  <header class="top">
+    <div class="brand"><a href="#" aria-label="返回" style="font-size:20px;color:var(--ctl);margin-right:2px">‹</a>Run</div>
+    <div class="tools"><button class="ib" aria-label="更多操作">⋯</button></div>
+  </header>
+
+  <main class="page">
+    <div class="card">
+      <div class="hd" style="gap:8px"><span class="idot" style="--c:#5b8def"></span><h1 style="font-size:17px">React Doctor 100/100</h1></div>
+      <div class="mono" style="color:var(--muted);margin:4px 0 8px;font-size:12px">rd-1100-e4 · v7</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px"><span class="sx"><span class="st ok" aria-hidden="true">✓</span>已結束</span><span class="chip warn">預算耗盡</span></div>
+      <div class="kv" style="margin-top:10px;font-size:13px"><span><b>時間</b>11:00 – 11:52（52 分）</span><span><b>觸發</b>定時</span><span><b>宿主</b>codex · lee-mac</span></div>
+    </div>
+
+    <div class="sec"><h2>流程</h2><span class="note">第 3 輪停止</span></div>
+    <div class="card sm">
+      <div class="vf">
+        <div class="vn"><span class="st ok" aria-hidden="true">✓</span><div><div class="nm">掃描</div><div class="sub">71/100 · 41 項</div></div></div>
+        <div class="vn"><span class="st ok" aria-hidden="true">✓</span><div><div class="nm">小批修復</div><div class="sub">共 23 項 · 14 個檔案</div></div></div>
+        <div class="vn"><span class="st err" aria-hidden="true">✕</span><div><div class="nm">測試</div><div class="sub">第 3 輪失敗 · 該批已回退</div></div></div>
+        <div class="vn lb"><span class="st ok" aria-hidden="true">✓</span><div><div class="nm">重掃</div><div class="sub">84/100 · 未達標 → 預算已用盡</div></div></div>
+        <div class="vn" style="padding-bottom:0"><span class="st ok" aria-hidden="true">✓</span><div><div class="nm">彙總</div><div class="sub">report.md 已產生</div></div></div>
+      </div>
+    </div>
+
+    <div class="sec"><h2>每輪</h2></div>
+    <div class="grp">
+      <a class="row" href="#"><div class="grow"><div class="nm">第 1 輪</div><div class="sub">11:00 – 11:17 · 71 → 79</div></div><span class="chip ok">通過</span><span class="sub">›</span></a>
+      <a class="row" href="#"><div class="grow"><div class="nm">第 2 輪</div><div class="sub">11:17 – 11:36 · 79 → 84</div></div><span class="chip ok">通過</span><span class="sub">›</span></a>
+      <a class="row" href="#" style="background:var(--acc-bg)"><div class="grow"><div class="nm">第 3 輪</div><div class="sub">11:36 – 11:52 · 84 → 84</div></div><span class="chip err">測試失敗</span><span class="sub">›</span></a>
+    </div>
+
+    <div class="sec"><h2>停止原因</h2></div>
+    <div class="grp">
+      <div class="row" style="align-items:flex-start"><span class="st warn" aria-hidden="true" style="margin-top:3px">!</span><div class="grow"><div class="nm">預算耗盡（3 / 3 輪）</div><div class="sub t2">分數 71 → 84，目標 100。剩餘 9 項，其中 3 項需要例外說明。</div></div></div>
+      <div class="row" style="align-items:flex-start"><span class="st idle" aria-hidden="true" style="margin-top:3px"> </span><div class="grow"><div class="nm">下一次：明天 11:00</div><div class="sub t2">自動接續剩餘 6 項</div></div></div>
+    </div>
+
+    <div class="sec"><h2>產物</h2><span class="note">8 件</span></div>
+    <div class="grp">
+      <a class="row" href="#"><span class="tag">MD</span><div class="grow"><div class="nm">report.md</div><div class="sub">4 KB · 未歸檔</div></div><span class="sub">›</span></a>
+      <a class="row" href="#"><span class="tag">TXT</span><div class="grow"><div class="nm">test-r3.txt</div><div class="sub">18 KB · 30 天後清理</div></div><span class="sub">›</span></a>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:16px"><a class="btn" href="#" style="flex:1">重新執行</a><a class="btn pri" href="#" style="flex:1">繼續（+2 輪）</a></div>
+  </main>
+</div>
+</x-dc>
+
+</body>
+</html>

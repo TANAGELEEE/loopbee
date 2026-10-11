@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>Loop 詳情</title>
+
+<link rel="stylesheet" href="./loop.css">
+</head>
+<body>
+<x-dc>
+
+<style>body{margin:0}</style>
+
+<div class="lp" style="min-height:1700px">
+  <header class="top">
+    <div class="brand"><span class="mark" aria-hidden="true"></span>Loopbee</div>
+    <nav class="nav" aria-label="主導覽">
+      <a href="Main.dc.html">今日</a>
+      <a href="Loops.dc.html" class="on" aria-current="page">Loopbee</a>
+      <a href="Runs.dc.html">Runs</a>
+      <a href="Artifacts.dc.html">產物</a>
+      <a href="Digest.dc.html">日報</a>
+    </nav>
+    <div class="tools">
+      <a class="btn" href="Import.dc.html">＋ 新增 Loop</a>
+      <button class="ib" aria-label="設定"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+    </div>
+  </header>
+
+  <main class="page">
+    <div class="sec" style="margin-top:6px"><h2><a href="Loops.dc.html">Loopbee</a> › React Doctor 100/100</h2></div>
+
+    <div class="card">
+      <div class="hd">
+        <span class="idot" style="--c:#5b8def;width:10px;height:10px"></span>
+        <h1>React Doctor 100/100</h1>
+        <span class="chip">版本 v7 ▾</span>
+        <span class="sx"><span class="st ok" aria-hidden="true">✓</span>排程啟用</span>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <a class="btn pri" href="#">手動執行</a>
+          <a class="btn" href="#">暫停後續排程</a>
+          <a class="btn ghost" href="#">編輯</a>
+        </div>
+      </div>
+      <div class="sub t2" style="margin-top:6px">固定版本掃描 web-app 的 React 診斷，小批修復、測試、重掃，直到 100 分或預算耗盡。</div>
+      <div class="kv" style="margin-top:10px">
+        <span><b>來源</b>Loopy 模板（已改寫）</span>
+        <span><b>排程</b>每日 11:00 · Asia/Taipei</span>
+        <span><b>下次</b>明天 11:00</span>
+        <span><b>最近結果</b>今日 11:00 · 預算耗盡</span>
+      </div>
+    </div>
+
+    <div class="sec"><h2>流程定義</h2><span class="note">由 loop.yaml 生成 · 同一份定義驅動看板 · 運行時蜜蜂沿連線飛行</span></div>
+    <div class="card sm" style="padding-bottom:12px"><div class="fx"><input type="radio" name="fx" id="fx-idle" aria-label="閒置"><input type="radio" name="fx" id="fx-run" checked aria-label="運行中"><input type="radio" name="fx" id="fx-wait" aria-label="等待人工"><input type="radio" name="fx" id="fx-fail" aria-label="驗證失敗"><div class="fxbar"><span class="seg" role="presentation"><label for="fx-idle">閒置</label><label for="fx-run">運行中</label><label for="fx-wait">等待人工</label><label for="fx-fail">驗證失敗</label></span><span class="sub">原型預覽：真實應用由 Run 狀態驅動，沒有這個切換</span></div><div class="stage sg-idle"><div class="flow" role="list"><div class="node"><span><span class="k">observe</span><span class="n">掃描</span></span></div><span class="lk "></span><div class="node"><span><span class="k">act</span><span class="n">小批修復</span></span></div><span class="lk "></span><div class="node"><span><span class="k">verify</span><span class="n">測試</span></span></div><span class="lk "></span><div class="node"><span><span class="k">verify</span><span class="n">重掃</span></span></div><span class="lk dash"></span><div class="node"><span><span class="k">summarize</span><span class="n">彙總</span></span></div></div><div class="loopback" style="margin-left:284px;width:416px"><i></i><span>分數 < 100 且輪次 < 3 → 回到小批修復</span></div><hr class="hair" style="margin:10px 0 4px"><div class="topo" role="img" aria-label="執行拓撲：排程觸發、Loopbee 核心、Codex CLI"><div class="tn"><div style="color:var(--ctl)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><div class="nm">排程觸發</div><span class="mono">每日 11:00 · 手動</span></div><span class="lk"></span><div class="tn core"><span class="mark xl" aria-hidden="true"></span><div class="nm" style="font-size:14px">Loopbee 核心</div><span class="mono">127.0.0.1:49213</span><div style="margin-top:8px"><span class="chip mut">閒置 0 / 2</span></div></div><div class="tl" aria-hidden="true"><svg viewBox="0 0 76 138"><path d="M0 69 C34 69 34 32 76 32"/><path d="M0 69 C34 69 34 106 76 106"/></svg></div><div class="ags"><div class="ag "><span class="idot" style="--c:#5b8def"></span><div class="grow"><div class="nm">Codex CLI</div><div class="sub mono" style="font-size:10.5px">codex exec · 沙箱 workspace-write</div></div><span class="sx"><span class="st idle" aria-hidden="true"></span>待命 · 下次 11:00</span><span class="pb"></span></div><div class="ag off"><span class="idot" style="--c:#c95b9a"></span><div class="grow"><div class="nm" style="color:var(--fg2)">Claude Code</div><div class="sub mono" style="font-size:10.5px">已偵測 · 此 Loop 未使用</div></div><span class="sx" style="color:var(--muted)">待命</span></div></div></div></div><div class="stage sg-run"><div class="flow" role="list"><div class="node done"><span class="st ok" aria-hidden="true">✓</span><span><span class="k">observe</span><span class="n">掃描</span></span></div><span class="lk done"></span><div class="node done"><span class="st ok" aria-hidden="true">✓</span><span><span class="k">act</span><span class="n">小批修復</span></span></div><span class="lk live"><span class="bee fly" style="--p:path('M0 10 L56 10');" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true"><g class="wg"><ellipse cx="9.2" cy="7.4" rx="3.2" ry="4.6" transform="rotate(-24 9.2 7.4)"/><ellipse cx="14.6" cy="6.8" rx="3.2" ry="4.4" transform="rotate(14 14.6 6.8)"/></g><ellipse class="bd" cx="12.2" cy="14.6" rx="7.2" ry="4.7"/><path class="sp" d="M10.1 10.5v8.2M14.1 10.4v8.4"/><circle class="hd" cx="19.8" cy="14.2" r="2.3"/><path class="sg" d="M5.1 14.6H2.6"/></svg></span></span><div class="node on" aria-current="step"><span class="st run" aria-hidden="true">●</span><span><span class="k">verify</span><span class="n">測試</span></span></div><span class="lk "></span><div class="node todo"><span><span class="k">verify</span><span class="n">重掃</span></span></div><span class="lk dash"></span><div class="node todo"><span><span class="k">summarize</span><span class="n">彙總</span></span></div></div><div class="loopback live" style="margin-left:284px;width:416px"><i></i><span>第 2 / 3 輪 · 分數 84 → 目標 100</span></div><hr class="hair" style="margin:10px 0 4px"><div class="topo" role="img" aria-label="執行拓撲：排程觸發、Loopbee 核心、Codex CLI"><div class="tn"><div style="color:var(--ctl)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><div class="nm">排程觸發</div><span class="mono">每日 11:00 · 手動</span></div><span class="lk done"></span><div class="tn core"><span class="mark xl" aria-hidden="true"></span><div class="nm" style="font-size:14px">Loopbee 核心</div><span class="mono">127.0.0.1:49213</span><div style="margin-top:8px"><span class="chip ok"><span class="st run" aria-hidden="true">●</span>運行中 1 / 2</span></div></div><div class="tl" aria-hidden="true"><svg viewBox="0 0 76 138"><path class="live" d="M0 69 C34 69 34 32 76 32"/><path d="M0 69 C34 69 34 106 76 106"/></svg><span class="bee fly" style="--p:path('M0 69 C34 69 34 32 76 32');--t:2.4s" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true"><g class="wg"><ellipse cx="9.2" cy="7.4" rx="3.2" ry="4.6" transform="rotate(-24 9.2 7.4)"/><ellipse cx="14.6" cy="6.8" rx="3.2" ry="4.4" transform="rotate(14 14.6 6.8)"/></g><ellipse class="bd" cx="12.2" cy="14.6" rx="7.2" ry="4.7"/><path class="sp" d="M10.1 10.5v8.2M14.1 10.4v8.4"/><circle class="hd" cx="19.8" cy="14.2" r="2.3"/><path class="sg" d="M5.1 14.6H2.6"/></svg></span></div><div class="ags"><div class="ag on"><span class="idot" style="--c:#5b8def"></span><div class="grow"><div class="nm">Codex CLI</div><div class="sub mono" style="font-size:10.5px">codex exec · 沙箱 workspace-write</div></div><span class="sx"><span class="st run" aria-hidden="true">●</span>運行中 · 第 2 輪 · 41 筆事件</span><span class="pb run"><i></i></span></div><div class="ag off"><span class="idot" style="--c:#c95b9a"></span><div class="grow"><div class="nm" style="color:var(--fg2)">Claude Code</div><div class="sub mono" style="font-size:10.5px">已偵測 · 此 Loop 未使用</div></div><span class="sx" style="color:var(--muted)">待命</span></div></div></div></div><div class="stage sg-wait"><div class="flow" role="list"><div class="node done"><span class="st ok" aria-hidden="true">✓</span><span><span class="k">observe</span><span class="n">掃描</span></span></div><span class="lk done"></span><div class="node wait" aria-current="step"><span class="st warn" aria-hidden="true">!</span><span><span class="k">act</span><span class="n">小批修復</span></span><span class="bee perch" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true"><g class="wg"><ellipse cx="9.2" cy="7.4" rx="3.2" ry="4.6" transform="rotate(-24 9.2 7.4)"/><ellipse cx="14.6" cy="6.8" rx="3.2" ry="4.4" transform="rotate(14 14.6 6.8)"/></g><ellipse class="bd" cx="12.2" cy="14.6" rx="7.2" ry="4.7"/><path class="sp" d="M10.1 10.5v8.2M14.1 10.4v8.4"/><circle class="hd" cx="19.8" cy="14.2" r="2.3"/><path class="sg" d="M5.1 14.6H2.6"/></svg></span></div><span class="lk "></span><div class="node todo"><span><span class="k">verify</span><span class="n">測試</span></span></div><span class="lk "></span><div class="node todo"><span><span class="k">verify</span><span class="n">重掃</span></span></div><span class="lk dash"></span><div class="node todo"><span><span class="k">summarize</span><span class="n">彙總</span></span></div></div><div class="loopback" style="margin-left:284px;width:416px"><i></i><span>分數 < 100 且輪次 < 3 → 回到小批修復</span></div><hr class="hair" style="margin:10px 0 4px"><div class="topo" role="img" aria-label="執行拓撲：排程觸發、Loopbee 核心、Codex CLI"><div class="tn"><div style="color:var(--ctl)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><div class="nm">排程觸發</div><span class="mono">每日 11:00 · 手動</span></div><span class="lk done"></span><div class="tn core"><span class="mark xl" aria-hidden="true"></span><div class="nm" style="font-size:14px">Loopbee 核心</div><span class="mono">127.0.0.1:49213</span><div style="margin-top:8px"><span class="chip warn"><span class="st warn" aria-hidden="true">!</span>等待你 1</span></div><span class="bee perch" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true"><g class="wg"><ellipse cx="9.2" cy="7.4" rx="3.2" ry="4.6" transform="rotate(-24 9.2 7.4)"/><ellipse cx="14.6" cy="6.8" rx="3.2" ry="4.4" transform="rotate(14 14.6 6.8)"/></g><ellipse class="bd" cx="12.2" cy="14.6" rx="7.2" ry="4.7"/><path class="sp" d="M10.1 10.5v8.2M14.1 10.4v8.4"/><circle class="hd" cx="19.8" cy="14.2" r="2.3"/><path class="sg" d="M5.1 14.6H2.6"/></svg></span></div><div class="tl" aria-hidden="true"><svg viewBox="0 0 76 138"><path d="M0 69 C34 69 34 32 76 32"/><path d="M0 69 C34 69 34 106 76 106"/></svg></div><div class="ags"><div class="ag "><span class="idot" style="--c:#5b8def"></span><div class="grow"><div class="nm">Codex CLI</div><div class="sub mono" style="font-size:10.5px">codex exec · 沙箱 workspace-write</div></div><span class="sx"><span class="st ok" aria-hidden="true">✓</span>本段完成 · 進程已退出 · 等你批准</span><span class="pb"><i style="width:100%"></i></span></div><div class="ag off"><span class="idot" style="--c:#c95b9a"></span><div class="grow"><div class="nm" style="color:var(--fg2)">Claude Code</div><div class="sub mono" style="font-size:10.5px">已偵測 · 此 Loop 未使用</div></div><span class="sx" style="color:var(--muted)">待命</span></div></div></div></div><div class="stage sg-fail"><div class="flow" role="list"><div class="node done"><span class="st ok" aria-hidden="true">✓</span><span><span class="k">observe</span><span class="n">掃描</span></span></div><span class="lk done"></span><div class="node done"><span class="st ok" aria-hidden="true">✓</span><span><span class="k">act</span><span class="n">小批修復</span></span></div><span class="lk done"></span><div class="node fail" aria-current="step"><span class="st err" aria-hidden="true">×</span><span><span class="k">verify</span><span class="n">測試</span></span></div><span class="lk "></span><div class="node todo"><span><span class="k">verify</span><span class="n">重掃</span></span></div><span class="lk dash"></span><div class="node todo"><span><span class="k">summarize</span><span class="n">彙總</span></span></div></div><div class="loopback" style="margin-left:284px;width:416px"><i></i><span>測試未通過 · 已回滾 · 本輪結束</span></div><hr class="hair" style="margin:10px 0 4px"><div class="topo" role="img" aria-label="執行拓撲：排程觸發、Loopbee 核心、Codex CLI"><div class="tn"><div style="color:var(--ctl)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><div class="nm">排程觸發</div><span class="mono">每日 11:00 · 手動</span></div><span class="lk done"></span><div class="tn core"><span class="mark xl" aria-hidden="true"></span><div class="nm" style="font-size:14px">Loopbee 核心</div><span class="mono">127.0.0.1:49213</span><div style="margin-top:8px"><span class="chip err"><span class="st err" aria-hidden="true">×</span>驗證失敗</span></div></div><div class="tl" aria-hidden="true"><svg viewBox="0 0 76 138"><path class="donep" d="M0 69 C34 69 34 32 76 32"/><path d="M0 69 C34 69 34 106 76 106"/></svg></div><div class="ags"><div class="ag err"><span class="idot" style="--c:#5b8def"></span><div class="grow"><div class="nm">Codex CLI</div><div class="sub mono" style="font-size:10.5px">codex exec · 沙箱 workspace-write</div></div><span class="sx"><span class="st err" aria-hidden="true">×</span>verify 失敗 · 已回滾到基線</span><span class="pb"><i style="width:100%;background:var(--err)"></i></span></div><div class="ag off"><span class="idot" style="--c:#c95b9a"></span><div class="grow"><div class="nm" style="color:var(--fg2)">Claude Code</div><div class="sub mono" style="font-size:10.5px">已偵測 · 此 Loop 未使用</div></div><span class="sx" style="color:var(--muted)">待命</span></div></div></div></div></div></div>
+
+    <div class="cols">
+      <div class="main">
+        <div class="sec"><h2>定義摘要</h2><span class="note">v7 · 3f9c1e</span></div>
+        <div class="grp">
+          <div class="row" style="align-items:flex-start"><div style="width:92px" class="sub">執行目標</div><div class="grow"><div class="nm">web-app · main 分支衍生 loop/react-doctor</div><div class="sub">範圍 src/ · 鎖 <span class="mono">repo:web-app</span>（避免與日誌修復同時改同一倉庫）</div></div></div>
+          <div class="row" style="align-items:flex-start"><div style="width:92px" class="sub">工具需求</div><div class="grow">
+            <div style="display:flex;flex-wrap:wrap;gap:6px"><span class="chip ok"><span class="st ok" aria-hidden="true">✓</span>react-doctor 1.4.2</span><span class="chip ok"><span class="st ok" aria-hidden="true">✓</span>pnpm test</span><span class="chip ok"><span class="st ok" aria-hidden="true">✓</span>git</span></div>
+            <div class="sub" style="margin-top:4px">皆在宿主允許清單內，定義無法自行擴大權限。</div></div></div>
+          <div class="row" style="align-items:flex-start"><div style="width:92px" class="sub">驗收條件</div><div class="grow"><div class="nm">分數 = 100 且測試退出碼 = 0</div><div class="sub">兩者都由工具直接取得；不接受以忽略規則換取分數，例外需記錄理由。</div></div></div>
+          <div class="row" style="align-items:flex-start"><div style="width:92px" class="sub">執行邊界</div><div class="grow"><div class="nm">最多 3 輪 · 90 分鐘 · 連續 1 輪無進展即停</div><div class="sub">停止時記錄業務結果：完成／無進展／預算耗盡</div></div></div>
+          <div class="row" style="align-items:flex-start"><div style="width:92px" class="sub">動作權限</div><div class="grow"><div class="nm">自動：修改工作樹、執行測試、提交到 loop 分支</div><div class="sub">人工閘門：合併 PR 與調整忽略規則</div></div></div>
+          <div class="row" style="align-items:flex-start"><div style="width:92px" class="sub">產物保留</div><div class="grow"><div class="nm">報告與摘要長期保留 · 原始測試輸出 30 天</div><div class="sub">過期後保留索引與 sha256，看板顯示「已清理」</div></div></div>
+        </div>
+
+        <div class="sec"><h2>歷史</h2><span class="note">最近 5 次</span><div class="act"><a href="#">全部 Runs ›</a></div></div>
+        <div class="grp">
+          <a class="row r link" href="RunDetail.dc.html">
+            <div><div class="nm">10-10 11:00</div><div class="sub mono">rd-1100-e4 · v7</div></div>
+            <span class="sx"><span class="st ok" aria-hidden="true">✓</span>已結束</span><span class="chip warn">預算耗盡</span>
+            <div class="sub t2">71 → 84 · 3 / 3 輪</div><div class="c-time sub">52 分</div>
+          </a>
+          <a class="row r link" href="#">
+            <div><div class="nm">10-09 11:00</div><div class="sub mono">rd-1100-d1 · v7</div></div>
+            <span class="sx"><span class="st ok" aria-hidden="true">✓</span>已結束</span><span class="chip warn">預算耗盡</span>
+            <div class="sub t2">66 → 71 · 3 / 3 輪</div><div class="c-time sub">48 分</div>
+          </a>
+          <a class="row r link" href="#">
+            <div><div class="nm">10-08 11:00</div><div class="sub mono">rd-1100-c7 · v6</div></div>
+            <span class="sx"><span class="st ok" aria-hidden="true">✓</span>已結束</span><span class="chip warn">預算耗盡</span>
+            <div class="sub t2">63 → 66 · 3 / 3 輪</div><div class="c-time sub">50 分</div>
+          </a>
+          <a class="row r link" href="#">
+            <div><div class="nm">10-07 11:00</div><div class="sub mono">rd-1100-b3 · v6</div></div>
+            <span class="sx"><span class="st err" aria-hidden="true">✕</span>已結束</span><span class="chip err">驗證失敗</span>
+            <div class="sub t2">58 → 58 · 測試持續失敗</div><div class="c-time sub">34 分</div>
+          </a>
+          <a class="row r link" href="#">
+            <div><div class="nm">10-06 11:00</div><div class="sub mono">rd-1100-a8 · v6</div></div>
+            <span class="sx"><span class="st ok" aria-hidden="true">✓</span>已結束</span><span class="chip warn">預算耗盡</span>
+            <div class="sub t2">55 → 58 · 3 / 3 輪</div><div class="c-time sub">47 分</div>
+          </a>
+        </div>
+      </div>
+
+      <div class="side">
+        <div class="sec"><h2>效果趨勢</h2><span class="note">每次 Run 結束時的分數 · 最近 7 次</span></div>
+        <div class="card sm">
+          <svg class="chart" viewBox="0 0 340 160" role="img" aria-label="React Doctor 分數趨勢：10 月 4 日 52 分，逐日上升到 10 月 10 日 84 分，目標 100 分">
+            <line x1="20" y1="20" x2="330" y2="20" stroke="#76767f" stroke-width="1" stroke-dasharray="4 4"/>
+            <line x1="20" y1="75" x2="330" y2="75" stroke="#e3e3e8" stroke-width="1"/>
+            <line x1="20" y1="130" x2="330" y2="130" stroke="#e3e3e8" stroke-width="1"/>
+            <text x="20" y="14" font-size="10" fill="#76767f">目標 100</text>
+            <text x="334" y="78" font-size="10" fill="#76767f" text-anchor="start"></text>
+            <polyline points="30,108 80,102.5 130,97 180,87.8 230,82.3 280,73.2 320,49.3" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+            <g fill="#ffffff" stroke="#4f46e5" stroke-width="2"><circle cx="30" cy="108" r="3.5"/><circle cx="80" cy="102.5" r="3.5"/><circle cx="130" cy="97" r="3.5"/><circle cx="180" cy="87.8" r="3.5"/><circle cx="230" cy="82.3" r="3.5"/><circle cx="280" cy="73.2" r="3.5"/></g>
+            <circle cx="320" cy="49.3" r="4.5" fill="#4f46e5"/>
+            <text x="320" y="40" font-size="11" font-weight="600" fill="#1c1c21" text-anchor="middle">84</text>
+            <g font-size="10" fill="#76767f" text-anchor="middle"><text x="30" y="148">10-04</text><text x="80" y="148">05</text><text x="130" y="148">06</text><text x="180" y="148">07</text><text x="230" y="148">08</text><text x="280" y="148">09</text><text x="320" y="148">10</text></g>
+          </svg>
+          <div class="sub" style="margin-top:6px">單位：分（0–100）。10-07 掃描有效但測試失敗，分數未提升，仍照實記錄。</div>
+        </div>
+
+        <div class="sec"><h2>排程</h2></div>
+        <div class="grp">
+          <div class="row"><div class="grow"><div class="nm">每日 11:00</div><div class="sub">Asia/Taipei · 由 Loopbee 內建排程觸發</div></div><button class="tg" role="switch" aria-checked="true" aria-label="啟用排程"></button></div>
+          <div class="row"><div class="grow"><div class="nm">執行代理</div><div class="sub">Codex CLI（預設）· 可在此 Loop 覆寫</div></div><a class="btn sm" href="SettingsAgents.dc.html">代理設定</a></div>
+          <div class="row"><div class="grow"><div class="nm">錯過執行</div><div class="sub">喚醒後補跑最近 1 次，其餘標記為「錯過」</div></div></div>
+        </div>
+
+        <div class="sec"><h2>版本</h2></div>
+        <div class="grp">
+          <div class="row"><span class="chip ok">目前</span><div class="grow"><div class="nm">v7</div><div class="sub">10-08 · 固定 react-doctor 1.4.2</div></div></div>
+          <div class="row"><span class="chip">v6</span><div class="grow"><div class="nm">v6</div><div class="sub">10-01 · 3 個 Run 使用</div></div><a class="btn sm" href="#">比較</a></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="src"><span>定義 react-doctor · v7（可匯出為 loop.yaml 到歸檔位置）</span><span>已運行 Run 保存各自的定義快照，修改不影響歷史</span></div>
+  </main>
+</div>
+</x-dc>
+
+</body>
+</html>

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>設定 一般</title>
+
+<link rel="stylesheet" href="./loop.css">
+</head>
+<body>
+<x-dc>
+
+<style>body{margin:0}</style>
+
+<div class="lp" style="min-height:1440px">
+  <header class="top">
+    <div class="brand"><span class="mark" aria-hidden="true"></span>Loopbee</div>
+    <nav class="nav" aria-label="主導覽"><a href="Main.dc.html">今日</a><a href="Loops.dc.html">Loopbee</a><a href="Runs.dc.html">Runs</a><a href="Artifacts.dc.html">產物</a><a href="Digest.dc.html">日報</a></nav>
+    <div class="tools">
+      <button class="btn ghost sm" aria-label="語言">繁 ▾</button>
+      <button class="ib" aria-label="設定" aria-current="page" style="background:var(--card);box-shadow:0 0 0 1px var(--line)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+    </div>
+  </header>
+
+  <main class="page" style="max-width:1200px">
+    <div class="sw" style="margin-top:12px">
+      <nav class="smenu" aria-label="設定分類">
+        <a href="SettingsGeneral.dc.html" class="on" aria-current="page">一般</a>
+        <a href="SettingsAgents.dc.html">代理 Agents</a>
+        <a href="SettingsNotify.dc.html">通知渠道</a>
+        <a href="SettingsTeam.dc.html">團隊同步</a>
+        <a href="#data">資料與歸檔</a>
+        <a href="#run">排程與運行</a>
+        <a href="#">關於</a>
+      </nav>
+
+      <div class="spane">
+        <div class="sec" style="margin-top:0"><h2>語言與地區</h2><span class="note">立即生效，不需重啟</span></div>
+        <div class="grp">
+          <div class="fld"><span class="lb">介面語言</span><div><span class="seg" role="radiogroup" aria-label="介面語言"><button class="on" role="radio" aria-checked="true">繁體中文</button><button role="radio" aria-checked="false">简体中文</button><button role="radio" aria-checked="false">English</button><button role="radio" aria-checked="false">跟隨系統</button></span></div></div>
+          <div class="fld"><span class="lb">日報與通知語言</span><div><span class="seg" role="radiogroup" aria-label="日報語言"><button class="on" role="radio" aria-checked="true">跟隨介面</button><button role="radio" aria-checked="false">繁體中文</button><button role="radio" aria-checked="false">English</button></span></div><span class="hp">與介面語言獨立，例如介面用中文、飛書日報用英文。</span></div>
+          <div class="fld"><span class="lb">報告語言（交給代理）</span><div><span class="seg" role="radiogroup" aria-label="報告語言"><button class="on" role="radio" aria-checked="true">跟隨介面</button><button role="radio" aria-checked="false">English</button></span></div><span class="hp">寫進代理的提示詞。代理產生的報告內容不會被事後翻譯。</span></div>
+          <div class="fld"><span class="lb">時區與格式</span><div class="nm" style="font-weight:450">Asia/Taipei · 24 小時制 · 週一為每週第一天</div></div>
+        </div>
+        <div class="bn" style="margin-top:8px"><span class="st ok" aria-hidden="true" style="margin-top:2px">✓</span><div style="font-size:12px">狀態、停止原因、結果類型都以代碼儲存，顯示時才翻譯；因此切換語言時，歷史記錄的標籤會一起變。Loop 名稱和說明是你自己寫的內容，不會被翻譯。</div></div>
+
+        <div class="sec"><h2>動效</h2><span class="note">蜜蜂沿連線飛行的示意動畫</span></div>
+        <div class="grp">
+          <div class="fld"><span class="lb">連線動效</span><div><span class="seg" role="radiogroup" aria-label="連線動效"><button class="on" role="radio" aria-checked="true">跟隨系統</button><button role="radio" aria-checked="false">開</button><button role="radio" aria-checked="false">關</button></span></div><span class="hp">系統啟用「減少動態效果」時預設為關：蜜蜂停在連線中點，虛線不流動。視窗在背景或最小化時一律暫停。狀態仍以圖示＋文字＋顏色表達，動效純屬裝飾。</span></div>
+        </div>
+
+        <div class="sec" id="data"><h2>資料位置</h2><span class="note">應用的權威資料，Loopbee 自己管理</span></div>
+        <div class="grp">
+          <div class="fld"><span class="lb">應用資料目錄</span><div style="display:flex;gap:8px;align-items:center"><span class="mono" style="color:var(--fg2)">~/.local/share/loopbee</span><span class="chip">82 MB</span></div><span class="hp">資料庫、證據檔、日誌；設定檔在 ~/.config/loopbee（遵循 XDG）。代理的沙箱預設不可寫入這兩處。</span></div>
+          <div class="fld"><span class="lb">自動備份</span><div class="nm" style="font-weight:450">每日一次 · 保留最近 7 份 · 升級資料庫前先備份</div></div>
+          <div class="fld"><span class="lb">資料保留</span><div style="display:flex;flex-wrap:wrap;gap:6px"><span class="chip">事件明細 90 天</span><span class="chip">原始證據 30 天</span><span class="chip">報告與摘要 永久</span></div><span class="hp">過期後保留索引與雜湊，看板顯示「已清理」。</span></div>
+          <div style="display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--line)"><a class="btn sm" href="#">在 Finder 顯示</a><a class="btn sm" href="#">變更位置…</a><a class="btn sm" href="#">立即備份</a></div>
+        </div>
+
+        <div class="sec"><h2>本機歸檔（可選）</h2><span class="note">只寫到本機目錄；要與團隊共享請用「團隊同步」</span></div>
+        <div class="grp">
+          <div class="fld"><span class="lb">歸檔目錄</span><div style="display:flex;gap:8px;align-items:center"><span class="mono" style="color:var(--fg2)">~/all-docs/loopbee</span><a class="btn sm" href="#">選擇…</a><span class="chip ok"><span class="st ok" aria-hidden="true">✓</span>可寫入</span></div><span class="hp">任何目錄都可以，包括 all-docs 倉庫。留空即不歸檔。</span></div>
+          <div class="fld"><span class="lb">匯出內容</span><div style="display:flex;flex-wrap:wrap;gap:6px"><span class="chip ok">報告 Markdown</span><span class="chip ok">摘要 JSON</span><span class="chip ok">事件日誌（gz）</span><span class="chip mut">大型證據</span></div></div>
+          <div class="fld"><span class="lb">匯出時機</span><div><span class="seg" role="radiogroup" aria-label="匯出時機"><button role="radio" aria-checked="false">每個 Run 結束</button><button class="on" role="radio" aria-checked="true">每日一次</button><button role="radio" aria-checked="false">手動</button></span></div></div>
+          <div class="fld"><span class="lb">與團隊共享</span><div><a class="btn sm" href="SettingsTeam.dc.html">設定 Git 倉庫同步 ›</a></div><span class="hp">本機歸檔不碰 git。團隊共享走倉庫同步：發布前做敏感內容掃描，並分「執行者／檢視者」角色。</span></div>
+          <div class="fld"><span class="lb">重新匯入</span><div class="nm" style="font-weight:450">歸檔包可重新匯入，用來還原或搬到另一台電腦</div></div>
+        </div>
+
+        <div class="sec" id="run"><h2>排程與運行</h2></div>
+        <div class="grp">
+          <div class="fld"><span class="lb">關閉視窗時</span><div><span class="seg" role="radiogroup" aria-label="關閉視窗"><button class="on" role="radio" aria-checked="true">縮到選單列，排程繼續</button><button role="radio" aria-checked="false">結束應用</button></span></div><span class="hp">結束應用時若有運行中的 Run，會先詢問取消或等待。</span></div>
+          <div class="fld"><span class="lb">開機自動啟動</span><button class="tg" role="switch" aria-checked="true" aria-label="開機自動啟動"></button></div>
+          <div class="fld"><span class="lb">保持電腦喚醒</span><div style="display:flex;align-items:center;gap:10px"><button class="tg" role="switch" aria-checked="true" aria-label="保持喚醒"></button><span class="sub t2">僅在有排程時阻止閒置睡眠</span></div><span class="hp">電腦睡眠或關機時不會執行；蓋上螢幕仍會睡眠。</span></div>
+          <div class="fld"><span class="lb">錯過的執行</span><div class="nm" style="font-weight:450">喚醒後補跑最近 1 次，其餘標記為「錯過」</div></div>
+          <div class="fld"><span class="lb">同時運行上限</span><div class="nm" style="font-weight:450">2 個 · 同一目標的 Loop 不會並行（鎖）</div></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+
+</body>
+</html>

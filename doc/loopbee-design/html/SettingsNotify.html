@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>設定 通知渠道</title>
+
+<link rel="stylesheet" href="./loop.css">
+</head>
+<body>
+<x-dc>
+
+<style>body{margin:0}</style>
+
+<div class="lp" style="min-height:1180px">
+  <header class="top">
+    <div class="brand"><span class="mark" aria-hidden="true"></span>Loopbee</div>
+    <nav class="nav" aria-label="主導覽"><a href="Main.dc.html">今日</a><a href="Loops.dc.html">Loopbee</a><a href="Runs.dc.html">Runs</a><a href="Artifacts.dc.html">產物</a><a href="Digest.dc.html">日報</a></nav>
+    <div class="tools">
+      <button class="btn ghost sm" aria-label="語言">繁 ▾</button>
+      <button class="ib" aria-label="設定" aria-current="page" style="background:var(--card);box-shadow:0 0 0 1px var(--line)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+    </div>
+  </header>
+
+  <main class="page" style="max-width:1200px">
+    <div class="sw" style="margin-top:12px">
+      <nav class="smenu" aria-label="設定分類">
+        <a href="SettingsGeneral.dc.html">一般</a>
+        <a href="SettingsAgents.dc.html">代理 Agents</a>
+        <a href="SettingsNotify.dc.html" class="on" aria-current="page">通知渠道</a>
+        <a href="SettingsTeam.dc.html">團隊同步</a>
+        <a href="SettingsGeneral.dc.html">資料與歸檔</a>
+        <a href="SettingsGeneral.dc.html">排程與運行</a>
+        <a href="#">關於</a>
+      </nav>
+
+      <div class="spane">
+        <div class="sec" style="margin-top:0"><h2>通知渠道</h2><span class="note">每個渠道獨立設定、獨立投遞、獨立重試</span><div class="act"><a class="btn sm" href="#">＋ 新增渠道</a></div></div>
+
+        <div class="grp">
+          <div class="row" style="padding:12px 14px">
+            <span class="tag">桌面</span>
+            <div class="grow"><div class="nm">系統通知</div><div class="sub">需要處理、失敗與中斷時即時彈出 · 不含日報</div></div>
+            <span class="chip ok"><span class="st ok" aria-hidden="true">✓</span>可用</span>
+            <button class="tg" role="switch" aria-checked="true" aria-label="啟用系統通知"></button>
+          </div>
+          <div class="row" style="padding:12px 14px">
+            <span class="tag">飛書</span>
+            <div class="grow"><div class="nm">飛書 Webhook</div><div class="sub">日報 + 需要處理 · 已啟用簽名校驗 · 密鑰保存在系統鑰匙圈</div></div>
+            <span class="chip warn"><span class="st lost" aria-hidden="true">?</span>最近一次：投遞未知</span>
+            <a class="btn sm" href="#">測試發送</a>
+            <button class="tg" role="switch" aria-checked="true" aria-label="啟用飛書"></button>
+          </div>
+          <div class="row" style="padding:12px 14px;background:var(--card2)">
+            <span class="tag">TG</span>
+            <div class="grow"><div class="nm">Telegram Bot</div><div class="sub">日報 + 需要處理 + 失敗／中斷 · 正在編輯</div></div>
+            <span class="chip ok"><span class="st ok" aria-hidden="true">✓</span>最近一次：已送達</span>
+            <button class="tg" role="switch" aria-checked="true" aria-label="啟用 Telegram"></button>
+          </div>
+
+          <!-- 就地編輯器：保留列表上下文 -->
+          <div style="border-top:1px solid var(--line);background:var(--card2)">
+            <div class="fld"><label class="lb" for="tgtok">Bot Token</label><input id="tgtok" class="inp" value="••••••••••••••••••••••••" readonly><span class="hp">保存在系統鑰匙圈，不會顯示、不寫入日誌或歸檔。</span></div>
+            <div class="fld"><label class="lb" for="tgchat">Chat ID</label><input id="tgchat" class="inp" value="已綁定 · 個人對話" readonly><span class="hp">在 Telegram 對 Bot 發一則訊息後，按「綁定對話」自動取得。</span></div>
+            <div class="fld"><span class="lb">發送內容</span><div style="display:flex;flex-wrap:wrap;gap:8px"><span class="chip ok">每日摘要</span><span class="chip ok">需要人工處理（即時）</span><span class="chip ok">失敗／中斷（即時）</span><span class="chip mut">每個 Run 結果</span></div></div>
+            <div class="fld"><span class="lb">訊息語言</span><div><span class="seg" role="radiogroup" aria-label="訊息語言"><button class="on" role="radio" aria-checked="true">跟隨日報語言</button><button role="radio" aria-checked="false">繁體中文</button><button role="radio" aria-checked="false">English</button></span></div></div>
+            <div class="fld"><span class="lb">長內容處理</span><div class="nm" style="font-weight:450">超過渠道上限時拆成多則，保留「需要處理」在最前</div><span class="hp">各渠道實際長度上限在實作時依官方文件查證。</span></div>
+            <div class="fld"><span class="lb">安靜時段</span><div class="nm" style="font-weight:450">22:00 – 08:00 · 只延後「即時」通知，日報不受影響</div></div>
+            <div style="display:flex;gap:8px;justify-content:flex-end;padding:10px 14px;border-top:1px solid var(--line)"><span class="sub" style="align-self:center;margin-right:auto">上次測試：今天 16:02 · 已送達</span><a class="btn" href="#">測試發送</a><a class="btn" href="#">取消</a><a class="btn pri" href="#">儲存</a></div>
+          </div>
+
+          <div class="row" style="padding:12px 14px">
+            <span class="tag">Bark</span>
+            <div class="grow"><div class="nm">Bark（iOS 推送）</div><div class="sub">需要處理 + 失敗／中斷 · 伺服器 api.day.app · 分組「Loopbee」</div></div>
+            <span class="chip ok"><span class="st ok" aria-hidden="true">✓</span>最近一次：已送達</span>
+            <a class="btn sm" href="#">測試發送</a>
+            <button class="tg" role="switch" aria-checked="true" aria-label="啟用 Bark"></button>
+          </div>
+        </div>
+
+        <div class="sec"><h2>投遞規則</h2><span class="note">對所有渠道生效</span></div>
+        <div class="grp">
+          <div class="fld"><span class="lb">每日摘要時間</span><div class="nm" style="font-weight:450">18:00 · Asia/Taipei</div></div>
+          <div class="fld"><span class="lb">去重</span><div class="nm" style="font-weight:450">日期 + 渠道 + 內容雜湊 · 同一份摘要不會重複發送</div></div>
+          <div class="fld"><span class="lb">補送</span><div class="nm" style="font-weight:450">只重發摘要，不重跑業務 Loop</div><span class="hp">逾時且可能已送達的記為「投遞未知」，需要你核對後才補送。</span></div>
+          <div class="fld"><span class="lb">手機閱讀</span><div class="nm" style="font-weight:450">推送本身須自帶重點，不依賴桌面看板連結</div><span class="hp">桌面應用沒有對外網址；推送內容會包含待處理事項與關鍵結果。</span></div>
+        </div>
+
+        <div class="sec"><h2>最近投遞</h2></div>
+        <div class="grp">
+          <div class="row"><span class="st ok" aria-hidden="true">✓</span><div class="grow"><div class="nm">Telegram · 今日 16:02（測試）</div><div class="sub">已送達 · 1 則</div></div></div>
+          <div class="row"><span class="st lost" aria-hidden="true">?</span><div class="grow"><div class="nm">飛書 · 10-09 18:00 日報</div><div class="sub">請求逾時，可能已送達 · 尚未核對</div></div><a class="btn sm" href="#">核對</a><a class="btn sm" href="#">補送</a></div>
+          <div class="row"><span class="st err" aria-hidden="true">✕</span><div class="grow"><div class="nm">Bark · 10-08 14:10 需要處理</div><div class="sub">伺服器回應 5xx · 已自動重試 2 次</div></div><a class="btn sm" href="#">重試</a></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+
+</body>
+</html>

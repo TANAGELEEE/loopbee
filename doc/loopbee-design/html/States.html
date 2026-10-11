@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>狀態集</title>
+
+<link rel="stylesheet" href="./loop.css">
+</head>
+<body>
+<x-dc>
+
+<style>body{margin:0}.sg{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:16px}.sc{display:flex;flex-direction:column;gap:8px}.sc>.cap{font-size:11.5px;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;font-weight:650}</style>
+
+<div class="lp" style="min-height:900px;padding:28px 24px 36px">
+  <div style="max-width:1232px;margin:0 auto">
+    <div class="hd" style="margin-bottom:6px"><h1>狀態集</h1><span class="sub">無資料、尚未運行、資料過期、失聯與失敗必須看起來不同；每個狀態同時有圖示、文字與顏色。</span></div>
+    <div class="sg" style="margin-top:14px">
+
+      <div class="sc"><div class="cap">尚未運行（空）</div>
+        <div class="grp"><div class="empty"><div class="nm">Lighthouse 每日檢查還沒有運行紀錄</div><div class="sub" style="margin:4px 0 12px">這是草稿，尚未試跑。補齊 3 個缺口後可以手動試跑一次。</div><a class="btn pri" href="Import.dc.html">補齊缺口</a></div></div></div>
+
+      <div class="sc"><div class="cap">載入中</div>
+        <div class="grp">
+          <div class="row"><span class="sk" style="width:8px;height:8px;border-radius:50%"></span><div class="grow" style="display:flex;flex-direction:column;gap:7px"><span class="sk" style="width:46%"></span><span class="sk" style="width:72%;height:10px"></span></div><span class="sk" style="width:64px"></span></div>
+          <div class="row"><span class="sk" style="width:8px;height:8px;border-radius:50%"></span><div class="grow" style="display:flex;flex-direction:column;gap:7px"><span class="sk" style="width:38%"></span><span class="sk" style="width:60%;height:10px"></span></div><span class="sk" style="width:64px"></span></div>
+          <div class="row"><span class="sk" style="width:8px;height:8px;border-radius:50%"></span><div class="grow" style="display:flex;flex-direction:column;gap:7px"><span class="sk" style="width:52%"></span><span class="sk" style="width:66%;height:10px"></span></div><span class="sk" style="width:64px"></span></div>
+        </div>
+        <div class="sub">骨架保留列高與欄位，載入完成時不會位移；背景刷新只更新有變動的列。</div></div>
+
+      <div class="sc"><div class="cap">讀取失敗（不等於空）</div>
+        <div class="bn err" role="alert"><span class="st err" aria-hidden="true" style="margin-top:2px">✕</span><div><b style="font-weight:600">無法讀取 all-docs/loopbee</b><div style="font-size:12px;margin-top:2px">權限不足（EACCES）· 上次成功 15:57。列表保留上次資料，標示為舊資料，不顯示成「沒有 Loop」。</div><div style="display:flex;gap:6px;margin-top:8px"><a class="btn sm" href="#">重試</a><a class="btn sm" href="#">查看錯誤詳情</a></div></div></div></div>
+
+      <div class="sc"><div class="cap">資料過期</div>
+        <div class="bn warn" role="status"><span class="st warn" aria-hidden="true" style="margin-top:2px">!</span><div><b style="font-weight:600">索引已 3 小時 12 分未更新</b><div style="font-size:12px;margin-top:2px">執行機可能離線或休眠。以下是 12:45 的快照，運行中的狀態不可信。</div></div></div>
+        <div class="grp" style="opacity:.75"><div class="row"><span class="sx"><span class="st idle" aria-hidden="true"> </span>快照</span><div class="grow"><div class="nm">SEO / GEO 可見度</div><div class="sub">12:45 顯示為「運行中」</div></div><span class="chip mut">狀態待確認</span></div></div></div>
+
+      <div class="sc"><div class="cap">中斷／失聯（進程已退出或無回應）</div>
+        <div class="grp"><div class="row" style="align-items:flex-start"><span class="st lost" aria-hidden="true" style="margin-top:2px">?</span><div class="grow"><div class="nm">SEO / GEO · seo-0800-a1</div><div class="sub t2">最後事件 08:19，應用重啟後偵測到代理進程已不存在（pid 重用已核對）。需確認是否要接續。</div><div class="sub">待核對 · 不會顯示為正常運行</div><div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap"><a class="btn sm" href="#">查看最後事件</a><a class="btn sm" href="#">標記為中斷</a><a class="btn sm" href="#">繼續執行</a></div></div></div></div></div>
+
+      <div class="sc"><div class="cap">取消 ≠ 暫停排程</div>
+        <div class="grp">
+          <div class="row"><span class="st warn" aria-hidden="true">…</span><div class="grow"><div class="nm">取消中 · crm-1400-c2</div><div class="sub">已發出取消請求，等待程序退出後才顯示「已取消」</div></div></div>
+          <div class="row"><span class="st idle" aria-hidden="true">–</span><div class="grow"><div class="nm">已取消 · crm-1357-b9</div><div class="sub">程序已退出 · 保留已產生的 2 件產物</div></div></div>
+          <div class="row"><div class="grow"><div class="nm">暫停後續排程</div><div class="sub">只影響之後的觸發，不會中止正在運行的 Run</div></div><a class="btn sm" href="#">暫停</a></div>
+        </div></div>
+
+      <div class="sc"><div class="cap">無資料 ≠ 0</div>
+        <div class="kpis" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+          <div class="kpi"><div class="v">0</div><div class="l">新增問題指紋</div><div class="b">已查詢 · 確實為 0</div></div>
+          <div class="kpi"><div class="v" style="color:var(--muted)">—</div><div class="l">自然搜尋點擊</div><div class="b">本次未取得（授權已過期）</div></div>
+        </div>
+        <div class="sub">未取得的指標不寫成 0，並說明原因與覆蓋範圍。</div></div>
+
+      <div class="sc"><div class="cap">證據已過期清理</div>
+        <div class="grp"><div class="row"><span class="tag">TXT</span><div class="grow"><div class="nm">test-r3.txt</div><div class="sub">已按保留策略清理（30 天）· 索引與 sha256 仍保留</div></div><span class="chip mut">已清理</span></div>
+        <div class="row"><span class="tag">MD</span><div class="grow"><div class="nm">report.md</div><div class="sub">長期保留 · 已歸檔 a1b2c3d</div></div><span class="chip ok">已歸檔</span></div></div></div>
+
+      <div class="sc"><div class="cap">日報投遞結果</div>
+        <div class="grp">
+          <div class="row"><span class="st ok" aria-hidden="true">✓</span><div class="grow"><div class="nm">10-08 18:00 · 已送達</div><div class="sub">飛書回執核對一致</div></div></div>
+          <div class="row"><span class="st err" aria-hidden="true">✕</span><div class="grow"><div class="nm">10-07 18:00 · 投遞失敗</div><div class="sub">HTTP 429 · 可獨立重試，不重跑 Loop</div></div><a class="btn sm" href="#">重試</a></div>
+          <div class="row"><span class="st lost" aria-hidden="true">?</span><div class="grow"><div class="nm">10-09 18:00 · 投遞未知</div><div class="sub">請求逾時，可能已送達；先核對，避免盲目重發</div></div><a class="btn sm" href="#">核對</a></div>
+        </div></div>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+
+</body>
+</html>

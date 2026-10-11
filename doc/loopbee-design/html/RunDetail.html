@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>Run 詳情</title>
+
+<link rel="stylesheet" href="./loop.css">
+</head>
+<body>
+<x-dc>
+
+<style>body{margin:0}</style>
+
+<div class="lp" style="min-height:1790px">
+  <header class="top">
+    <div class="brand"><span class="mark" aria-hidden="true"></span>Loopbee</div>
+    <nav class="nav" aria-label="主導覽">
+      <a href="Main.dc.html">今日</a>
+      <a href="Loops.dc.html">Loopbee</a>
+      <a href="Runs.dc.html" class="on" aria-current="page">Runs</a>
+      <a href="Artifacts.dc.html">產物</a>
+      <a href="Digest.dc.html">日報</a>
+    </nav>
+    <div class="tools">
+      <button class="ib" aria-label="重新整理"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg></button>
+      <button class="ib" aria-label="設定"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+    </div>
+  </header>
+
+  <main class="page">
+    <div class="sec" style="margin-top:6px"><h2><a href="Main.dc.html">今日</a> › <a href="LoopDetail.dc.html">React Doctor 100/100</a> › Run</h2></div>
+
+    <!-- 頭部：名稱／本次結果／時間／版本／宿主 -->
+    <div class="card">
+      <div class="hd">
+        <span class="idot" style="--c:#5b8def;width:10px;height:10px"></span>
+        <h1>React Doctor 100/100</h1>
+        <span class="mono" style="color:var(--muted)">rd-1100-e4</span>
+        <span class="sx" style="margin-left:6px"><span class="st ok" aria-hidden="true">✓</span>已結束</span>
+        <span class="chip warn">業務結果：預算耗盡</span>
+        <div style="margin-left:auto;display:flex;gap:8px">
+          <a class="btn" href="#">重新執行</a>
+          <a class="btn" href="#">繼續（追加 2 輪）</a>
+        </div>
+      </div>
+      <div class="kv" style="margin-top:10px">
+        <span><b>開始</b>11:00:04</span><span><b>結束</b>11:52:31（52 分）</span>
+        <span><b>觸發</b>定時 · 預定 11:00:00 · 延遲 4 秒</span>
+        <span><b>定義</b>v7 · <span class="mono">sha 3f9c1e</span>（快照）</span>
+        <span><b>執行代理</b>Codex CLI · 進程 pid 48213</span><span><b>時區</b>Asia/Taipei</span>
+      </div>
+      <div class="sub" style="margin-top:8px">「重新執行」建立新 Run；「繼續」沿用本次的游標與基線再跑 2 輪。兩者與「暫停後續排程」「取消本次」是不同的操作。</div>
+    </div>
+
+    <!-- 流程：由標準定義生成，含循環 -->
+    <div class="sec"><h2>流程</h2><span class="note">點選節點查看輸入、結果、證據 · 已結束的 Run 不再有動畫，連線為實線</span></div>
+    <div class="card sm" style="padding-bottom:10px"><div class="flow" role="list"><button role="listitem" class="node done"><span class="st ok" aria-hidden="true">✓</span><span><span class="k">observe</span><span class="n">掃描</span></span></button><span class="lk done"></span><button role="listitem" class="node done"><span class="st ok" aria-hidden="true">✓</span><span><span class="k">act</span><span class="n">小批修復</span></span></button><span class="lk done"></span><button role="listitem" class="node fail sel" aria-current="step"><span class="st err" aria-hidden="true">×</span><span><span class="k">verify</span><span class="n">測試（第 3 輪）</span></span></button><span class="lk done"></span><button role="listitem" class="node done"><span class="st ok" aria-hidden="true">✓</span><span><span class="k">verify</span><span class="n">重掃</span></span></button><span class="lk done dash"></span><button role="listitem" class="node done"><span class="st ok" aria-hidden="true">✓</span><span><span class="k">summarize</span><span class="n">彙總</span></span></button></div><div class="loopback" style="margin-left:284px;width:416px"><i></i><span>未達 100 分 · 最多 3 輪 · 已用 3</span></div><hr class="hair" style="margin:10px 0 4px"><div class="topo" role="img" aria-label="執行拓撲：排程觸發、Loopbee 核心、Codex CLI"><div class="tn"><div style="color:var(--ctl)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><div class="nm">排程觸發</div><span class="mono">每日 11:00 · 手動</span></div><span class="lk done"></span><div class="tn core"><span class="mark xl" aria-hidden="true"></span><div class="nm" style="font-size:14px">Loopbee 核心</div><span class="mono">127.0.0.1:49213</span><div style="margin-top:8px"><span class="chip">已結束 0 / 2</span></div></div><div class="tl" aria-hidden="true"><svg viewBox="0 0 76 138"><path class="donep" d="M0 69 C34 69 34 32 76 32"/><path d="M0 69 C34 69 34 106 76 106"/></svg></div><div class="ags"><div class="ag "><span class="idot" style="--c:#5b8def"></span><div class="grow"><div class="nm">Codex CLI</div><div class="sub mono" style="font-size:10.5px">codex exec · 沙箱 workspace-write</div></div><span class="sx"><span class="st ok" aria-hidden="true">✓</span>已結束 · 預算耗盡 · 3 / 3 輪</span><span class="pb"><i style="width:100%"></i></span></div><div class="ag off"><span class="idot" style="--c:#c95b9a"></span><div class="grow"><div class="nm" style="color:var(--fg2)">Claude Code</div><div class="sub mono" style="font-size:10.5px">已偵測 · 此 Loop 未使用</div></div><span class="sx" style="color:var(--muted)">待命</span></div></div></div></div>
+
+    <div class="cols">
+      <div class="main">
+        <div class="sec"><h2>每輪時間線</h2><span class="note">3 輪 · 87 筆事件（原始日誌按需展開）</span></div>
+        <div class="grp">
+          <div class="round">
+            <div class="rh"><span class="rt">第 1 輪</span><span class="sub">11:00 – 11:17</span><span class="chip ok">分數 71 → 79</span></div>
+            <div class="step"><span class="kd">observe</span><span class="st ok" aria-hidden="true">✓</span><div><div class="nm">掃描 src/</div><div class="sub">react-doctor 1.4.2（固定版本）· 41 項問題 · 71/100</div></div><span class="ev mono">scan-r1.json · 38 KB</span></div>
+            <div class="step"><span class="kd">act</span><span class="st ok" aria-hidden="true">✓</span><div><div class="nm">小批修復 12 項</div><div class="sub">修改 6 個檔案 · 分支 loop/react-doctor</div></div><span class="ev mono">diff-r1.patch · 9 KB</span></div>
+            <div class="step"><span class="kd">verify</span><span class="st ok" aria-hidden="true">✓</span><div><div class="nm">測試通過 · 重掃 79/100</div><div class="sub">pnpm test 退出碼 0 · 212 passed（工具直接取得）</div></div><span class="ev mono">test-r1.txt · 6 KB</span></div>
+          </div>
+          <div class="round">
+            <div class="rh"><span class="rt">第 2 輪</span><span class="sub">11:17 – 11:36</span><span class="chip ok">分數 79 → 84</span></div>
+            <div class="step"><span class="kd">observe</span><span class="st ok" aria-hidden="true">✓</span><div><div class="nm">讀取上輪剩餘 29 項</div><div class="sub">依規則權重排序，取前 7 項</div></div><span class="ev mono">scan-r2.json · 31 KB</span></div>
+            <div class="step"><span class="kd">act</span><span class="st ok" aria-hidden="true">✓</span><div><div class="nm">小批修復 7 項</div><div class="sub">修改 5 個檔案 · 未新增任何忽略規則</div></div><span class="ev mono">diff-r2.patch · 7 KB</span></div>
+            <div class="step"><span class="kd">verify</span><span class="st ok" aria-hidden="true">✓</span><div><div class="nm">測試通過 · 重掃 84/100</div><div class="sub">pnpm test 退出碼 0 · 214 passed</div></div><span class="ev mono">test-r2.txt · 6 KB</span></div>
+          </div>
+          <div class="round">
+            <div class="rh"><span class="rt">第 3 輪</span><span class="sub">11:36 – 11:52</span><span class="chip err">測試失敗 · 已回退</span><span class="chip">分數 84 → 84</span></div>
+            <div class="step"><span class="kd">observe</span><span class="st ok" aria-hidden="true">✓</span><div><div class="nm">讀取剩餘 22 項</div><div class="sub">取前 4 項（涉及共用 Hook）</div></div><span class="ev mono">scan-r3.json · 28 KB</span></div>
+            <div class="step"><span class="kd">act</span><span class="st ok" aria-hidden="true">✓</span><div><div class="nm">小批修復 4 項</div><div class="sub">修改 3 個檔案</div></div><span class="ev mono">diff-r3.patch · 5 KB</span></div>
+            <div class="step sel"><span class="kd">verify</span><span class="st err" aria-hidden="true">✕</span><div><div class="nm">測試失敗 · 本批已回退</div><div class="sub">pnpm test 退出碼 1 · 2 failed / 214 · 回退後重掃 84/100</div></div><span class="ev mono">test-r3.txt · 18 KB</span></div>
+          </div>
+          <div class="foot" style="color:var(--ctl)">展開原始事件 events.jsonl（87 筆 · 41 KB）</div>
+        </div>
+
+        <div class="sec"><h2>結果與後續</h2></div>
+        <div class="grp">
+          <div class="row" style="align-items:flex-start"><span class="st warn" aria-hidden="true" style="margin-top:2px">!</span><div class="grow"><div class="nm">停止原因：預算耗盡（3 / 3 輪）</div><div class="sub t2">分數 71 → 84，未達目標 100。正常結束不等於目標達成；本次業務結果記為「預算耗盡」。</div></div></div>
+          <div class="row" style="align-items:flex-start"><span class="st idle" aria-hidden="true" style="margin-top:2px"> </span><div class="grow"><div class="nm">剩餘 9 項</div><div class="sub t2">6 項可繼續修復；3 項需要例外說明（尚未記錄理由，不會以忽略規則換取分數）。</div></div></div>
+          <div class="row" style="align-items:flex-start"><span class="st idle" aria-hidden="true" style="margin-top:2px"> </span><div class="grow"><div class="nm">下一次排程：明天 11:00</div><div class="sub t2">將自動接續剩餘 6 項；也可以現在「繼續」。</div></div></div>
+        </div>
+      </div>
+
+      <div class="side">
+        <div class="sec"><h2>選中節點</h2><span class="note">第 3 輪 · 測試</span></div>
+        <div class="card sm">
+          <div class="hd"><span class="st err" aria-hidden="true">✕</span><span class="nm">測試（verify）</span><span class="chip err">失敗</span></div>
+          <hr class="hair" style="margin:12px 0">
+          <div class="sub">輸入</div><div class="sub t2" style="margin-bottom:8px">修改批次 r3（3 個檔案）· 基線 <span class="mono">a41c9d2</span></div>
+          <div class="sub">結果</div><div class="sub t2" style="margin-bottom:8px">退出碼 <span class="mono">1</span> · 2 failed / 214 · 耗時 3 分 12 秒</div>
+          <div class="sub">證據（已脫敏）</div>
+          <div style="background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:4px 0 8px">
+            <div class="mono" style="color:var(--err-t)">FAIL useCartTotals.test.tsx</div>
+            <div class="mono" style="color:var(--muted)">expected 3 renders, received 5</div>
+            <div class="mono" style="color:var(--muted)">… 預覽前 3 行 · 完整 18 KB</div>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px"><a class="btn sm" href="#">打開 test-r3.txt</a><a class="btn sm" href="#">查看 diff-r3.patch（已回退）</a></div>
+        </div>
+
+        <div class="sec"><h2>產物</h2><span class="note">8 件</span></div>
+        <div class="grp">
+          <div class="row"><span class="tag">MD</span><div class="grow"><div class="nm">report.md</div><div class="sub">彙總報告 · 4 KB</div></div><span class="chip">未歸檔</span></div>
+          <div class="row"><span class="tag">JSON</span><div class="grow"><div class="nm">scan-r1 / r2 / r3</div><div class="sub">診斷快照 · 97 KB</div></div><span class="chip">未歸檔</span></div>
+          <div class="row"><span class="tag">DIFF</span><div class="grow"><div class="nm">diff-r1 / r2 / r3</div><div class="sub">r3 已回退 · 21 KB</div></div><span class="chip">未歸檔</span></div>
+          <div class="row"><span class="tag">TXT</span><div class="grow"><div class="nm">test-r1 / r2 / r3</div><div class="sub">測試輸出 · 30 KB</div></div><span class="chip mut">30 天後清理</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="src"><span>資料庫 · run rd-1100-e4</span><span>事件 87 筆</span><span>摘要由記錄工具產生並校驗</span><span>歸檔 ~/all-docs/loopbee/runs/2026-10-10/rd-1100-e4/（尚未匯出）</span></div>
+  </main>
+</div>
+</x-dc>
+
+</body>
+</html>

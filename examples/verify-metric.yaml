@@ -1,0 +1,24 @@
+name: Metric verification example
+description: Controlled local verification; does not call an agent.
+directory: /absolute/path/to/your/repository
+agent: codex
+sandbox: read-only
+cron: ""
+timezone: UTC
+catchUp: false
+enabled: false
+private: true
+requireClean: false
+maxRounds: 3
+wallMinutes: 2
+stallRounds: 1
+doneWhen: metrics.score >= 90 && verify.passed
+allowedTools: [node]
+steps:
+  - kind: verify
+    name: Read measured score
+    argv: [node, -e, 'console.log(JSON.stringify({summary:{score:92}}))']
+    metric: score
+    metricPath: $.summary.score
+  - kind: gate
+    name: Review metric

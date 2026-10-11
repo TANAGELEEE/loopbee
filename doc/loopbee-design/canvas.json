@@ -1,0 +1,280 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-10-10T08:05:00Z"
+  },
+  "title": "Loopbee 看板設計",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {
+      "title": "今日總覽",
+      "x": 0,
+      "y": 0,
+      "w": 1280,
+      "h": 1140,
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "RunDetail.dc.html": {
+      "title": "Run 詳情（React Doctor · 預算耗盡）",
+      "x": 1360,
+      "y": 0,
+      "w": 1280,
+      "h": 1790,
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "LoopDetail.dc.html": {
+      "title": "Loop 詳情（流程定義 · 版本 · 趨勢）",
+      "x": 0,
+      "y": 1680,
+      "w": 1280,
+      "h": 1700,
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Import.dc.html": {
+      "title": "新增 Loop · 匯入與缺口檢查",
+      "x": 1360,
+      "y": 1910,
+      "w": 1280,
+      "h": 1200,
+      "expand": "fill"
+    },
+    "Loops.dc.html": {
+      "title": "Loop 列表",
+      "x": 0,
+      "y": 3510,
+      "w": 1280,
+      "h": 720,
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "States.dc.html": {
+      "title": "狀態集：空／載入／錯誤／過期／失聯／取消",
+      "x": 1360,
+      "y": 3350,
+      "w": 1280,
+      "h": 900,
+      "expand": "fill"
+    },
+    "TodayDark.dc.html": {
+      "title": "今日總覽 · 深色",
+      "x": 0,
+      "y": 4530,
+      "w": 1280,
+      "h": 800,
+      "expand": "fill"
+    },
+    "MToday.dc.html": {
+      "title": "遠端唯讀視圖（可選）· 今日",
+      "x": 1360,
+      "y": 4370,
+      "w": 390,
+      "h": 1180
+    },
+    "MDigest.dc.html": {
+      "title": "遠端唯讀視圖（可選）· 日報",
+      "x": 1830,
+      "y": 4140,
+      "w": 390,
+      "h": 1180
+    },
+    "MRun.dc.html": {
+      "title": "遠端唯讀視圖（可選）· Run",
+      "x": 2300,
+      "y": 4140,
+      "w": 390,
+      "h": 1300
+    },
+    "SettingsAgents.dc.html": {
+      "title": "設定 · 代理 Agents（偵測與連接）",
+      "x": 2820,
+      "y": 0,
+      "w": 1280,
+      "h": 1000,
+      "expand": "fill"
+    },
+    "SettingsNotify.dc.html": {
+      "title": "設定 · 通知渠道（飛書／Telegram／Bark）",
+      "x": 4180,
+      "y": 0,
+      "w": 1280,
+      "h": 1180,
+      "expand": "fill"
+    },
+    "SettingsGeneral.dc.html": {
+      "title": "設定 · 一般（語言、資料與歸檔位置）",
+      "x": 2820,
+      "y": 1300,
+      "w": 1280,
+      "h": 1440,
+      "expand": "fill"
+    },
+    "TodayEN.dc.html": {
+      "title": "Today · English UI",
+      "x": 4180,
+      "y": 1300,
+      "w": 1280,
+      "h": 1140,
+      "expand": "fill"
+    },
+    "PushPreview.dc.html": {
+      "title": "選單列與推送預覽",
+      "x": 2820,
+      "y": 2860,
+      "w": 1280,
+      "h": 780
+    },
+    "SettingsTeam.dc.html": {
+      "title": "設定 · 團隊同步（Git 倉庫）",
+      "x": 4180,
+      "y": 2720,
+      "w": 1280,
+      "h": 1300,
+      "expand": "fill"
+    },
+    "TodayViewer.dc.html": {
+      "title": "團隊成員的看板 · 檢視者模式",
+      "x": 2820,
+      "y": 3780,
+      "w": 1280,
+      "h": 1240,
+      "expand": "fill"
+    },
+    "Onboarding.dc.html": {
+      "title": "首次啟動引導（代理偵測 + 其餘步驟）",
+      "x": 0,
+      "y": 6290,
+      "w": 1280,
+      "h": 800,
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Runs.dc.html": {
+      "title": "Runs 列表（篩選、分日、結果徽章）",
+      "x": 1360,
+      "y": 6130,
+      "w": 1280,
+      "h": 1060,
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Artifacts.dc.html": {
+      "title": "產物庫與檢視（純文字、已清理、私有）",
+      "x": 2720,
+      "y": 5900,
+      "w": 1280,
+      "h": 760,
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Digest.dc.html": {
+      "title": "日報（歷史條、投遞狀態、核對／重送）",
+      "x": 4080,
+      "y": 5900,
+      "w": 1280,
+      "h": 900,
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "GateReview.dc.html": {
+      "title": "閘門審批（逐項保留、備註、批准／退回）",
+      "x": 0,
+      "y": 7510,
+      "w": 1280,
+      "h": 1110,
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Editor.dc.html": {
+      "title": "Loop 編輯器（表單、缺口、版本差異）",
+      "x": 1360,
+      "y": 7350,
+      "w": 1280,
+      "h": 2440,
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Dialogs.dc.html": {
+      "title": "對話框集（確認、衝突、掃描命中、交接）",
+      "x": 2720,
+      "y": 7120,
+      "w": 1280,
+      "h": 960,
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Motion.dc.html": {
+      "title": "動效與品牌規格（蜜蜂、流程條、執行拓撲）",
+      "x": 2720,
+      "y": 8300,
+      "w": 1280,
+      "h": 3520,
+      "expand": "fill",
+      "is_interactive": true
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "RunDetail.dc.html",
+    "LoopDetail.dc.html",
+    "Import.dc.html",
+    "Loops.dc.html",
+    "States.dc.html",
+    "TodayDark.dc.html",
+    "MToday.dc.html",
+    "MDigest.dc.html",
+    "MRun.dc.html",
+    "SettingsAgents.dc.html",
+    "SettingsNotify.dc.html",
+    "SettingsGeneral.dc.html",
+    "TodayEN.dc.html",
+    "PushPreview.dc.html",
+    "SettingsTeam.dc.html",
+    "TodayViewer.dc.html",
+    "Onboarding.dc.html",
+    "Runs.dc.html",
+    "Artifacts.dc.html",
+    "Digest.dc.html",
+    "GateReview.dc.html",
+    "Editor.dc.html",
+    "Dialogs.dc.html",
+    "Motion.dc.html"
+  ],
+  "notes": {
+    "t1": {
+      "x": 0,
+      "y": -300,
+      "text": "Loopbee 看板 · quiet-dashboard-ui 風格設計稿",
+      "kind": "title1",
+      "maxW": 2640
+    },
+    "t2": {
+      "x": 2820,
+      "y": -300,
+      "text": "桌面應用：代理、通知、語言、儲存與團隊同步",
+      "kind": "title1",
+      "maxW": 2640
+    },
+    "t3": {
+      "x": 0,
+      "y": 5600,
+      "text": "補充畫面：引導、Runs、產物、日報、審批、編輯器、對話框",
+      "kind": "title1",
+      "maxW": 2640
+    },
+    "t4": {
+      "x": 2720,
+      "y": 8200,
+      "text": "品牌與動效",
+      "kind": "title1",
+      "maxW": 1280
+    }
+  },
+  "designSystems": []
+}

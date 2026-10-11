@@ -1,0 +1,23 @@
+name: Repository review
+description: Read-only local review with a human checkpoint.
+directory: /absolute/path/to/your/repository
+agent: codex
+sandbox: read-only
+cron: "0 9 * * 1-5"
+timezone: Asia/Shanghai
+catchUp: true
+enabled: false
+private: true
+requireClean: true
+lock: repo-review
+maxRounds: 1
+wallMinutes: 15
+stallRounds: 1
+doneWhen: verify.passed
+allowedTools: []
+steps:
+  - kind: observe
+    name: Review repository
+    prompt: Read the repository and report the three most important maintainability issues with file references. Do not modify files, install dependencies, send messages, or publish anything.
+  - kind: gate
+    name: Review evidence

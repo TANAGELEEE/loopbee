@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Today</title>
+
+<link rel="stylesheet" href="./loop.css">
+</head>
+<body>
+<x-dc>
+
+<style>body{margin:0}</style>
+
+<div class="lp" style="min-height:1140px">
+  <header class="top">
+    <div class="brand"><span class="mark" aria-hidden="true"></span>Loopbee</div>
+    <nav class="nav" aria-label="Main navigation">
+      <a href="#" class="on" aria-current="page">Today</a><a href="#">Loops</a><a href="#">Runs</a><a href="#">Artifacts</a><a href="#">Digest</a>
+    </nav>
+    <div class="tools">
+      <a class="btn" href="#">+ New loop</a>
+      <button class="btn ghost sm" aria-label="Language">EN ▾</button>
+      <button class="ib" aria-label="Refresh"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg></button>
+      <button class="ib" aria-label="Settings"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+    </div>
+  </header>
+
+  <main class="page">
+    <div class="sec" style="margin-top:10px">
+      <h2>Today</h2>
+      <span class="note">Saturday, October 10, 2026 · Asia/Taipei</span>
+      <div class="act"><span class="sx"><span class="st ok" aria-hidden="true">✓</span>Updated 15:57 · lee-mac</span></div>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi"><div class="v">1</div><div class="l">Running</div><div class="b">SEO / GEO · round 1</div></div>
+      <div class="kpi"><div class="v">3</div><div class="l">Needs you</div><div class="b">2 gates · 1 unknown delivery</div></div>
+      <div class="kpi"><div class="v">5</div><div class="l">Runs today</div><div class="b">1 done · 1 budget used · 1 waiting · 1 interrupted · 1 running</div></div>
+      <div class="kpi"><div class="v">11</div><div class="l">Artifacts today</div><div class="b">Reports 4 · Diffs 3 · Snapshots 2 · Drafts 2</div></div>
+      <div class="kpi"><div class="v">1</div><div class="l">Interrupted / failed</div><div class="b">1 interrupted, to verify · 0 failed</div></div>
+    </div>
+
+    <div class="cols">
+      <div class="main">
+        <div class="sec"><h2>Needs your attention</h2><span class="note">3 items</span></div>
+        <div class="grp">
+          <div class="row">
+            <span class="idot" style="--c:#c95b9a"></span>
+            <div class="grow"><div class="nm">Email drafts awaiting approval</div><div class="sub">CRM win-back · 12 drafts (v2) · Phase 1 creates drafts only, nothing is sent</div></div>
+            <div style="text-align:right"><span class="chip warn"><span class="st warn" aria-hidden="true">!</span>Waiting for human gate</span><div class="sub" style="margin-top:3px">Since 14:06 · waiting 1 h 52 min</div></div>
+            <a class="btn" href="#">Review drafts</a>
+          </div>
+          <div class="row">
+            <span class="idot" style="--c:#d9774a"></span>
+            <div class="grow"><div class="nm">Hotfix PR awaiting review</div><div class="sub">Production logs · BUG-4821 · state is owned by cc-nexs; only the path is referenced here</div></div>
+            <div style="text-align:right"><span class="chip warn"><span class="st warn" aria-hidden="true">!</span>Waiting for cc-nexs review</span><div class="sub" style="margin-top:3px">Since 09:34</div></div>
+            <a class="btn" href="#">Open in cc-nexs</a>
+          </div>
+          <div class="row">
+            <span class="idot" style="--c:#76767f"></span>
+            <div class="grow"><div class="nm">Yesterday's digest delivery is unknown</div><div class="sub">Daily digest · Oct 9, 18:00 · request timed out, may have arrived; resending only resends the digest</div></div>
+            <div style="text-align:right"><span class="chip warn"><span class="st lost" aria-hidden="true">?</span>Delivery unknown</span></div>
+            <div style="display:flex;gap:6px"><a class="btn" href="#">Verify</a><a class="btn" href="#">Resend</a></div>
+          </div>
+        </div>
+
+        <div class="sec"><h2>Runs today</h2><span class="note">5 runs · 1 running</span><div class="act"><a href="#">All runs ›</a></div></div>
+        <div class="grp">
+          <a class="row r link" href="#">
+            <div style="display:flex;align-items:center;gap:10px;min-width:0"><span class="idot" style="--c:#2f9e8f"></span><div style="min-width:0"><div class="nm">SEO / GEO visibility</div><div class="sub mono">seo-1530-b7 · continues 08:00 run</div></div></div>
+            <span class="sx"><span class="st run" aria-hidden="true">●</span>Running</span>
+            <span class="chip mut">No result yet</span>
+            <div><div class="sub t2">Round 1 · technical check</div><div class="sub">Baseline snapshot registered</div></div>
+            <div class="c-time"><div class="sub t2">Since 15:30</div><div class="sub">28 min</div></div>
+          </a>
+          <a class="row r link" href="#">
+            <div style="display:flex;align-items:center;gap:10px;min-width:0"><span class="idot" style="--c:#c95b9a"></span><div style="min-width:0"><div class="nm">CRM win-back</div><div class="sub mono">crm-1400-c2</div></div></div>
+            <span class="sx"><span class="st warn" aria-hidden="true">!</span>Waiting</span>
+            <span class="chip warn">Human gate</span>
+            <div><div class="sub t2">Round 1 · drafts ready</div><div class="sub">4 segments · 12 drafts</div></div>
+            <div class="c-time"><div class="sub t2">Since 14:00</div><div class="sub">6 min + waiting</div></div>
+          </a>
+          <a class="row r link" href="#">
+            <div style="display:flex;align-items:center;gap:10px;min-width:0"><span class="idot" style="--c:#5b8def"></span><div style="min-width:0"><div class="nm">React Doctor 100/100</div><div class="sub mono">rd-1100-e4</div></div></div>
+            <span class="sx"><span class="st ok" aria-hidden="true">✓</span>Ended</span>
+            <span class="chip warn">Budget used</span>
+            <div><div class="sub t2">3 / 3 rounds · score 71 → 84</div><div class="sub">9 left, target 100</div></div>
+            <div class="c-time"><div class="sub t2">Since 11:00</div><div class="sub">52 min</div></div>
+          </a>
+          <a class="row r link" href="#">
+            <div style="display:flex;align-items:center;gap:10px;min-width:0"><span class="idot" style="--c:#d9774a"></span><div style="min-width:0"><div class="nm">Production ERROR / WARN</div><div class="sub mono">log-0900-9f</div></div></div>
+            <span class="sx"><span class="st ok" aria-hidden="true">✓</span>Ended</span>
+            <span class="chip ok">Done</span>
+            <div><div class="sub t2">14 fingerprints · 3 new</div><div class="sub">1 handed to cc-nexs hotfix</div></div>
+            <div class="c-time"><div class="sub t2">Since 09:00</div><div class="sub">21 min</div></div>
+          </a>
+          <a class="row r link" href="#">
+            <div style="display:flex;align-items:center;gap:10px;min-width:0"><span class="idot" style="--c:#2f9e8f"></span><div style="min-width:0"><div class="nm">SEO / GEO visibility</div><div class="sub mono">seo-0800-a1</div></div></div>
+            <span class="sx"><span class="st lost" aria-hidden="true">?</span>Interrupted</span>
+            <span class="chip warn">Needs check</span>
+            <div><div class="sub t2">Process exited · last event 08:19</div><div class="sub">Stopped in round 1 · collect</div></div>
+            <div class="c-time"><div class="sub t2">Since 08:00</div><div class="sub">Lost 7 hours ago</div></div>
+          </a>
+          <a class="foot" href="#">View all runs</a>
+        </div>
+      </div>
+
+      <div class="side">
+        <div class="sec"><h2>Artifacts today</h2><span class="note">11</span></div>
+        <div class="grp">
+          <a class="row link" href="#"><span class="tag">MD</span><div class="grow"><div class="nm">Issue summary and impact analysis</div><div class="sub">Production logs · 09:21</div></div></a>
+          <a class="row link" href="#"><span class="tag">BUG</span><div class="grow"><div class="nm">BUG-4821 draft</div><div class="sub">Production logs · 09:34</div></div></a>
+          <a class="row link" href="#"><span class="tag">JSON</span><div class="grow"><div class="nm">Before / after diagnostics</div><div class="sub">React Doctor · 11:48</div></div></a>
+          <a class="row link" href="#"><span class="tag">DIFF</span><div class="grow"><div class="nm">Changes (6 + 5 files)</div><div class="sub">React Doctor · 11:49</div></div></a>
+          <a class="row link" href="#"><span class="tag">MAIL</span><div class="grow"><div class="nm">Email drafts v2 (12)</div><div class="sub">CRM · 14:05</div></div></a>
+          <a class="row link" href="#"><span class="tag">SNAP</span><div class="grow"><div class="nm">SEO baseline snapshot</div><div class="sub">SEO / GEO · 15:41</div></div></a>
+          <a class="foot" href="#">Open artifact library</a>
+        </div>
+
+        <div class="sec"><h2>Up next</h2><span class="note">Scheduled</span></div>
+        <div class="grp">
+          <div class="row"><span class="mono" style="width:86px;color:var(--fg2)">Today 18:00</span><div class="grow"><div class="nm">Daily digest → channels</div><div class="sub">5 runs · 3 items need you</div></div></div>
+          <div class="row"><span class="mono" style="width:86px;color:var(--fg2)">Tomorrow 08:00</span><div class="grow"><div class="nm">SEO / GEO visibility</div><div class="sub">1 missed (08:00 run interrupted)</div></div></div>
+          <div class="row"><span class="mono" style="width:86px;color:var(--fg2)">Tomorrow 09:00</span><div class="grow"><div class="nm">Production ERROR / WARN</div><div class="sub">Resumes from cursor 09:00:00Z</div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="src"><span>Data ~/.local/share/loopbee</span><span>Archive ~/all-docs/loopbee · 5 runs not exported</span><span>Last export Oct 9, 23:30</span></div>
+  </main>
+</div>
+</x-dc>
+
+</body>
+</html>

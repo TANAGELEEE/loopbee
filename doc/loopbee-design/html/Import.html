@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>新增 Loop</title>
+
+<link rel="stylesheet" href="./loop.css">
+</head>
+<body>
+<x-dc>
+
+<style>body{margin:0}</style>
+
+<div class="lp" style="min-height:1200px">
+  <header class="top">
+    <div class="brand"><span class="mark" aria-hidden="true"></span>Loopbee</div>
+    <nav class="nav" aria-label="主導覽">
+      <a href="Main.dc.html">今日</a>
+      <a href="Loops.dc.html" class="on" aria-current="page">Loopbee</a>
+      <a href="Runs.dc.html">Runs</a>
+      <a href="Artifacts.dc.html">產物</a>
+      <a href="Digest.dc.html">日報</a>
+    </nav>
+    <div class="tools"><button class="ib" aria-label="設定"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button></div>
+  </header>
+
+  <main class="page">
+    <div class="sec" style="margin-top:6px"><h2><a href="Loops.dc.html">Loopbee</a> › 新增 Loop</h2><span class="note">貼上 → 解析預覽 → 補缺口 → 試跑 → 保存 → 啟用排程</span></div>
+
+    <div class="seg" role="tablist" aria-label="來源">
+      <button role="tab" aria-selected="true" class="on">貼上流程</button>
+      <button role="tab" aria-selected="false">自然語言描述</button>
+      <button role="tab" aria-selected="false">複製現有 Loop</button>
+    </div>
+
+    <div class="cols" style="margin-top:14px">
+      <!-- 左：原文 -->
+      <div class="main" style="flex:1 1 420px">
+        <div class="sec" style="margin-top:0"><h2>原始內容</h2><span class="note">來源：貼上文字 · 不會被當成指令執行</span></div>
+        <div class="card sm">
+          <label class="sub" for="src" style="display:block;margin-bottom:6px">流程描述</label>
+          <textarea id="src" class="inp" rows="9" readonly>每天早上檢查 staging 的 Lighthouse 分數。
+低於 90 分就找出影響最大的前三個問題，嘗試修好，再測一次。
+最後把前後分數和修改內容整理後發給我。</textarea>
+          <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+            <a class="btn pri" href="#">重新解析</a>
+            <span class="sub">解析由 Agent 完成，結果須通過定義校驗才能保存</span>
+          </div>
+        </div>
+
+        <div class="sec"><h2>解析預覽</h2><span class="note">標準定義 · 草稿</span></div>
+        <div class="card sm" style="padding-bottom:6px">
+          <div class="flow">
+            <div class="node"><span><span class="k">observe</span><span class="n">量測</span></span></div><span class="lk"></span>
+            <div class="node"><span><span class="k">act</span><span class="n">修復前三項</span></span></div><span class="lk"></span>
+            <div class="node"><span><span class="k">verify</span><span class="n">重測</span></span></div><span class="lk"></span>
+            <div class="node"><span><span class="k">summarize</span><span class="n">彙總發送</span></span></div>
+          </div>
+          <div class="loopback" style="margin-left:284px;width:416px"><i></i><span>未達 90 → 回到修復</span></div>
+        </div>
+      </div>
+
+      <!-- 右：缺口與權限 -->
+      <div class="side" style="flex:1 1 440px">
+        <div class="bn warn" role="status" style="margin-bottom:12px"><span class="st warn" aria-hidden="true" style="margin-top:2px">!</span><div><b style="font-weight:600">尚不可運行 · 3 個缺口待補</b><div style="font-size:12px;margin-top:2px">缺少執行條件的流程不會被當成可運行。補齊後才能試跑。</div></div></div>
+
+        <div class="sec" style="margin-top:0"><h2>缺口</h2><span class="note">3</span></div>
+        <div class="grp">
+          <div class="row" style="align-items:flex-start"><span class="st warn" aria-hidden="true" style="margin-top:2px">!</span><div class="grow"><div class="nm">執行目標未指定</div><div class="sub t2">「staging」對應的網址與倉庫沒有寫明。</div><input class="inp" style="margin-top:6px" aria-label="staging 網址" placeholder="https://staging.example.com"></div></div>
+          <div class="row" style="align-items:flex-start"><span class="st warn" aria-hidden="true" style="margin-top:2px">!</span><div class="grow"><div class="nm">需要的工具不在允許清單</div><div class="sub t2"><span class="mono">lighthouse-cli</span> 尚未授權。匯入內容不能自行擴大權限，需你在「設定 › 代理」中批准，或新增適配器。</div><div style="display:flex;gap:6px;margin-top:6px"><a class="btn sm" href="#">批准此工具</a><a class="btn sm" href="#">改用其他工具</a></div></div></div>
+          <div class="row" style="align-items:flex-start"><span class="st warn" aria-hidden="true" style="margin-top:2px">!</span><div class="grow"><div class="nm">驗收與停止條件不完整</div><div class="sub t2">已套用預設：最多 3 輪、60 分鐘、連續 1 輪無進展即停。請確認或修改。</div><div style="display:flex;gap:6px;margin-top:6px"><a class="btn sm" href="#">採用預設</a><a class="btn sm" href="#">自行設定</a></div></div></div>
+        </div>
+
+        <div class="sec"><h2>已解析</h2></div>
+        <div class="grp">
+          <div class="row"><div style="width:92px" class="sub">名稱</div><div class="grow"><div class="nm">Lighthouse 每日檢查</div><div class="sub">由內容推測，可修改</div></div><span class="st ok" aria-hidden="true">✓</span></div>
+          <div class="row"><div style="width:92px" class="sub">驗收</div><div class="grow"><div class="nm">Lighthouse 效能分 ≥ 90</div></div><span class="st ok" aria-hidden="true">✓</span></div>
+          <div class="row"><div style="width:92px" class="sub">排程</div><div class="grow"><div class="nm">每日 08:30 · Asia/Taipei</div><div class="sub">保存後預設關閉，試跑通過再啟用</div></div><span class="st ok" aria-hidden="true">✓</span></div>
+          <div class="row"><div style="width:92px" class="sub">動作權限</div><div class="grow"><div class="nm">「修好」→ 修改程式碼 · 預設需人工閘門</div><div class="sub">可在試跑後改為自動</div></div><span class="st ok" aria-hidden="true">✓</span></div>
+        </div>
+
+        <div class="sec"><h2>權限差異</h2><span class="note">相對宿主目前允許範圍</span></div>
+        <div class="grp">
+          <div class="row"><span class="chip warn">新增 1</span><div class="grow"><div class="nm">lighthouse-cli（唯讀量測）</div><div class="sub">需要批准後才會出現在可用工具中</div></div></div>
+          <div class="row"><span class="chip">無變更</span><div class="grow"><div class="nm">寫入、外部發送、憑據存取</div><div class="sub">未請求</div></div></div>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end;align-items:center">
+          <span class="sub">補齊 3 個缺口後可試跑</span>
+          <a class="btn" href="#">存為草稿</a>
+          <button class="btn pri" disabled>手動試跑</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+
+</body>
+</html>
