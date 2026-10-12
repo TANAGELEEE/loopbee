@@ -83,13 +83,41 @@ func TestBeectlWithoutAppAndSkillInstall(t *testing.T) {
 	if err := run([]string{"skill", "install", "--dir", target}, &out); err != nil {
 		t.Fatal(err)
 	}
-	b, _ := os.ReadFile(filepath.Join(target, "SKILL.md"))
-	if !strings.HasPrefix(string(b), "---\nname: loopbee") {
-		t.Fatal("skill not written")
-	}
+	checkInstalledSkill(t, target)
 	out.Reset()
 	if err := run([]string{"schema"}, &out); err != nil || !strings.Contains(out.String(), `"sandbox"`) || !strings.Contains(out.String(), "Fix production errors") {
 		t.Fatal(err, out.String())
 	}
 	_ = http.MethodGet
+}
+
+func checkInstalledSkill(t *testing.T, dir string) {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(dir, "SKILL.md"))
+	if err != nil {
+		t.Fatalf("skill not written: %v", err)
+	}
+	if strings.Contains(string(b), "\r") {
+		t.Fatal("installed skill has CRLF line endings")
+	}
+	if head, _, _ := strings.Cut(string(b), "\n\n"); !strings.HasPrefix(string(b), "---\nname: loopbee") {
+		t.Fatalf("installed skill has unexpected front matter: %q", head)
+	}
+}
+
+// A Windows checkout with core.autocrlf=true embeds SKILL.md with CRLF; install and schema must not depend on it.
+func TestSkillWithCRLFCheckout(t *testing.T) {
+	orig := skillRaw
+	t.Cleanup(func() { skillRaw = orig })
+	skillRaw = []byte(strings.ReplaceAll(strings.ReplaceAll(string(orig), "\r\n", "\n"), "\n", "\r\n"))
+	target := t.TempDir()
+	var out bytes.Buffer
+	if err := run([]string{"skill", "install", "--dir", target}, &out); err != nil {
+		t.Fatal(err)
+	}
+	checkInstalledSkill(t, target)
+	out.Reset()
+	if err := run([]string{"schema"}, &out); err != nil || !strings.Contains(out.String(), "Fix production errors") {
+		t.Fatalf("schema example lost with CRLF: %v %s", err, out.String())
+	}
 }

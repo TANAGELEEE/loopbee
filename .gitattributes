@@ -1,0 +1,16 @@
+# Keep text files LF in every checkout. Embedded files (cmd/beectl/SKILL.md, internal/ui/web/*) and
+# tests assume LF; a Windows checkout with core.autocrlf=true would otherwise turn them into CRLF.
+* text=auto eol=lf
+
+# Windows-only scripts keep CRLF.
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binary assets.
+*.png binary
+*.ico binary
+*.icns binary
+*.zip binary
+*.exe binary
+*.syso binary

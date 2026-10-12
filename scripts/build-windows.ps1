@@ -1,4 +1,5 @@
-param([switch]$DesktopTest)
+# -Version 1.2.0 (e.g. from a v1.2.0 tag) is stamped into the binaries and the file version resource.
+param([switch]$DesktopTest, [string]$Version = '')
 
 $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path $PSScriptRoot -Parent)
@@ -11,6 +12,15 @@ if ($LASTEXITCODE -or $loopbeeArch -ne 'amd64') { throw 'This package targets Wi
 $loopbeeOS = & $loopbeeGo env GOOS
 if ($LASTEXITCODE -or $loopbeeOS -ne 'windows') { throw 'GOOS must be windows.' }
 New-Item -ItemType Directory -Path bin -Force | Out-Null
+# Argument arrays, because Windows PowerShell 5.1 drops empty string arguments.
+$loopbeeLdflags = if ($Version) { "-X loopbee/internal/core.Version=$Version" } else { '' }
+$loopbeeLdArgs = if ($Version) { @('-ldflags', $loopbeeLdflags) } else { @() }
+$loopbeeGuiLdflags = ('-H windowsgui ' + $loopbeeLdflags).Trim()
+$loopbeeResArgs = @()
+if ($Version -match '^(\d+)\.(\d+)\.(\d+)') {
+    $fileVersion = "$($Matches[1]).$($Matches[2]).$($Matches[3]).0"
+    $loopbeeResArgs = @('--file-version', $fileVersion, '--product-version', $fileVersion)
+}
 
 function Assert-Executable([string]$Path, [int]$Subsystem, [bool]$RequireResources) {
     $bytes = [IO.File]::ReadAllBytes((Resolve-Path $Path))
@@ -42,22 +52,22 @@ function Assert-Executable([string]$Path, [int]$Subsystem, [bool]$RequireResourc
     if ([Text.Encoding]::UTF8.GetString($bytes) -notmatch 'PerMonitorV2') { throw "Missing per-monitor DPI manifest: $Path" }
 }
 
-& $loopbeeGo build -trimpath -tags nogui -o bin/loopbee-nogui.exe ./cmd/loopbee
+& $loopbeeGo build -trimpath -tags nogui @loopbeeLdArgs -o bin/loopbee-nogui.exe ./cmd/loopbee
 if ($LASTEXITCODE) { throw 'Windows nogui build failed' }
 Assert-Executable 'bin/loopbee-nogui.exe' 3 $false
-& $loopbeeGo build -trimpath -o bin/beectl.exe ./cmd/beectl
+& $loopbeeGo build -trimpath @loopbeeLdArgs -o bin/beectl.exe ./cmd/beectl
 if ($LASTEXITCODE) { throw 'beectl build failed' }
 
 $loopbeeResource = Join-Path (Get-Location) 'cmd/loopbee/loopbee_windows_amd64.syso'
 if (Test-Path -LiteralPath $loopbeeResource) { throw "Refusing to overwrite existing build resource: $loopbeeResource" }
 try {
-    & $loopbeeGo run github.com/tc-hib/go-winres@v0.3.3 make --in scripts/windows/resources.json --arch amd64 --out cmd/loopbee/loopbee
+    & $loopbeeGo run github.com/tc-hib/go-winres@v0.3.3 make --in scripts/windows/resources.json --arch amd64 --out cmd/loopbee/loopbee @loopbeeResArgs
     if ($LASTEXITCODE) { throw 'Windows resource generation failed' }
-    & $loopbeeGo build -trimpath -tags production -ldflags '-H windowsgui' -o bin/loopbee.exe ./cmd/loopbee
+    & $loopbeeGo build -trimpath -tags production -ldflags $loopbeeGuiLdflags -o bin/loopbee.exe ./cmd/loopbee
     if ($LASTEXITCODE) { throw 'Windows desktop build failed' }
     if ($DesktopTest) {
         New-Item -ItemType Directory -Path .test-data -Force | Out-Null
-        & $loopbeeGo build -trimpath -tags production,desktoptest -ldflags '-H windowsgui' -o .test-data/loopbee-desktop-test.exe ./cmd/loopbee
+        & $loopbeeGo build -trimpath -tags production,desktoptest -ldflags $loopbeeGuiLdflags -o .test-data/loopbee-desktop-test.exe ./cmd/loopbee
         if ($LASTEXITCODE) { throw 'Windows desktop test fixture build failed' }
     }
 } finally {

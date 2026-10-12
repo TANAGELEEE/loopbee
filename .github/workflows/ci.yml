@@ -2,9 +2,14 @@ name: Verify Loopbee
 on: [push, pull_request]
 permissions:
   contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   core:
     strategy:
+      # Let every platform finish, so one failure does not hide the others (Linux race tests were cancelled before).
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
@@ -19,11 +24,31 @@ jobs:
       - run: go build -tags nogui ./cmd/loopbee
       - if: runner.os == 'Linux'
         run: go test -race -tags nogui ./...
+
+      # macOS: package the app and keep it as a build artifact.
       - if: runner.os == 'macOS'
         run: sh scripts/build-macos.sh
+      - if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Loopbee-macos-arm64
+          if-no-files-found: error
+          path: |
+            bin/Loopbee-macos-*.zip
+            bin/Loopbee-macos-*.zip.sha256
+
+      # Windows: package, native lifecycle and WebView2 desktop acceptance.
       - if: runner.os == 'Windows'
         shell: pwsh
         run: ./scripts/build-windows.ps1 -DesktopTest
+      - if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Loopbee-windows-amd64
+          if-no-files-found: error
+          path: |
+            bin/Loopbee-windows-amd64.zip
+            bin/Loopbee-windows-amd64.zip.sha256
       - if: runner.os == 'Windows'
         run: go test ./cmd/loopbee
       - if: runner.os == 'Windows'
@@ -46,18 +71,15 @@ jobs:
         run: npm run test:desktop
         env:
           LOOPBEE_DESKTOP_EXE: .test-data/loopbee-desktop-test.exe
+          # A fresh directory: only screenshots taken in this run are uploaded, never the ones committed in docs/.
+          LOOPBEE_EVIDENCE_DIR: ${{ runner.temp }}/evidence
       - if: runner.os == 'Windows' && always()
         uses: actions/upload-artifact@v4
         with:
           name: windows-desktop-evidence
-          path: docs/evidence/windows-*
-      - if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
-        with:
-          name: Loopbee-windows-amd64
-          path: |
-            bin/Loopbee-windows-amd64.zip
-            bin/Loopbee-windows-amd64.zip.sha256
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/evidence
+
   browser:
     runs-on: ubuntu-latest
     steps:
@@ -74,7 +96,11 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm test
       - run: npm run test:e2e
-      - uses: actions/upload-artifact@v4
+        env:
+          LOOPBEE_EVIDENCE_DIR: ${{ runner.temp }}/evidence
+      - if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: ui-evidence
-          path: docs/evidence
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/evidence

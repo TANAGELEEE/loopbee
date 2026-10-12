@@ -32,3 +32,8 @@
 | Agents switching branches in the developer's checkout collide with their work | Optional per-Run git worktree from a base ref | TestWorktreeWorkspaceLeavesTheCheckoutAlone |
 | An agent proposal could smuggle enabled schedules or secret values | Normalise proposals: drafts stay disabled, secret values are dropped, Validate and the ceiling still apply | TestAuthorProposalIsNormalisedDraft, TestBeectlCreatesDisabledDraftAndRuns |
 | A real CLI with a missing sandbox fails with a cryptic generic error | Surface the CLI's own error text in the Run | TestAgentFailureReason |
+| A Windows checkout (core.autocrlf) embedded SKILL.md with CRLF; the beectl test reported “skill not written” and the schema example was silently lost | `.gitattributes` keeps text LF; beectl normalises the embedded skill; the test checks read errors and content separately | TestSkillWithCRLFCheckout |
+| The CI matrix stopped Linux race tests when Windows failed, hiding further failures | `fail-fast: false` | .github/workflows/ci.yml |
+| CI uploaded screenshots committed in docs/ as if they were this run's evidence | Tests write to `LOOPBEE_EVIDENCE_DIR`; CI uses a fresh directory | .github/workflows/ci.yml |
+| Codex's sandbox cannot write Git metadata, so agents could not commit in a worktree | Loopbee creates the branch and commits after each agent step | TestBranchWorkspaceCommitsForTheAgent |
+| Read-only Claude Code has no shell, so “run the tests and report” failed | Command steps with continueOnError; their output is passed to later agent steps | TestCommandOutputReachesTheAgentStep |

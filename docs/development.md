@@ -10,4 +10,6 @@ Before submitting, run `go test ./...`, `go vet ./...`, `npm test`, build the bi
 
 The Windows desktop app is part of the current v1 scope; see the [platform plan](subsystems/gui-shell.md) for development order and acceptance criteria. Windows shell changes likewise require a Windows build and native window, tray, notification, credential-store, start-at-login, and keep-awake checks, alongside nogui regression tests. Linux currently requires nogui compilation checks only, without desktop acceptance requirements.
 
+Text files are LF everywhere (`.gitattributes`); code that parses embedded or checked-in text must still tolerate CRLF, and tests must report read errors separately from content mismatches. CI runs every platform to the end (`fail-fast: false`) and uploads only evidence produced by the current run.
+
 Do not commit launch URLs, runtime databases, secrets, app working directories, binaries, or toolchains. Do not send real notifications, run paid agents, or push to real repositories unless the current acceptance task explicitly specifies the target and authorizes it.

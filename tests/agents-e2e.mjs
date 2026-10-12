@@ -5,6 +5,8 @@ import { resolve, join } from "node:path";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { startCore, waitFor } from "./demo.mjs";
+// CI sets LOOPBEE_EVIDENCE_DIR to a fresh directory so uploaded screenshots always come from this run.
+const EVIDENCE = process.env.LOOPBEE_EVIDENCE_DIR || "docs/evidence";
 
 const fake = (n) => resolve(`tests/fake-agent/${n}.mjs`);
 const core = await startCore(undefined, { LOOPBEE_CODEX_BIN: fake("codex"), LOOPBEE_CLAUDE_BIN: fake("claude") });
@@ -48,8 +50,8 @@ try {
   await page.getByRole("button", { name: "I do it myself" }).click();
   await page.locator(".chat-side").getByText("Daily 02:00 · Asia/Taipei").waitFor();
   assert.equal(await page.locator(".msg.me").count(), 2);
-  await mkdir("docs/evidence/screens", { recursive: true });
-  await page.screenshot({ path: "docs/evidence/screens/chat-authoring.en.light.png", fullPage: true });
+  await mkdir(`${EVIDENCE}/screens`, { recursive: true });
+  await page.screenshot({ path: `${EVIDENCE}/screens/chat-authoring.en.light.png`, fullPage: true });
 
   // Save: a disabled draft that keeps the conversation and the claude binding.
   await page.getByRole("button", { name: "Save as draft" }).click();
@@ -66,7 +68,7 @@ try {
   await page.getByRole("link", { name: "Go to review" }).waitFor();
   await page.locator(".report").getByText("Fixed 1 error, deployed to test").waitFor();
   assert.ok(await page.locator(".report").getByText("https://example.com/pr/7").isVisible());
-  await page.screenshot({ path: "docs/evidence/screens/run-report.en.light.png", fullPage: true });
+  await page.screenshot({ path: `${EVIDENCE}/screens/run-report.en.light.png`, fullPage: true });
   await page.getByRole("link", { name: "Go to review" }).click();
   await page.locator('#gate-form [name="note"]').fill("Checked on test, looks good");
   await page.getByRole("button", { name: "Approve and continue" }).click();
@@ -106,7 +108,7 @@ try {
     await page.reload();
     await page.waitForTimeout(400);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), name + " overflows");
-    await page.screenshot({ path: `docs/evidence/screens/${name}.png`, fullPage: true });
+    await page.screenshot({ path: `${EVIDENCE}/screens/${name}.png`, fullPage: true });
   }
   assert.deepEqual(errors, [], "browser errors");
   console.log("PASS: agent detection and default, chat authoring with follow-up, draft save with conversation, Claude-run agent step with report and gate, no_action outcome, form fields for permissions, worktree and secrets");

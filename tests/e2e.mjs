@@ -4,6 +4,8 @@ import { mkdir, rm } from "node:fs/promises";
 import assert from "node:assert/strict";
 import { startCore } from "./demo.mjs";
 import { uiFlow } from "./ui-flow.mjs";
+// CI sets LOOPBEE_EVIDENCE_DIR to a fresh directory so uploaded screenshots always come from this run.
+const EVIDENCE = process.env.LOOPBEE_EVIDENCE_DIR || "docs/evidence";
 
 // Real agent CLIs on this machine are ignored so the test never calls a model.
 const core = await startCore(undefined, { LOOPBEE_CODEX_BIN: "/nonexistent/codex", LOOPBEE_CLAUDE_BIN: "/nonexistent/claude" });
@@ -46,13 +48,13 @@ try {
   assert.equal((await fetch(core.base + "/api/state")).status, 401, "API must require the session cookie");
 
   await page.getByRole("link", { name: "Today", exact: true }).click();
-  await mkdir("docs/evidence", { recursive: true });
-  await page.screenshot({ path: "docs/evidence/dashboard-dark.png", fullPage: true });
+  await mkdir(EVIDENCE, { recursive: true });
+  await page.screenshot({ path: `${EVIDENCE}/dashboard-dark.png`, fullPage: true });
   await page.getByRole("link", { name: "Settings" }).click();
   await page.getByRole("radio", { name: "Light" }).click();
   await page.waitForFunction(() => !document.body.classList.contains("dark"));
   await page.getByRole("link", { name: "Today", exact: true }).click();
-  await page.screenshot({ path: "docs/evidence/dashboard-light.png", fullPage: true });
+  await page.screenshot({ path: `${EVIDENCE}/dashboard-light.png`, fullPage: true });
 
   // Minimum desktop window and a phone-width browser stay free of horizontal scrolling.
   for (const [w, h] of [[960, 640], [390, 844]]) {
@@ -64,7 +66,7 @@ try {
     }
   }
   await page.goto(core.base + "/#/today");
-  await page.screenshot({ path: "docs/evidence/mobile.png", fullPage: true });
+  await page.screenshot({ path: `${EVIDENCE}/mobile.png`, fullPage: true });
   assert.deepEqual(errors, [], "browser runtime errors");
   console.log("PASS: onboarding, editor, run, gate review, edit, evidence, artifact download, cancel dialog, three languages, themes, 960px and mobile layouts, no script errors");
 } finally {

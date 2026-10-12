@@ -6,6 +6,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import assert from "node:assert/strict";
 import { uiFlow } from "./ui-flow.mjs";
+// CI sets LOOPBEE_EVIDENCE_DIR to a fresh directory so uploaded screenshots always come from this run.
+const EVIDENCE = process.env.LOOPBEE_EVIDENCE_DIR || "docs/evidence";
 
 assert.equal(
   process.platform,
@@ -154,9 +156,9 @@ try {
   await page.getByRole("link", { name: "Today", exact: true }).click();
   await page.getByRole("button", { name: "Refresh", exact: true }).click();
   await page.locator(".kpis").waitFor();
-  await mkdir("docs/evidence", { recursive: true });
+  await mkdir(EVIDENCE, { recursive: true });
   await page.screenshot({
-    path: "docs/evidence/windows-desktop.png",
+    path: `${EVIDENCE}/windows-desktop.png`,
     fullPage: true,
   });
   assert.deepEqual(errors, [], "desktop script errors before restart");

@@ -654,6 +654,7 @@ func (a *App) ReadArtifact(id, name string) ([]byte, error) {
 
 func firstLine(s string, n int) string {
 	s, _, _ = strings.Cut(strings.TrimSpace(s), "\n")
+	s = strings.TrimSpace(s) // drops a trailing \r from CRLF text
 	if r := []rune(s); len(r) > n {
 		return string(r[:n]) + "…"
 	}

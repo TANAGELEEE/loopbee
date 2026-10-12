@@ -1,0 +1,79 @@
+name: Release Loopbee
+# Push a tag such as v0.2.0 to build, test and publish the Windows and macOS packages as a GitHub Release.
+# Tags with a suffix (v0.2.0-rc.1) become pre-releases. The packages are unsigned and not notarized.
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test -tags nogui ./...
+      - shell: pwsh
+        run: |
+          $version = '${{ github.ref_name }}'.TrimStart('v')
+          ./scripts/build-windows.ps1 -Version $version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          if-no-files-found: error
+          path: |
+            bin/Loopbee-windows-amd64.zip
+            bin/Loopbee-windows-amd64.zip.sha256
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test -tags nogui ./...
+      - run: LOOPBEE_VERSION="${GITHUB_REF_NAME#v}" sh scripts/build-macos.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-macos
+          if-no-files-found: error
+          path: |
+            bin/Loopbee-macos-*.zip
+            bin/Loopbee-macos-*.zip.sha256
+
+  publish:
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+      - name: Create the release and upload the packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -eu
+          cd dist
+          ls -l
+          for f in *.zip; do tr -d '\r' < "$f.sha256" | sha256sum -c -; done
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber ./*.zip ./*.sha256
+          else
+            prerelease=""
+            case "$TAG" in *-*) prerelease="--prerelease" ;; esac
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes $prerelease \
+              --title "Loopbee $TAG" ./*.zip ./*.sha256
+          fi

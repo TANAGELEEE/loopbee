@@ -24,7 +24,13 @@ import (
 )
 
 //go:embed SKILL.md
-var skill []byte
+var skillRaw []byte
+
+// skill returns the embedded skill with LF line endings. A Windows checkout with core.autocrlf may embed
+// CRLF; agents expect the front matter to start with "---\n", and the schema example is cut at "```json\n".
+func skill() []byte {
+	return []byte(strings.ReplaceAll(string(skillRaw), "\r\n", "\n"))
+}
 
 func main() {
 	if err := run(os.Args[1:], os.Stdout); err != nil {
@@ -346,8 +352,11 @@ func printSchema(out io.Writer) error {
 	if err := writeJSON(out, schema); err != nil {
 		return err
 	}
-	_, example, _ := strings.Cut(string(skill), "```json\n")
-	example, _, _ = strings.Cut(example, "```")
+	_, example, found := strings.Cut(string(skill()), "```json\n")
+	example, _, closed := strings.Cut(example, "```")
+	if !found || !closed || strings.TrimSpace(example) == "" {
+		return errors.New("the embedded skill has no JSON example; rebuild beectl")
+	}
 	fmt.Fprintln(out, "\nExample:")
 	fmt.Fprint(out, example)
 	return nil
@@ -355,7 +364,7 @@ func printSchema(out io.Writer) error {
 
 func skillCommand(args []string, out io.Writer) error {
 	if len(args) == 0 || args[0] == "print" {
-		_, err := out.Write(skill)
+		_, err := out.Write(skill())
 		return err
 	}
 	if args[0] != "install" {
@@ -387,7 +396,7 @@ func skillCommand(args []string, out io.Writer) error {
 		if err := os.MkdirAll(t, 0755); err != nil {
 			return err
 		}
-		if err := os.WriteFile(filepath.Join(t, "SKILL.md"), skill, 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(t, "SKILL.md"), skill(), 0644); err != nil {
 			return err
 		}
 		fmt.Fprintln(out, "installed", filepath.Join(t, "SKILL.md"))

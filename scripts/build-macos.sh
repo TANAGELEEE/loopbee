@@ -9,11 +9,15 @@ fi
 export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-11.0}"
 export CGO_CFLAGS="${CGO_CFLAGS:--O2 -g} -mmacosx-version-min=$MACOSX_DEPLOYMENT_TARGET"
 export CGO_LDFLAGS="${CGO_LDFLAGS:--O2 -g} -mmacosx-version-min=$MACOSX_DEPLOYMENT_TARGET"
+# LOOPBEE_VERSION (e.g. 1.2.0 from a v1.2.0 tag) is stamped into the binaries and Info.plist.
+version="${LOOPBEE_VERSION:-}"
+ldflags=""
+[ -n "$version" ] && ldflags="-X loopbee/internal/core.Version=$version"
 app="bin/Loopbee.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
-go build -trimpath -o "$app/Contents/MacOS/loopbee" ./cmd/loopbee
-go build -trimpath -o "$app/Contents/MacOS/beectl" ./cmd/beectl
-go build -trimpath -o bin/beectl ./cmd/beectl
+go build -trimpath -ldflags "$ldflags" -o "$app/Contents/MacOS/loopbee" ./cmd/loopbee
+go build -trimpath -ldflags "$ldflags" -o "$app/Contents/MacOS/beectl" ./cmd/beectl
+go build -trimpath -ldflags "$ldflags" -o bin/beectl ./cmd/beectl
 cp internal/ui/web/bee.svg "$app/Contents/Resources/bee.svg"
 iconset="bin/loopbee.iconset"
 mkdir -p "$iconset"
@@ -33,10 +37,17 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
 <key>CFBundleExecutable</key><string>loopbee</string>
 <key>CFBundleIconFile</key><string>loopbee.icns</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleVersion</key><string>0.1.0</string>
-<key>CFBundleShortVersionString</key><string>0.1.0</string>
+<key>CFBundleVersion</key><string>__VERSION__</string>
+<key>CFBundleShortVersionString</key><string>__VERSION__</string>
 <key>NSHighResolutionCapable</key><true/>
 <key>LSMinimumSystemVersion</key><string>12.0</string>
 </dict></plist>
 PLIST
-echo "Built $app (unsigned; not notarized) and bin/beectl. Put beectl on your PATH, e.g. ln -s \"$PWD/bin/beectl\" /usr/local/bin/beectl, then run: beectl skill install"
+plain_version=$(printf '%s' "$version" | sed 's/[^0-9.].*$//')
+sed -i '' "s/__VERSION__/${plain_version:-0.1.0}/g" "$app/Contents/Info.plist"
+# Portable archive for CI artifacts and releases (ditto keeps the bundle's symlinks and permissions).
+zip="bin/Loopbee-macos-$(uname -m).zip"
+rm -f "$zip"
+ditto -c -k --keepParent "$app" "$zip"
+(cd bin && shasum -a 256 "$(basename "$zip")" > "$(basename "$zip").sha256")
+echo "Built $app ${version:-dev} (unsigned; not notarized), $zip and bin/beectl. Put beectl on your PATH, e.g. ln -s \"$PWD/bin/beectl\" /usr/local/bin/beectl, then run: beectl skill install"

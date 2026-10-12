@@ -79,10 +79,19 @@ npx playwright install chromium
 npm test
 npm run test:e2e
 npm run test:screens   # optional: screenshot matrix for visual review
+sh scripts/real-smoke.sh # macOS: go test + package + real Codex/Claude Code end to end (uses your subscription)
 ```
 
 For complete Windows checks, run `.\scripts\check.ps1`. This checks packaged builds, the release app's native window/tray lifecycle, and workflows in real WebView2 through `npm run test:desktop`. Tests briefly open an isolated window and use temporary data paths containing Chinese characters and spaces. Only `desktoptest` builds enable a local debugging port; that executable is excluded from release ZIPs. Browser E2E continues to use `bin/loopbee.exe -nogui`.
 
-Set `LOOPBEE_WINDOWS_INTEGRATION=1` when running core tests to check and restore start-at-login registration, test keep-awake behavior, and exercise temporary credentials. `LOOPBEE_WINDOWS_TOAST_TEST=1` submits a local test notification. E2E does not run real agents, send external notifications, or access business repositories. Screenshots are in [docs/evidence](docs/evidence). CI is configured for Windows desktop acceptance, Linux race tests, and macOS builds; remote execution has not yet been verified.
+Set `LOOPBEE_WINDOWS_INTEGRATION=1` when running core tests to check and restore start-at-login registration, test keep-awake behavior, and exercise temporary credentials. `LOOPBEE_WINDOWS_TOAST_TEST=1` submits a local test notification. E2E does not run real agents, send external notifications, or access business repositories; `scripts/real-smoke.sh` / `npm run test:real` is the opt-in check with real agent CLIs on a throw-away repository. Screenshots are in [docs/evidence](docs/evidence); set `LOOPBEE_EVIDENCE_DIR` to write them elsewhere.
+
+### CI and releases
+
+`.github/workflows/ci.yml` runs on every push: Go tests on Linux (plus race), Windows and macOS with `fail-fast: false`, the Windows package with native-lifecycle and WebView2 desktop acceptance, the macOS `.app`, and the browser E2E. The Windows ZIP and the macOS ZIP are uploaded as build artifacts; screenshots are written to a fresh directory and uploaded only if the run produced them.
+
+To publish a release, push a tag: `git tag v0.2.0 && git push origin v0.2.0`. `.github/workflows/release.yml` tests and builds both platforms with the version stamped in, checks the SHA-256 files and creates the GitHub Release with `Loopbee-windows-amd64.zip`, `Loopbee-macos-arm64.zip` and their checksums. Tags with a suffix such as `v0.2.0-rc.1` become pre-releases. Packages are unsigned and not notarized.
+
+`.gitattributes` keeps text files LF in every checkout (PowerShell scripts CRLF); embedded files such as `cmd/beectl/SKILL.md` must not change with `core.autocrlf`.
 
 [Architecture](docs/architecture.md) · [Contracts](docs/contracts.md) · [API](docs/api.md) · [Development standards](docs/development.md) · [Acceptance record](docs/acceptance.md) · [Lessons](LESSONS.md)
