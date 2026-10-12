@@ -337,3 +337,25 @@ details summary{cursor:pointer;padding:6px 0;font-weight:550}
 .check.sm{font-size:12px;margin:0;gap:4px;display:inline-flex;align-items:center}
 .perm .ctl .mono{margin-top:2px}
 .envlist>.btn{justify-self:start}
+/* beside the sidebar the page has its width less: the page's own width breakpoints come that much sooner
+   (the 1100px and 900px rules above, less the column rule, which wraps by itself; keep them in step) */
+@media (max-width:1312px){
+  body.side-nav .ed{grid-template-columns:minmax(0,1fr) 280px}
+  body.side-nav .ednav{display:none}
+  body.side-nav .lrow .l-last{width:200px}
+  body.side-nav .chat{grid-template-columns:1fr}
+  body.side-nav .chat-side{position:static}
+}
+@media (max-width:1112px){
+  body.side-nav .split{grid-template-columns:1fr}
+  body.side-nav .split.has-sel .alist{display:none}
+  body.side-nav .split:not(.has-sel) .aview{display:none}
+  body.side-nav .mobile-back{display:inline-flex}
+  body.side-nav .aview{position:static}
+  body.side-nav .ed{grid-template-columns:1fr}
+  body.side-nav .edside{position:static}
+  body.side-nav .lrow{flex-wrap:wrap}
+  body.side-nav .lrow .l-last,body.side-nav .lrow .l-next{width:auto;flex:1 1 40%}
+  body.side-nav .gatebar{flex-wrap:wrap}
+  body.side-nav .gatebar .gb-t{flex:1 1 100%}
+}

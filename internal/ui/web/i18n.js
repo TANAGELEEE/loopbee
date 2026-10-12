@@ -11,6 +11,8 @@ const translations = {
   Digest: ["日報", "日报"],
   Settings: ["設定", "设置"],
   Main: ["主導覽", "主导航"],
+  "Hide sidebar": ["隱藏側邊欄", "隐藏侧边栏"],
+  "Show sidebar": ["顯示側邊欄", "显示侧边栏"],
   Language: ["語言", "语言"],
   Refresh: ["重新整理", "刷新"],
   "New Loop": ["新增 Loop", "新增 Loop"],

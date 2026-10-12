@@ -155,11 +155,11 @@ export function definitionOnly(d) {
 }
 
 // ---------- Settings ----------
-const tabs = [["general", "General"], ["agents", "Agents"], ["notifications", "Notifications"], ["team", "Team sync"], ["data", "Data & archive"], ["about", "About"]];
+export const settingsTabs = [["general", "General"], ["agents", "Agents"], ["notifications", "Notifications"], ["team", "Team sync"], ["data", "Data & archive"], ["about", "About"]];
 export function settingsPage(tab, ui) {
   const c = S().settings;
   const body = { general, agents, notifications, team, data, about }[tab] || general;
-  return `<div class="sw"><nav class="smenu" aria-label="${T("Settings")}">${tabs.map(([id, l]) => `<a href="#/settings/${id}" class="${id === tab ? "on" : ""}" ${id === tab ? 'aria-current="page"' : ""}>${T(l)}</a>`).join("")}</nav><div class="spane">${body(c, ui)}</div></div>`;
+  return `<div class="sw"><nav class="smenu" aria-label="${T("Settings")}">${settingsTabs.map(([id, l]) => `<a href="#/settings/${id}" class="${id === tab ? "on" : ""}" ${id === tab ? 'aria-current="page"' : ""}>${T(l)}</a>`).join("")}</nav><div class="spane">${body(c, ui)}</div></div>`;
 }
 const langs = [["zh-TW", "繁體中文"], ["zh-CN", "简体中文"], ["en", "English"]];
 const ro = () => (viewer() ? "disabled" : "");
