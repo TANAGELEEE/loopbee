@@ -92,6 +92,31 @@ func TestBeectlCreatesDisabledDraftAndRuns(t *testing.T) {
 	}
 }
 
+func TestBeectlVersionWithoutApp(t *testing.T) {
+	t.Setenv("LOOPBEE_DATA_DIR", t.TempDir())
+	for _, args := range [][]string{{"version"}, {"--version"}, {"-data", t.TempDir(), "version"}, {"-data", t.TempDir(), "--version"}} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			var out bytes.Buffer
+			if err := run(args, &out); err != nil {
+				t.Fatal(err)
+			}
+			if want := "beectl " + core.Version + "\n"; out.String() != want {
+				t.Fatalf("got %q, want %q", out.String(), want)
+			}
+		})
+	}
+}
+
+func TestBeectlHelpListsVersion(t *testing.T) {
+	var out bytes.Buffer
+	if err := run([]string{"help"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "version") || !strings.Contains(out.String(), "--version") {
+		t.Fatalf("help omits version command or flag: %s", out.String())
+	}
+}
+
 func TestBeectlWithoutAppAndSkillInstall(t *testing.T) {
 	var out bytes.Buffer
 	if err := run([]string{"-data", t.TempDir(), "status"}, &out); err == nil || !strings.Contains(err.Error(), "start the app first") {
