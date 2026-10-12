@@ -123,6 +123,13 @@ files the agent changed, the editor warns about commands between an agent and a 
 - Evidence: `TestHostileAgentCannotEscapeThroughLoopbee`, `TestSelfImproveExampleIsValid`, `tests/agents-e2e.mjs#runs after the agent and before any review`
 - Seen: 2026-10-12
 
+### The gate shows what will be pushed
+The first real review listed only the agent's raw JSON output, cut to 14 lines; the committed diff existed but the
+gate never offered it. The gate now opens on “Changes to review”, followed by the report, and shows them in full;
+on a continued branch it shows everything not yet reviewed, also when this Run committed nothing new.
+- Evidence: `tests/agents-e2e.mjs#Changes to review`, `TestBlockedIssueWorkIsKeptAndTheRetryContinuesIt`
+- Seen: 2026-10-12
+
 ### Only trusted people's words reach the agent
 Anyone can open or comment on a public issue. Loopbee's intake takes issues opened by people with write access,
 drops other comments, and fences the text as data.
@@ -208,8 +215,16 @@ already being worked on, opened by someone without write access).
 In the first self-improvement Run Codex fixed issue #1 and reported blocked; Loopbee ended the Run before
 committing, the next Run would have deleted the worktree, and the leftover branch blocked every retry. Loopbee now
 commits before acting on the agent's result, and a retry of the same issue continues its branch; the reviewer sees
-the whole branch.
+the whole branch. On that retry Codex found the fix already there and reported “nothing to do”, which ended the Run
+before review: work already on the branch now goes to review and the pull request.
 - Evidence: `TestBlockedIssueWorkIsKeptAndTheRetryContinuesIt`
+- Seen: 2026-10-12
+
+### A decision is saved when it is made
+After “Approve and continue” the Run stayed “waiting” in storage while Loopbee pushed and opened the pull request,
+so the page kept offering the gate and the click looked ignored. The approval and the delivery phase are saved at
+once, and a push never waits for a credential prompt nobody can see.
+- Evidence: `TestApprovalShowsDeliveryWhileItRuns`, `TestPushNeverWaitsForCredentials`
 - Seen: 2026-10-12
 
 ### A retry must see why the previous round failed
@@ -310,6 +325,13 @@ Status icons broke exact-text locators.
 - Evidence: `tests/e2e.mjs`
 - Seen: initial build
 
+### A refresh must never discard what the person typed
+In the macOS window the first click after typing in a text box is swallowed; by the time the reviewer clicked
+again, the 3-second refresh had re-rendered the gate and wiped the review note, so approving seemed to do nothing.
+The note is kept per Run and the page does not refresh over it.
+- Evidence: `tests/agents-e2e.mjs#the review note was wiped by a refresh`
+- Seen: 2026-10-12
+
 ### Do not override the design system from the app stylesheet
 Copying the design CSS and overriding it changed header height, title size and buttons. `app.css` only adds
 layout and states; component sizes, spacing and colours stay in `loop.css`.
@@ -343,6 +365,14 @@ Inside Codex's sandbox `go test ./...` panicked on “bind: operation not permit
 sandbox limit from a broken change and reported blocked. Tests that need a local port skip there with that reason
 (never in CI), and AGENTS.md and the issue prompt say a sandbox limit is not a reason to stop.
 - Evidence: `TestLoopbackSkipsOnlyInsideASandbox`, `AGENTS.md#cannot open local ports`, `TestIssueIntakeToPullRequestAfterReview`
+- Seen: 2026-10-12
+
+### Do not parse Git's short names
+`git branch -r --format=%(refname:short)` prints a remote's HEAD pointer (`refs/remotes/origin/HEAD`) as a bare
+`origin`. Newer Git records that pointer on every fetch, older Git (2.43 here) does not, so every CI platform failed
+with “one of: origin, origin/master” while the tests passed locally. Read full ref names, skip HEAD pointers, and
+create the pointer in the test so every Git version sees it.
+- Evidence: `TestMissingBaseRefNamesTheRemoteBranches`
 - Seen: 2026-10-12
 
 ### Release text is written, not generated

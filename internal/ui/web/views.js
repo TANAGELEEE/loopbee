@@ -14,7 +14,9 @@ const runsOf = (loopId) => runsSorted().filter((r) => r.loopId === loopId);
 const sourceLabel = (r) =>
   ({ schedule: t("Scheduled"), catchup: t("Catch-up"), manual: t("Manual"), rerun: t("Rerun of {id}", { id: short(r.rerunOf) }) })[r.source] || "";
 const host = () => location.host;
-const stepName = (r) => r.definition.steps[r.step]?.name || "";
+// While a Run delivers (pushes its branch, opens the pull request) no step is running; say what it does instead.
+const stepName = (r) =>
+  r.phase === "delivering" ? t("Pushing the branch and opening the pull request") : r.phase === "merging" ? t("Waiting for the pull request's checks, then merging") : r.definition.steps[r.step]?.name || "";
 const metricsText = (m) =>
   m && Object.keys(m).length ? Object.entries(m).map(([k, v]) => `${k} ${v}`).join(" · ") : "";
 
@@ -275,7 +277,7 @@ export function loopDetail(id) {
 }
 export function workSummary(l) {
   const from = l.intake ? t("GitHub issues labelled {label}", { label: l.intake.label || "agent-ready" }) + (l.intake.repo ? ` (${l.intake.repo})` : "") : t("The prompt");
-  const pr = { "after-review": t("pull request after your review"), draft: t("draft pull request") }[l.pullRequest?.mode] || (l.branch ? t("branch only") : t("no branch"));
+  const pr = l.pullRequest?.merge ? t("pull request after your review, merged when checks pass") : { "after-review": t("pull request after your review"), draft: t("draft pull request") }[l.pullRequest?.mode] || (l.branch ? t("branch only") : t("no branch"));
   return `${from} → ${pr}`;
 }
 function notifySummary(l) {
@@ -421,8 +423,8 @@ export function runDetail(id, ui) {
       ${sec(T("Round timeline"), { note: T("{r} rounds · {n} steps", { r: rounds.size, n: trace.length }) })}
       <div class="grp">${trace.length ? timeline : empty(T(active(r) ? "Starting…" : "No step records"), T(active(r) ? "Steps appear as soon as they start." : "This run was recorded before step tracing existed or stopped before its first step."))}<button type="button" class="foot" data-action="toggle-events">${T(ui.events ? "Hide raw events" : "Show raw events")}</button>${ui.events ? `<div id="events" class="event-list">${T("Loading…")}</div>` : ""}</div>
       ${r.issue ? `<div class="bn mt10">${icon("run")}<span>${T("Issue")} <span class="mono">#${esc(r.issue.number)}</span> ${esc(r.issue.title)} · <span class="mono">${esc(r.issue.url)}</span></span></div>` : ""}
-      ${r.prUrl ? `<div class="bn mt10">${icon("ok")}<span>${T("Pull request")} <span class="mono">${esc(r.prUrl)}</span></span>${btn("Copy links", "copy-links", { cls: "sm", attrs: `data-id="${r.id}"` })}</div>` : ""}
-      ${r.branch ? `<div class="bn mt10">${icon("ok")}<span>${T("Branch {branch}", { branch: "" })}<span class="mono">${esc(r.branch)}</span>${(r.commits || []).length ? " · " + T("commits {list}", { list: "" }) + `<span class="mono">${esc(r.commits.join(", "))}</span>` : " · " + T("no changes committed")}</span></div>` : ""}
+      ${r.prUrl ? `<div class="bn mt10">${icon("ok")}<span>${T(r.merged ? "Pull request (merged)" : "Pull request")} <span class="mono">${esc(r.prUrl)}</span></span>${btn("Copy links", "copy-links", { cls: "sm", attrs: `data-id="${r.id}"` })}</div>` : ""}
+      ${r.branch ? `<div class="bn mt10">${icon("ok")}<span>${T("Branch {branch}", { branch: "" })}<span class="mono">${esc(r.branch)}</span>${(r.commits || []).length ? " · " + T("commits {list}", { list: "" }) + `<span class="mono">${esc(r.commits.join(", "))}</span>` : " · " + T((r.artifacts || []).some((n) => n.endsWith(".diff")) ? "work from an earlier Run" : "no changes committed")}</span></div>` : ""}
       ${r.report ? `${sec(T("Agent report"), { note: T("Written by the agent; not translated") })}<div class="card sm report">${r.result ? `<div class="hd">${resultChip(r.result)}<span class="nm">${esc(r.result.summary || "")}</span></div>${(r.result.links || []).length ? `<div class="links">${r.result.links.map((u) => `<span class="mono">${esc(u)}</span>`).join("")}${btn("Copy links", "copy-links", { cls: "sm", attrs: `data-id="${r.id}"` })}</div>` : ""}<hr class="hair mt10">` : ""}<pre class="report-text">${esc(stripMarker(r.report))}</pre></div>` : ""}
       ${sec(T("Outcome and next steps"))}
       <div class="grp">${stop}<div class="row top">${icon("idle")}<div class="grow"><div class="nm">${T("Artifacts: {n}", { n: r.artifacts?.length || 0 })}</div><div class="sub">${T("Each executed step stores its combined output as text evidence.")}</div></div></div>${nextLoop ? `<div class="row top">${icon("idle")}<div class="grow"><div class="nm">${nextLoop.enabled && nextLoop.cron ? T("Next scheduled run: {when}", { when: when(nextLoop.next) }) : T("No upcoming scheduled run")}</div><div class="sub">${esc(cronText(nextLoop.cron))}</div></div></div>` : ""}</div>
@@ -454,8 +456,15 @@ export function gatePage(id) {
   const l = r.definition;
   const gate = (r.trace || []).filter((x) => x.kind === "gate").at(-1);
   const open = r.status === "waiting";
-  const evidence = (r.trace || []).filter((x) => x.artifact && x.round === r.round);
+  // What the reviewer acts on comes first: the committed change, then the agent's report, then raw output.
+  const tag = `round-${String(r.round).padStart(2, "0")}-`;
+  const review = (r.artifacts || [])
+    .filter((n) => n.startsWith(tag) && (n.endsWith(".diff") || n.endsWith(".report.md")))
+    .sort((a, b) => Number(b.endsWith(".diff")) - Number(a.endsWith(".diff")))
+    .map((n) => ({ artifact: n, round: r.round, status: "ok", kind: n.endsWith(".diff") ? "diff" : "report", name: t(n.endsWith(".diff") ? "Changes to review" : "Agent report") }));
+  const evidence = [...review, ...(r.trace || []).filter((x) => x.artifact && x.round === r.round)];
   const prior = evidence.length ? evidence : (r.trace || []).filter((x) => x.artifact).slice(-3);
+  const sel = ctx.gateSel || (review[0] || prior.at(-1))?.artifact || "";
   const ro = viewer();
   return `
   ${crumbs([[t("Today"), "#/today"], [l.name, `#/run/${r.id}`], [t("Gate review")]])}
@@ -468,18 +477,18 @@ export function gatePage(id) {
   <div class="cols">
     <div class="main">
       ${sec(T("Evidence from this round"), { note: T("{n} item|{n} items", { n: prior.length }) })}
-      <div class="grp">${prior.length ? prior.map((x) => `<button type="button" class="row link ${x.artifact === (ctx.gateSel || prior.at(-1)?.artifact) ? "selrow" : ""}" data-action="gate-preview" data-name="${esc(x.artifact)}"><span class="tag">${artifactKind(x.artifact)}</span><div class="grow min0"><div class="nm ell">${esc(x.name)}</div><div class="sub ell">${esc(`${x.kind} · ${x.artifact} · ${bytes(x.bytes)}`)}</div></div>${icon(x.status === "failed" ? "err" : "ok")}</button>`).join("") : empty(T("No evidence before this gate"), T("The gate is the first step of this round."))}</div>
+      <div class="grp">${prior.length ? prior.map((x) => `<button type="button" class="row link ${x.artifact === sel ? "selrow" : ""}" data-action="gate-preview" data-name="${esc(x.artifact)}"><span class="tag">${artifactKind(x.artifact)}</span><div class="grow min0"><div class="nm ell">${esc(x.name)}</div><div class="sub ell">${esc([x.kind, x.artifact, bytes(x.bytes)].filter(Boolean).join(" · "))}</div></div>${icon(x.status === "failed" ? "err" : "ok")}</button>`).join("") : empty(T("No evidence before this gate"), T("The gate is the first step of this round."))}</div>
       ${sec(T("Flow"))}
       <div class="card sm flowcard">${renderFlow(l.steps, flowState(l.steps, r), { run: r, maxRounds: l.maxRounds })}</div>
     </div>
     <div class="side wide">
       ${sec(T("Preview"), { note: T("Plain text; nothing is executed or loaded") })}
-      <div class="card sm"><pre class="ev-pre tall" id="ev-preview" data-run="${r.id}" data-name="${esc(ctx.gateSel || prior.at(-1)?.artifact || "")}">${prior.length ? T("Loading…") : T("No evidence to preview.")}</pre></div>
+      <div class="card sm"><pre class="ev-pre tall" id="ev-preview" data-full="1" data-run="${r.id}" data-name="${esc(sel)}">${prior.length ? T("Loading…") : T("No evidence to preview.")}</pre></div>
     </div>
   </div>
   <form id="gate-form" class="card gatebar">
     <div class="gb-t"><div class="nm">${T(open ? "Decision for round {r}" : "This gate is closed", { r: r.round })}</div><div class="sub">${T(open ? "A note is required; it is stored with the decision." : "The run is no longer waiting.")}</div></div>
-    <textarea class="inp" name="note" rows="1" maxlength="4000" placeholder="${T("Review note (required)")}" aria-label="${T("Review note")}" ${open && !ro ? "" : "disabled"}></textarea>
+    <textarea class="inp" name="note" rows="1" maxlength="4000" placeholder="${T("Review note (required)")}" aria-label="${T("Review note")}" ${open && !ro ? "" : "disabled"}>${esc((open && ctx.gateNotes[r.id]) || "")}</textarea>
     <button class="btn" name="decision" value="reject" ${open && !ro ? "" : "disabled"}>${T("Send back")}</button>
     <button class="btn pri" name="decision" value="approve" ${open && !ro ? "" : "disabled"}>${T("Approve and continue")}</button>
   </form>`;

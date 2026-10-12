@@ -8,9 +8,7 @@
   "intake": {
     "kind": "github-issues"
   },
-  "pullRequest": {
-    "mode": "after-review"
-  },
+  "pullRequest": {"mode": "after-review", "merge": "after-checks"},
   "cron": "0 9-18 * * 1-5",
   "timezone": "Asia/Taipei",
   "lock": "repo:loopbee",

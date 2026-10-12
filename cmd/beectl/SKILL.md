@@ -65,7 +65,8 @@ Rules:
 - To work from GitHub issues, set `"intake": {"kind": "github-issues"}` (optional `label`, `repo`, `trustedUsers`)
   and `"branch": "loopbee/issue-{issue}"`. Loopbee picks one issue per run and gives it to the agent.
 - To get a pull request, set `"pullRequest": {"mode": "after-review"}` with a `gate` after the agent step, or
-  `{"mode": "draft"}` without one. Loopbee pushes and opens it; never script that yourself. Use
+  `{"mode": "draft"}` without one. Loopbee pushes and opens it; never script that yourself. Add
+  `"merge": "after-checks"` (after-review only) when the user wants it merged once CI is green. Use
   `"notify": {"channels": ["telegram"]}` to receive the link on the user's phone.
 - Never put secrets in the definition. Declare `"env": [{"name": "DB_PASSWORD", "secret": true}]` and tell the user to
   fill the value in Loopbee (stored in the system keychain).

@@ -1,7 +1,7 @@
 // Loopbee UI shell: routing, header, polling, dialogs, menus, toasts and actions.
-import { ctx, t, T, esc, $, $$, applyVars, btn, icon, icons, active, hm, cronText, sandboxLabel } from "./ui.js";
+import { ctx, t, T, esc, $, $$, applyVars, btn, icon, icons, navIcons, active, hm, cronText, sandboxLabel } from "./ui.js";
 import * as V from "./views.js";
-import { editorPage, gapsPanel, gaps, newDraft, definitionOnly, settingsPage, onboardingPage, STEP_KINDS, kindLabel } from "./forms.js";
+import { editorPage, gapsPanel, gaps, newDraft, definitionOnly, settingsPage, settingsTabs, onboardingPage, STEP_KINDS, kindLabel } from "./forms.js";
 import { chatPage, newChat, EXAMPLES } from "./chat.js";
 
 const ui = { node: undefined, events: false, step: 0, mode: "form", dirty: false, channel: "" };
@@ -115,7 +115,7 @@ function render() {
   const [page, a, b] = route.path;
   const q = { ...route.q, search: filters[page] || "" };
   if (page === "onboarding") {
-    $("#header").innerHTML = header("onboarding");
+    chrome("onboarding");
     $("#banners").innerHTML = "";
     $("#app").innerHTML = onboardingPage(Math.min(5, Math.max(0, Number(a) || 0)));
     return after();
@@ -155,7 +155,7 @@ function render() {
     default:
       html = V.today();
   }
-  $("#header").innerHTML = header(page);
+  chrome(page);
   $("#banners").innerHTML = banners();
   $("#app").innerHTML = html;
   after();
@@ -167,15 +167,105 @@ function after() {
   loadPreview();
   if (ui.events) loadEvents();
 }
-function header(page) {
+// ---------- the sidebar ----------
+// A window wide enough has its pages down a sidebar, as a Mac app's (and magpie's): Settings at its foot, and the
+// header beside it says where the person is ("Loops / Nightly tests"). Narrower, and on a phone, the pages go back
+// into the header as tabs. The button in the header (or ⌃⌘S, Ctrl+Shift+S elsewhere) shows or hides it at any
+// width, and the choice is kept for this browser; none made, the sidebar from SIDE_AT. The two layouts trade
+// places as one motion (navMorph).
+const NAV = [["today", "Today"], ["loops", "Loops"], ["runs", "Runs"], ["artifacts", "Artifacts"], ["digest", "Digest"]];
+const SIDE_AT = 1024;
+const sideQuery = matchMedia(`(min-width: ${SIDE_AT}px)`);
+const phoneQuery = matchMedia("(max-width: 760px)");
+let navPick = "";
+try {
+  navPick = localStorage.getItem("loopbee.navLayout") || "";
+} catch {}
+if (navPick !== "side" && navPick !== "top") navPick = "";
+const navPage = (page) => ({ loop: "loops", new: "loops", run: "runs", gate: "today", artifact: "artifacts" })[page] || page;
+function sideNav(page = route.path[0]) {
+  if (page === "onboarding" || phoneQuery.matches) return false;
+  return navPick ? navPick === "side" : sideQuery.matches;
+}
+// the header and the sidebar for this layout; the page itself is left alone, so a layout change never redraws
+// (and never discards) what the person is typing
+function chrome(page) {
+  const side = sideNav(page);
+  const bar = $("#sidebar");
+  document.body.classList.toggle("side-nav", side);
+  bar.hidden = !side;
+  bar.innerHTML = side ? sidebar(page) : "";
+  $("#header").innerHTML = header(page, side);
+  applyVars(bar);
+  applyVars($("#header"));
+}
+function sidebar(page) {
+  const cur = navPage(page);
+  const viewerTag = V.viewer() ? `<span class="chip mut">${T("Viewer")}</span>` : "";
+  const item = (id, l, ic) => `<a href="#/${id === "settings" ? "settings/general" : id}" class="sb-i ${cur === id ? "on" : ""}" ${cur === id ? 'aria-current="page"' : ""}${id === "settings" ? "" : ` data-vt="nav-${id}"`}>${ic}<span>${T(l)}</span></a>`;
+  return `<div class="sb-top"><a class="brand" href="#/today"><span class="mark" aria-hidden="true"></span>Loopbee${viewerTag}</a></div><nav class="sb-scroll" aria-label="${T("Main")}">${NAV.map(([id, l]) => item(id, l, navIcons[id])).join("")}</nav><div class="sb-foot">${item("settings", "Settings", navIcons.settings)}</div>`;
+}
+function sideToggle(side) {
+  const label = T(side ? "Hide sidebar" : "Show sidebar");
+  const keys = /^Mac/.test(navigator.platform) ? "⌃⌘S" : "Ctrl+Shift+S";
+  return `<button type="button" class="ib sbt" id="sideToggle" data-action="toggle-sidebar" aria-pressed="${side}" aria-label="${label}" title="${label} (${keys})">${icons.sidebar}</button>`;
+}
+// where the person is: the page, then what is open in it
+function crumb(page) {
+  const [, a, b] = route.path;
+  const parts = [T(page === "settings" ? "Settings" : NAV.find(([id]) => id === navPage(page))?.[1] || "Today")];
+  const run = (id) => ctx.state.runs.find((r) => r.id === id);
+  if (page === "loop") {
+    const l = V.loopById(a);
+    if (l) parts.push(esc(l.name));
+    if (b === "edit") parts.push(T("Edit definition"));
+  } else if (page === "new") parts.push(T("New Loop"));
+  else if (page === "run" || page === "gate" || page === "artifact") {
+    const r = run(a);
+    if (r) parts.push(esc(r.definition.name));
+  } else if (page === "settings") {
+    const tab = settingsTabs.find(([id]) => id === (a || "general"));
+    if (tab) parts.push(T(tab[1]));
+  }
+  return `<div class="crumb" aria-hidden="true">${parts.map((p, i) => (i === parts.length - 1 ? `<b>${p}</b>` : `<span>${p}</span><i>/</i>`)).join("")}</div>`;
+}
+function toggleSideNav() {
+  const page = route.path[0];
+  if (page === "onboarding" || phoneQuery.matches) return;
+  const focused = document.activeElement?.id === "sideToggle";
+  navPick = sideNav() ? "top" : "side";
+  try {
+    localStorage.setItem("loopbee.navLayout", navPick);
+  } catch {}
+  navMorph(() => {
+    chrome(route.path[0]);
+    if (focused) $("#sideToggle")?.focus();
+  });
+}
+// the sidebar slides in from the window's edge or back to it, each page's tab flies to its place in the other
+// layout and the page moves over, on one spring (app.css .nav-morph); a webview without view transitions, or a
+// person who asked for less motion, gets the new layout at once
+function navMorph(change) {
+  if (!document.startViewTransition || matchMedia("(prefers-reduced-motion: reduce)").matches) return change();
+  const root = document.documentElement;
+  root.classList.add("nav-morph");
+  const vt = document.startViewTransition(change);
+  vt.finished.finally(() => root.classList.remove("nav-morph"));
+}
+const relayout = () => ctx.state && chrome(route.path[0]);
+sideQuery.addEventListener?.("change", relayout);
+phoneQuery.addEventListener?.("change", relayout);
+
+function header(page, side) {
   const s = ctx.state;
-  const nav = [["today", "Today"], ["loops", "Loops"], ["runs", "Runs"], ["artifacts", "Artifacts"], ["digest", "Digest"]];
-  const cur = { loop: "loops", new: "loops", run: "runs", gate: "today", artifact: "artifacts" }[page] || page;
+  const nav = NAV;
+  const cur = navPage(page);
   const langShort = { "zh-TW": "繁", "zh-CN": "简", en: "EN" }[ctx.lang];
   const viewerTag = V.viewer() ? `<span class="chip mut">${T("Viewer")}</span>` : "";
   if (page === "onboarding")
     return `<a class="brand" href="#/today"><span class="mark" aria-hidden="true"></span>Loopbee</a><span></span><div class="tools"><button type="button" class="btn ghost sm" id="language" data-action="lang-menu" aria-haspopup="menu" aria-label="${T("Language")}">${langShort} ▾</button><button type="button" class="btn ghost sm" data-action="finish-onboarding" data-href="#/today">${T("Skip setup")}</button></div>`;
-  return `<a class="brand" href="#/today"><span class="mark" aria-hidden="true"></span>Loopbee${viewerTag}</a><nav class="nav" aria-label="${T("Main")}">${nav.map(([id, l]) => `<a href="#/${id}" class="${cur === id ? "on" : ""}" ${cur === id ? 'aria-current="page"' : ""}>${T(l)}</a>`).join("")}</nav><div class="tools">${!V.viewer() && ["today", "loops", "loop"].includes(page) ? `<a class="btn" href="#/new">＋ <span class="new-label">${T("New Loop")}</span></a>` : ""}${s.settings.paused ? `<a class="chip warn" href="#/settings/general">${icon("warn")}${T("Paused")}</a>` : ""}<button type="button" class="btn ghost sm" id="language" data-action="lang-menu" aria-haspopup="menu" aria-label="${T("Language")}">${langShort} ▾</button><button type="button" class="ib" data-action="refresh" aria-label="${T("Refresh")}" title="${T("Refresh")}">${icons.refresh}</button><a class="ib ${page === "settings" ? "on" : ""}" href="#/settings/general" aria-label="${T("Settings")}" title="${T("Settings")}">${icons.gear}</a></div>`;
+  const lead = side ? `<div class="lead">${sideToggle(true)}${crumb(page)}</div><span></span>` : `<div class="lead"><a class="brand" href="#/today"><span class="mark" aria-hidden="true"></span>Loopbee${viewerTag}</a>${phoneQuery.matches ? "" : sideToggle(false)}</div><nav class="nav" aria-label="${T("Main")}">${nav.map(([id, l]) => `<a href="#/${id}" class="${cur === id ? "on" : ""}" ${cur === id ? 'aria-current="page"' : ""} data-vt="nav-${id}">${T(l)}</a>`).join("")}</nav>`;
+  return `${lead}<div class="tools">${!V.viewer() && ["today", "loops", "loop"].includes(page) ? `<a class="btn" href="#/new">＋ <span class="new-label">${T("New Loop")}</span></a>` : ""}${s.settings.paused ? `<a class="chip warn" href="#/settings/general">${icon("warn")}${T("Paused")}</a>` : ""}<button type="button" class="btn ghost sm" id="language" data-action="lang-menu" aria-haspopup="menu" aria-label="${T("Language")}">${langShort} ▾</button><button type="button" class="ib" data-action="refresh" aria-label="${T("Refresh")}" title="${T("Refresh")}">${icons.refresh}</button>${side ? "" : `<a class="ib ${page === "settings" ? "on" : ""}" href="#/settings/general" aria-label="${T("Settings")}" title="${T("Settings")}">${icons.gear}</a>`}</div>`;
 }
 function banners() {
   const s = ctx.state;
@@ -432,6 +522,7 @@ function closeMenu() {
 
 // ---------- actions ----------
 const actions = {
+  "toggle-sidebar": () => toggleSideNav(),
   refresh: async () => {
     setState(await api("/state"));
     ctx.connected = true;
@@ -690,10 +781,17 @@ const actions = {
     markDirty();
     render();
   },
+  "ed-merge": (b) => {
+    if (b.dataset.value) draft.pullRequest.merge = b.dataset.value;
+    else delete draft.pullRequest.merge;
+    markDirty();
+    render();
+  },
   "ed-pr": (b) => {
     if (b.dataset.value === "none") delete draft.pullRequest;
     else {
       draft.pullRequest = { ...(draft.pullRequest || {}), mode: b.dataset.value };
+      if (b.dataset.value !== "after-review") delete draft.pullRequest.merge;
       draft.workspace = "worktree";
       draft.requireClean = false;
       draft.branch ||= "loopbee/change-{date}-{run}";
@@ -900,6 +998,10 @@ function friendly(msg) {
 }
 document.addEventListener("input", (e) => {
   const el = e.target;
+  if (el.closest?.("#gate-form") && el.name === "note") {
+    ctx.gateNotes[route.path[1]] = el.value;
+    return;
+  }
   if (el.id === "search") {
     const page = route.path[0] === "artifact" ? "artifacts" : route.path[0];
     filters[page] = el.value;
@@ -1008,6 +1110,7 @@ document.addEventListener("submit", async (e) => {
         }
       }
       await mutate(`/runs/${route.path[1]}/gate`, { approve, note });
+      delete ctx.gateNotes[route.path[1]];
       toast(t(approve ? "Approved — the run continues" : "Sent back"));
       go(approve ? "#/run/" + route.path[1] : "#/today");
     } else if (form.id === "chat-form") {
@@ -1063,6 +1166,12 @@ document.addEventListener("keydown", (e) => {
     }
     return;
   }
+  const mac = /^Mac/.test(navigator.platform);
+  if (e.code === "KeyS" && !e.altKey && !e.repeat && (mac ? e.metaKey && e.ctrlKey && !e.shiftKey : e.ctrlKey && e.shiftKey && !e.metaKey)) {
+    e.preventDefault();
+    toggleSideNav();
+    return;
+  }
   if (mod && e.key === "Enter" && document.activeElement?.id === "chat-input") {
     e.preventDefault();
     $("#chat-form").requestSubmit();
@@ -1107,6 +1216,9 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
 function busy() {
   if ($("#dialog").open || !$("#menu").hidden || ui.channel) return true;
   if (isEditor(route) || isChat(route)) return true;
+  // A review note being written must survive the 3-second refresh, also after focus left the field (the desktop
+  // window swallows the first click after typing, so the reviewer often clicks twice).
+  if ($("#gate-form textarea")?.value.trim()) return true;
   const a = document.activeElement;
   return a && a.id !== "search" && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && !!a.closest("main");
 }

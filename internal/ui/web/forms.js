@@ -146,7 +146,7 @@ function workSection(d) {
   <div class="grp">${fld(T("Work comes from"), seg("intake", intake, [["none", t("The prompt")], ["github-issues", t("GitHub issues")]], { action: "ed-intake", label: t("Work comes from") }), T(intake === "none" ? "Each run does what the agent step says." : "Each run takes the oldest open issue with the label, opened by someone with write access, marks it agent-working and gives it to the agent as untrusted text. No issue: the run ends as “Nothing to do” without an agent call."))}
   ${d.intake ? `${fld(T("Issue label"), `<input class="inp mono narrowi" data-intake="label" id="f-intake-label" value="${esc(d.intake.label || "")}" placeholder="agent-ready">`)}${fld(T("Repository"), `<input class="inp mono" data-intake="repo" value="${esc(d.intake.repo || "")}" placeholder="${T("owner/name — empty: this folder's origin")}">`)}${fld(T("Also trust"), `<input class="inp mono" data-intake="trustedUsers" value="${esc((d.intake.trustedUsers || []).join(" "))}" placeholder="login another-login">`, T("Comments from people without write access never reach the agent. Add logins to trust more people."))}` : ""}
   ${fld(T("Pull request"), `<span id="f-pr">${seg("prmode", mode, [["none", t("No, keep the branch")], ["after-review", t("After my review")], ["draft", t("Draft, review on GitHub")]], { action: "ed-pr", label: t("Pull request") })}</span>`, T(mode === "after-review" ? "You review the diff at the gate; then Loopbee pushes the branch and opens the pull request. The link is sent with the notification." : mode === "draft" ? "Loopbee pushes the branch and opens a draft pull request right away; you review it on GitHub. The link is sent with the notification." : "The branch stays local; push it yourself."))}
-  ${d.pullRequest ? fld(T("Target branch"), `<input class="inp mono narrowi" data-pr="base" value="${esc(d.pullRequest.base || "")}" placeholder="${T("from the base ref")}">`) : ""}${ghRow}</div>`;
+  ${d.pullRequest ? fld(T("Target branch"), `<input class="inp mono narrowi" data-pr="base" value="${esc(d.pullRequest.base || "")}" placeholder="${T("from the base ref")}">`) : ""}${mode === "after-review" ? fld(T("Merge"), `<span id="f-merge">${seg("prmerge", d.pullRequest.merge || "", [["", t("I merge on GitHub")], ["after-checks", t("When all checks pass")]], { action: "ed-merge", label: t("Merge") })}</span>`, T(d.pullRequest.merge ? "After your approval Loopbee waits for the pull request's checks and squash-merges it when all pass. Failing or missing checks leave it open and tell you why." : "The pull request stays open for you to merge.")) : ""}${ghRow}</div>`;
 }
 
 export function definitionOnly(d) {
@@ -155,11 +155,11 @@ export function definitionOnly(d) {
 }
 
 // ---------- Settings ----------
-const tabs = [["general", "General"], ["agents", "Agents"], ["notifications", "Notifications"], ["team", "Team sync"], ["data", "Data & archive"], ["about", "About"]];
+export const settingsTabs = [["general", "General"], ["agents", "Agents"], ["notifications", "Notifications"], ["team", "Team sync"], ["data", "Data & archive"], ["about", "About"]];
 export function settingsPage(tab, ui) {
   const c = S().settings;
   const body = { general, agents, notifications, team, data, about }[tab] || general;
-  return `<div class="sw"><nav class="smenu" aria-label="${T("Settings")}">${tabs.map(([id, l]) => `<a href="#/settings/${id}" class="${id === tab ? "on" : ""}" ${id === tab ? 'aria-current="page"' : ""}>${T(l)}</a>`).join("")}</nav><div class="spane">${body(c, ui)}</div></div>`;
+  return `<div class="sw"><nav class="smenu" aria-label="${T("Settings")}">${settingsTabs.map(([id, l]) => `<a href="#/settings/${id}" class="${id === tab ? "on" : ""}" ${id === tab ? 'aria-current="page"' : ""}>${T(l)}</a>`).join("")}</nav><div class="spane">${body(c, ui)}</div></div>`;
 }
 const langs = [["zh-TW", "繁體中文"], ["zh-CN", "简体中文"], ["en", "English"]];
 const ro = () => (viewer() ? "disabled" : "");

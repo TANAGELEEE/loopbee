@@ -38,6 +38,9 @@ export async function main(name) {
     };
     text = JSON.stringify(proposal);
     if (has("--json-schema")) structured = proposal;
+  } else if (prompt.includes("EDIT_FILE")) {
+    writeFileSync("fixed.txt", "edited by the fake agent\n");
+    text = 'Changed fixed.txt.\nLOOPBEE_RESULT {"status":"done","summary":"Fixes #1: edited fixed.txt"}';
   } else if (prompt.includes("NOTHING_TODO")) {
     text = 'Logs are clean.\nLOOPBEE_RESULT {"status":"no_action","summary":"No actionable errors"}';
   } else {

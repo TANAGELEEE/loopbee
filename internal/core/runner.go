@@ -206,6 +206,7 @@ func (a *App) execute(ctx context.Context, r Run) {
 			}
 		}
 		r.Status = status
+		r.Phase = ""
 		if err != nil {
 			r.Error = err.Error()
 		}
@@ -352,6 +353,15 @@ func (a *App) execute(ctx context.Context, r Run) {
 					}
 					mark("approved", decision.note)
 					reviewerNote = decision.note
+					// Save the decision now: the page must stop offering the gate while later steps or the
+					// delivery run, and a crash must not lose the approval.
+					r.Status = "running"
+					if l.PullRequest != nil && i == len(l.Steps)-1 {
+						r.Phase = "delivering"
+					}
+					if err := a.saveRun(r); err != nil {
+						a.event(r.ID, "storage.error", err.Error())
+					}
 				case <-timer.C:
 					a.mu.Lock()
 					delete(a.gates, r.ID)
@@ -491,11 +501,13 @@ func (a *App) execute(ctx context.Context, r Run) {
 					cctx, ccancel := context.WithTimeout(ctx, 2*time.Minute)
 					sha, err := ws.commit(cctx, subject+"\n\nCommitted by Loopbee for run "+r.ID+".")
 					var patch []byte
-					if err == nil && sha != "" {
-						// The reviewer at the gate sees exactly what was committed since the last review point; on a
-						// continued branch that includes the commits of earlier Runs.
-						patch, _ = ws.git(cctx, "log", "--no-ext-diff", "--stat", "--patch", "--format=fuller", ws.Reviewed+".."+sha)
-						ws.Reviewed = sha
+					if err == nil {
+						// The reviewer at the gate sees everything on the branch since the last review point: this
+						// step's commit and, on a continued branch, the commits of earlier Runs.
+						patch, _ = ws.git(cctx, "log", "--no-ext-diff", "--stat", "--patch", "--format=fuller", ws.Reviewed+"..HEAD")
+						if head, e := ws.git(cctx, "rev-parse", "HEAD"); e == nil {
+							ws.Reviewed = strings.TrimSpace(string(head))
+						}
 					}
 					ccancel()
 					if err != nil {
@@ -507,6 +519,8 @@ func (a *App) execute(ctx context.Context, r Run) {
 						r.Commits = append(r.Commits, sha)
 						note = strings.TrimSpace(note + " · " + r.Branch + " @ " + sha)
 						a.event(r.ID, "workspace.commit", r.Branch+" @ "+sha)
+					}
+					if len(bytes.TrimSpace(patch)) > 0 {
 						name := fmt.Sprintf("round-%02d-step-%02d.diff", round, i+1)
 						if len(patch) > 2<<20 {
 							patch = append(patch[:2<<20], []byte("\n… (truncated)\n")...)
@@ -520,6 +534,13 @@ func (a *App) execute(ctx context.Context, r Run) {
 							return
 						}
 					}
+				}
+				if res != nil && res.Status == "no_action" && ws.Branch != "" && ws.hasWork(ctx) {
+					// A continued branch already holds unreviewed work from an earlier Run: “nothing more to
+					// change” still means that work goes to review and delivery, not that the Run ends.
+					res.Status = "done"
+					note = strings.TrimSpace(note + " · " + r.Branch + " already has the change")
+					a.event(r.ID, "workspace.existing_work", r.Branch)
 				}
 				if res != nil {
 					switch res.Status {
@@ -609,6 +630,13 @@ func (a *App) execute(ctx context.Context, r Run) {
 		}
 		if verified && done {
 			if l.PullRequest != nil {
+				if r.Phase != "delivering" {
+					r.Phase = "delivering"
+					if err := a.saveRun(r); err != nil {
+						a.event(r.ID, "storage.error", err.Error())
+					}
+				}
+				a.event(r.ID, "delivery.started", r.Branch)
 				pctx, pcancel := context.WithTimeout(ctx, 5*time.Minute)
 				url, err := deliverPullRequest(pctx, l, r, ws, reviewerNote)
 				pcancel()
@@ -629,6 +657,32 @@ func (a *App) execute(ctx context.Context, r Run) {
 					r.Result.Links = append(r.Result.Links, url)
 				}
 				a.event(r.ID, "delivery.pull_request", url)
+				if l.PullRequest.Merge == "after-checks" {
+					head, _ := ws.git(ctx, "rev-parse", "HEAD")
+					r.Phase = "merging"
+					merged, why, err := mergeWhenGreen(ctx, l, r, url, strings.TrimSpace(string(head)), func() {
+						if err := a.saveRun(r); err != nil {
+							a.event(r.ID, "storage.error", err.Error())
+						}
+					})
+					if err != nil {
+						if ctx.Err() != nil {
+							finish(cancelStatus(ctx.Err()), ctx.Err())
+							return
+						}
+						why = err.Error()
+					}
+					if !merged {
+						// The pull request stays open: the reviewer decides, with the reason on their phone.
+						r.Result.Summary = strings.TrimSpace(r.Result.Summary + "\nNot merged — " + why)
+						a.event(r.ID, "delivery.not_merged", why)
+						finish("blocked", fmt.Errorf("pull request not merged: %s", why))
+						return
+					}
+					r.Merged = true
+					r.Result.Summary = strings.Replace(r.Result.Summary, label+": "+url, "Merged after checks passed: "+url, 1)
+					a.event(r.ID, "delivery.merged", url)
+				}
 			}
 			finish("completed", nil)
 			return

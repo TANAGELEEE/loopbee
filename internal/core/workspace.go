@@ -90,8 +90,8 @@ func (a *App) prepareWorkspace(ctx context.Context, l Loop, runID string, issue 
 		msg := fmt.Sprintf("could not create worktree from %s: %s", base, strings.TrimSpace(string(out)))
 		if _, e := git("rev-parse", "--verify", "--quiet", base+"^{commit}"); e != nil {
 			// The usual cause: a base like origin/master in a repository whose default branch is main.
-			if refs, e := git("branch", "-r", "--format=%(refname:short)"); e == nil && strings.TrimSpace(string(refs)) != "" {
-				msg = fmt.Sprintf("the base %s does not exist in this repository; set the Loop's base to one of: %s", base, strings.Join(strings.Fields(string(refs)), ", "))
+			if names := remoteBranches(git); len(names) > 0 {
+				msg = fmt.Sprintf("the base %s does not exist in this repository; set the Loop's base to one of: %s", base, strings.Join(names, ", "))
 			}
 		}
 		return nil, errors.New(msg)
@@ -117,9 +117,32 @@ func (a *App) prepareWorkspace(ctx context.Context, l Loop, runID string, issue 
 	return w, nil
 }
 
+// remoteBranches lists remote-tracking branches as "origin/main". It reads full ref names because Git's short form
+// varies by version (Git 2.46+ shows the remote's HEAD pointer as a bare "origin"), and skips those HEAD pointers.
+func remoteBranches(git func(args ...string) ([]byte, error)) []string {
+	out, err := git("for-each-ref", "--format=%(refname)", "refs/remotes/")
+	if err != nil {
+		return nil
+	}
+	var names []string
+	for _, ref := range strings.Fields(string(out)) {
+		name := strings.TrimPrefix(ref, "refs/remotes/")
+		if strings.HasSuffix(name, "/HEAD") || !strings.Contains(name, "/") {
+			continue
+		}
+		names = append(names, name)
+	}
+	return names
+}
+
 // git runs one of Loopbee's own Git commands in a workspace an agent may have changed: never with hooks, an
 // fsmonitor or an external diff, and only while the worktree still points at its real Git directory.
 func (w *workspace) git(ctx context.Context, args ...string) ([]byte, error) {
+	return w.gitEnv(ctx, nil, args...)
+}
+
+// gitEnv is git with extra environment variables.
+func (w *workspace) gitEnv(ctx context.Context, env []string, args ...string) ([]byte, error) {
 	if w.gitFile != nil {
 		if b, err := os.ReadFile(filepath.Join(w.Dir, ".git")); err != nil || !bytes.Equal(b, w.gitFile) {
 			msg := "the worktree's .git file was changed during the run; Loopbee will not run Git there"
@@ -128,7 +151,7 @@ func (w *workspace) git(ctx context.Context, args ...string) ([]byte, error) {
 	}
 	safe := []string{"git", "-c", "core.hooksPath=" + w.hooks, "-c", "core.fsmonitor=false", "-c", "core.pager=cat"}
 	// GIT_TERMINAL_PROMPT=0: a push that needs credentials fails instead of waiting for input forever.
-	return runCommandEnv(ctx, w.Dir, append(safe, args...), nil, nil, []string{"GIT_TERMINAL_PROMPT=0"})
+	return runCommandEnv(ctx, w.Dir, append(safe, args...), nil, nil, append([]string{"GIT_TERMINAL_PROMPT=0"}, env...))
 }
 
 // changed lists files that differ from the commit the Run started from: committed, staged, modified or new.
@@ -146,6 +169,12 @@ func (w *workspace) changed(ctx context.Context) (map[string]bool, error) {
 		}
 	}
 	return set, nil
+}
+
+// hasWork reports whether the branch holds commits since the Run's base (on a continued branch: earlier Runs' work).
+func (w *workspace) hasWork(ctx context.Context) bool {
+	out, err := w.git(ctx, "rev-list", "--count", w.Base+"..HEAD")
+	return err == nil && strings.TrimSpace(string(out)) != "0"
 }
 
 // changedFileIn returns the first argument of argv that names a file changed during the Run, or "".

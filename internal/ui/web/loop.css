@@ -35,6 +35,25 @@
 .nav a:hover{color:var(--fg)}
 .nav a.on{background:var(--card);color:var(--fg);font-weight:550;box-shadow:0 0 0 1px var(--line),0 1px 2px rgba(0,0,0,.06)}
 .tools{display:flex;justify-content:flex-end;align-items:center;gap:8px}
+/* 側邊欄（magpie 式）：頁面列在左側，設定在底部；標題列顯示所在位置 */
+.lead{display:flex;align-items:center;gap:10px;min-width:0}
+.sb{width:var(--sb-w);background:var(--bg);border-right:1px solid var(--line)}
+.sb-top{display:flex;align-items:center;height:46px;padding:0 18px}
+.sb-top .brand{font-size:14px}
+.sb-scroll{padding:2px 10px 10px;display:flex;flex-direction:column;gap:1px}
+.sb-foot{padding:8px 10px 10px;border-top:1px solid var(--line)}
+.sb-i{display:flex;align-items:center;gap:9px;height:30px;padding:0 10px;border-radius:7px;font-size:13px;color:var(--fg2);min-width:0}
+.sb-i>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sb-i:hover:not(.on){background:color-mix(in srgb,var(--fg) 6%,transparent);color:var(--fg)}
+.sb-i.on{background:var(--card);color:var(--fg);font-weight:550;box-shadow:0 0 0 1px var(--line),0 1px 2px rgba(0,0,0,.06)}
+.sb-ic{flex:none;color:var(--muted)}
+.sb-i.on .sb-ic{color:var(--fg)}
+.crumb{display:flex;align-items:baseline;gap:7px;min-width:0;overflow:hidden;white-space:nowrap;font-size:13.5px}
+.crumb span{color:var(--muted);flex:none;max-width:40%;overflow:hidden;text-overflow:ellipsis}
+.crumb i{font-style:normal;color:var(--muted);opacity:.6;flex:none}
+.crumb b{font-weight:600;color:var(--fg);overflow:hidden;text-overflow:ellipsis}
+.sbt .sbt-pane{fill:currentColor;opacity:0;transition:opacity .3s ease}
+.lp.side-nav .sbt .sbt-pane{opacity:.32}
 .ib{width:26px;height:26px;border-radius:7px;border:0;background:transparent;color:var(--ctl);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
 .ib:hover{background:var(--card)}
 .lp a:focus-visible,.lp button:focus-visible{outline:2px solid var(--acc);outline-offset:2px;border-radius:6px}

@@ -22,6 +22,46 @@ button:disabled,.btn[disabled]{opacity:.45;cursor:not-allowed}
 .banners .bn{align-items:center}
 .banners .bn .btn{flex:none}
 
+/* the sidebar (app.js chrome): fixed down the left, the page beside it; narrower in a narrow window so the
+   page keeps the room. The header beside it holds the sidebar's button, where the person is, and the tools */
+body.side-nav{--sb-w:212px;padding-left:var(--sb-w)}
+@media (max-width:1100px){body.side-nav{--sb-w:184px}}
+.sb{position:fixed;left:0;top:0;bottom:0;z-index:25;display:flex;flex-direction:column}
+.sb[hidden]{display:none}
+.sb-scroll{flex:1;min-height:0;overflow-y:auto}
+.sb-foot{flex:none}
+body.side-nav .top{grid-template-columns:minmax(0,1fr) 0 auto}
+body.side-nav .toasts{left:calc(var(--sb-w) + 16px)}
+.sbt{flex:none}
+@media (prefers-reduced-motion:reduce){.sbt .sbt-pane{transition:none}}
+/* the two layouts trade places as one motion (app.js navMorph), as magpie's do: the sidebar slides in from the
+   window's edge or back to it, each page's tab flies to its place in the other layout, and the page moves over,
+   all on one spring. Each piece is drawn at its own size, never stretched */
+.nav-morph #sidebar{view-transition-name:sidebar}
+.nav-morph .brand{view-transition-name:brand}
+.nav-morph #sideToggle{view-transition-name:side-toggle}
+.nav-morph .top .tools{view-transition-name:tools}
+.nav-morph #app{view-transition-name:page}
+.nav-morph #banners:not(:empty){view-transition-name:banners}
+.nav-morph [data-vt="nav-today"]{view-transition-name:nav-today}
+.nav-morph [data-vt="nav-loops"]{view-transition-name:nav-loops}
+.nav-morph [data-vt="nav-runs"]{view-transition-name:nav-runs}
+.nav-morph [data-vt="nav-artifacts"]{view-transition-name:nav-artifacts}
+.nav-morph [data-vt="nav-digest"]{view-transition-name:nav-digest}
+::view-transition-group(*){z-index:1;animation-duration:.5s;animation-timing-function:cubic-bezier(.32,.72,0,1)}
+::view-transition-old(*),::view-transition-new(*){inline-size:auto;block-size:auto}
+/* the sidebar's own panel goes under the tabs flying to it or from it */
+::view-transition-group(root),::view-transition-group(sidebar){z-index:0}
+/* the page slides over as one, its new layout: two copies fading over each other would print every line twice */
+::view-transition-old(page),::view-transition-old(banners){display:none}
+::view-transition-new(page),::view-transition-new(banners){animation:none}
+/* the tools stay against the header's right edge */
+::view-transition-old(tools),::view-transition-new(tools){inset-inline-start:auto;inset-inline-end:0}
+::view-transition-old(sidebar):only-child{animation:sb-out .5s cubic-bezier(.32,.72,0,1) both}
+::view-transition-new(sidebar):only-child{animation:sb-in .5s cubic-bezier(.32,.72,0,1) both}
+@keyframes sb-in{from{transform:translateX(-100%)}}
+@keyframes sb-out{to{transform:translateX(-100%)}}
+
 /* layout helpers */
 .min0{min-width:0}
 .grow{flex:1;min-width:0}
@@ -297,3 +337,25 @@ details summary{cursor:pointer;padding:6px 0;font-weight:550}
 .check.sm{font-size:12px;margin:0;gap:4px;display:inline-flex;align-items:center}
 .perm .ctl .mono{margin-top:2px}
 .envlist>.btn{justify-self:start}
+/* beside the sidebar the page has its width less: the page's own width breakpoints come that much sooner
+   (the 1100px and 900px rules above, less the column rule, which wraps by itself; keep them in step) */
+@media (max-width:1312px){
+  body.side-nav .ed{grid-template-columns:minmax(0,1fr) 280px}
+  body.side-nav .ednav{display:none}
+  body.side-nav .lrow .l-last{width:200px}
+  body.side-nav .chat{grid-template-columns:1fr}
+  body.side-nav .chat-side{position:static}
+}
+@media (max-width:1112px){
+  body.side-nav .split{grid-template-columns:1fr}
+  body.side-nav .split.has-sel .alist{display:none}
+  body.side-nav .split:not(.has-sel) .aview{display:none}
+  body.side-nav .mobile-back{display:inline-flex}
+  body.side-nav .aview{position:static}
+  body.side-nav .ed{grid-template-columns:1fr}
+  body.side-nav .edside{position:static}
+  body.side-nav .lrow{flex-wrap:wrap}
+  body.side-nav .lrow .l-last,body.side-nav .lrow .l-next{width:auto;flex:1 1 40%}
+  body.side-nav .gatebar{flex-wrap:wrap}
+  body.side-nav .gatebar .gb-t{flex:1 1 100%}
+}

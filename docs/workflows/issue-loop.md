@@ -14,7 +14,8 @@ schedule (e.g. hourly on weekdays)
   Commit      Loopbee commits the change (no hooks), keeps the diff, scans it for credentials
   Gate        you read the diff in Loopbee and approve with a note, or send it back
   Delivery    Loopbee pushes the branch and opens the pull request “Fixes #n”; the link goes to your phone
-then: CI runs on the pull request, a person merges, releases follow docs/releases/README.md
+  Merge       optional (“When all checks pass”): Loopbee waits for CI and squash-merges; red CI leaves it open
+then: merging “Fixes #n” closes the issue; releases follow docs/releases/README.md
 ```
 
 ## Set up a Loop for your repository
@@ -39,6 +40,7 @@ and push what it should build on first. Uncommitted or unpushed changes are invi
 | Also trust | Logins trusted in addition to people with write access |
 | Pull request | *No* (keep the branch) · *After my review* (needs a gate after the agent) · *Draft, review on GitHub* (no gate; the draft is the review) |
 | Target branch | Defaults to the branch of the base ref (`origin/main` → `main`) |
+| Merge | *I merge on GitHub* · *When all checks pass* (only after your review): Loopbee waits up to an hour for the pull request's checks, then squash-merges exactly the commit you approved and deletes the branch on GitHub. Failing, missing or unfinished checks, or a conflict, leave it open; the Run ends “Blocked” with the reason |
 
 ## Loopbee improving itself
 
@@ -52,6 +54,19 @@ ships it, and you update the app. The running Loopbee only changes its source in
 
 Pair it with [examples/lessons-review.json](../../examples/lessons-review.json), which checks every Monday that fixes
 came with lessons and tests.
+
+## Reviewing at the gate
+
+The Run stops at **Review the diff** (Today › Review, or the Telegram “Needs you” message). No extra steps or a
+second Loop are needed: this gate is the review before the pull request.
+
+1. **Changes to review** is selected first: the commits Loopbee made on `loopbee/issue-<n>` (on a continued branch,
+   earlier Runs' commits too). **Agent report** and the raw output follow.
+2. Write a note and choose **Approve and continue**. The gate closes at once and the Run shows “Pushing the branch
+   and opening the pull request”; when it ends, the run page and the notification carry the pull request link.
+   **Send back** ends the Run without pushing anything.
+3. With *When all checks pass* Loopbee merges after CI is green (the Run shows “Waiting for the pull request's
+   checks, then merging”); otherwise merge on GitHub after CI passes. Merging “Fixes #n” closes the issue.
 
 ## Getting the pull request on Telegram
 
@@ -86,7 +101,8 @@ review then shows the whole branch, earlier Runs included.
 | The change contains a credential | Run fails before the gate; nothing is pushed | Inspect and delete the branch; check what the issue asked for |
 | The change touches `.github/` | Run fails at delivery; nothing is pushed | Review the branch and push it yourself if it is right |
 | The issue's branch already exists | The Run continues it (or starts it again if it has no commits) | Delete `loopbee/issue-<n>` to start from scratch |
-| CI fails on the pull request | Red checks on GitHub | Comment on the pull request or fix by hand |
+| The push fails | Run fails with Git's message, e.g. authentication | Check `gh auth status`; Loopbee pushes GitHub HTTPS remotes with the gh login and never waits for a password prompt |
+| CI fails on the pull request | Red checks on GitHub; with automatic merge the Run ends “Blocked: checks failed: …” and nothing is merged | Fix on the branch or comment; merge yourself when it is green |
 
 An issue keeps `agent-working` until a person removes it or the pull request (“Fixes #n”) is merged and closes it,
 so no issue is taken twice.

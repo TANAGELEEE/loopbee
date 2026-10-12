@@ -11,7 +11,7 @@ export const esc = (v) =>
     (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
   );
 
-export const ctx = { state: null, lang: "zh-TW", now: Date.now() };
+export const ctx = { state: null, lang: "zh-TW", now: Date.now(), gateNotes: {} };
 
 export function t(key, params) {
   let s = translate(key, ctx.lang);
@@ -193,6 +193,18 @@ export const icons = {
   clock: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
   info: '<span class="st ok" aria-hidden="true">i</span>',
   more: '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>',
+  // the sidebar's button: a window with its left pane, filled while the sidebar shows (loop.css .sbt)
+  sidebar: '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><rect class="sbt-pane" x="2.5" y="3.5" width="4" height="9" rx="1"/><g fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2.25"/><path d="M6.75 2.75v10.5"/></g></svg>',
+};
+// the pages' icons in the sidebar
+const navIcon = (d) => `<svg class="sb-ic" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+export const navIcons = {
+  today: navIcon('<circle cx="10" cy="10" r="3.2"/><path d="M10 2.5v1.8M10 15.7v1.8M2.5 10h1.8M15.7 10h1.8M4.7 4.7l1.3 1.3M14 14l1.3 1.3M4.7 15.3 6 14M14 6l1.3-1.3"/>'),
+  loops: navIcon('<path d="M15.5 7.5A6 6 0 0 0 4.6 7M4.5 12.5A6 6 0 0 0 15.4 13"/><path d="M15.8 3.8v3.7h-3.7M4.2 16.2v-3.7h3.7"/>'),
+  runs: navIcon('<path d="M6.5 4.5v11l9-5.5z"/>'),
+  artifacts: navIcon('<path d="M3.5 6.5 10 3l6.5 3.5v7L10 17l-6.5-3.5z"/><path d="M3.5 6.5 10 10l6.5-3.5M10 10v7"/>'),
+  digest: navIcon('<path d="M4.5 3.5h11v13h-11z"/><path d="M7.5 7h5M7.5 10h5M7.5 13h3"/>'),
+  settings: navIcon('<circle cx="10" cy="10" r="2.5"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4"/>'),
 };
 export const bee = (cls, path) =>
   `<span class="bee ${cls}"${path ? ` data-p="path('${path}')"` : ""} aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true"><g class="wg"><ellipse cx="9.2" cy="7.4" rx="3.2" ry="4.6" transform="rotate(-24 9.2 7.4)"/><ellipse cx="14.6" cy="6.8" rx="3.2" ry="4.4" transform="rotate(14 14.6 6.8)"/></g><ellipse class="bd" cx="12.2" cy="14.6" rx="7.2" ry="4.7"/><path class="sp" d="M10.1 10.5v8.2M14.1 10.4v8.4"/><circle class="hd" cx="19.8" cy="14.2" r="2.3"/><path class="sg" d="M5.1 14.6H2.6"/></svg></span>`;
