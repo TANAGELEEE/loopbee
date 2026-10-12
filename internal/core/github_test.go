@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Every core test uses a fake GitHub CLI (this test binary), so agent detection never calls the real gh.
@@ -32,6 +33,10 @@ type fakeGitHub struct {
 	Labels        []string            `json:"labels"`
 	PRs           []map[string]string `json:"prs"`
 	DefaultBranch string              `json:"defaultBranch"`
+	Checks        []map[string]string `json:"checks"`       // name, bucket (pass, fail, pending, …)
+	PendingPolls  int                 `json:"pendingPolls"` // answer "pending" this many times first
+	Merged        []string            `json:"merged"`       // "url@head"
+	Deleted       []string            `json:"deleted"`
 	Calls         [][]string          `json:"calls"`
 }
 
@@ -90,6 +95,20 @@ func TestFakeGitHub(t *testing.T) {
 			}
 		}
 		out(list)
+	case args[0] == "api" && args[1] == "-X":
+		st.Deleted = append(st.Deleted, args[3])
+	case args[0] == "pr" && args[1] == "checks":
+		if len(st.Checks) == 0 {
+			fail("no checks reported on the 'x' branch")
+		}
+		checks := st.Checks
+		if st.PendingPolls > 0 {
+			st.PendingPolls--
+			checks = []map[string]string{{"name": "core", "bucket": "pending"}}
+		}
+		out(checks)
+	case args[0] == "pr" && args[1] == "merge":
+		st.Merged = append(st.Merged, args[2]+"@"+flag("--match-head-commit"))
 	case args[0] == "api":
 		rest := strings.TrimPrefix(args[1], "repos/{owner}/{repo}/issues/")
 		n, _, comments := strings.Cut(rest, "/comments")
@@ -126,6 +145,9 @@ func TestFakeGitHub(t *testing.T) {
 		}
 		out(prs)
 	case args[0] == "pr" && args[1] == "create":
+		if d, err := time.ParseDuration(os.Getenv("LOOPBEE_FAKE_GH_DELAY")); err == nil {
+			time.Sleep(d)
+		}
 		url := fmt.Sprintf("https://github.com/acme/app/pull/%d", len(st.PRs)+1)
 		st.PRs = append(st.PRs, map[string]string{"head": flag("--head"), "base": flag("--base"), "title": flag("--title"), "body": flag("--body"), "draft": fmt.Sprint(slices.Contains(args, "--draft")), "url": url})
 		fmt.Println(url)
@@ -327,10 +349,127 @@ func TestBlockedIssueWorkIsKeptAndTheRetryContinuesIt(t *testing.T) {
 		t.Fatalf("the retry must continue the branch and show all of it:\n%s", diff)
 	}
 
+	// The first self-improvement retry: the agent finds the fix already on the branch and reports nothing to do. The
+	// branch's work must still reach review and the pull request instead of the Run ending quietly.
+	a, l, _, state, _ = issueSetup(t, "partial", []fakeIssue{trustedIssue()}, nil)
+	r, _ = a.Start(l.ID)
+	waitStatus(t, a, r.ID, "blocked")
+	st = readFakeGitHub(t, state)
+	st.Issues[0].Labels = []string{"agent-ready"}
+	b, _ = json.Marshal(st)
+	os.WriteFile(state, b, 0600)
+	t.Setenv("LOOPBEE_FAKE_MODE", "no_action")
+	r, _ = a.Start(l.ID)
+	waitStatus(t, a, r.ID, "waiting")
+	if r, _ = a.Run(r.ID); r.Result == nil || r.Result.Status != "done" {
+		t.Fatalf("result %+v", r.Result)
+	}
+	if diff, _ := a.ReadArtifact(r.ID, "round-01-step-01.diff"); !strings.Contains(string(diff), "+half done") {
+		t.Fatalf("the gate must show the branch's earlier work:\n%s", diff)
+	}
+	if err := a.Decide(r.ID, true, "LGTM"); err != nil {
+		t.Fatal(err)
+	}
+	waitStatus(t, a, r.ID, "completed")
+	if st = readFakeGitHub(t, state); len(st.PRs) != 1 {
+		t.Fatalf("pull requests %+v", st.PRs)
+	}
+	t.Setenv("LOOPBEE_FAKE_MODE", "edit")
+
 	a, l, _, _, _ = issueSetup(t, "edit", []fakeIssue{trustedIssue()}, nil)
 	gitOutput(t, l.Directory, "branch", "loopbee/issue-4")
 	r, _ = a.Start(l.ID)
 	waitStatus(t, a, r.ID, "waiting")
+}
+
+// After approval the gate closes at once and the Run says it is delivering, even while the push and the pull
+// request take time; before, the page kept offering the gate and looked as if the click did nothing.
+func TestApprovalShowsDeliveryWhileItRuns(t *testing.T) {
+	t.Setenv("LOOPBEE_FAKE_GH_DELAY", "1500ms")
+	a, l, _, _, _ := issueSetup(t, "edit", []fakeIssue{trustedIssue()}, nil)
+	r, _ := a.Start(l.ID)
+	waitStatus(t, a, r.ID, "waiting")
+	if err := a.Decide(r.ID, true, "LGTM"); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(time.Second)
+	for {
+		r, _ = a.Run(r.ID)
+		if r.Status == "running" && r.Phase == "delivering" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("after approval the stored Run is %s/%q", r.Status, r.Phase)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if err := a.Decide(r.ID, true, "again"); err == nil {
+		t.Fatal("a second decision must be refused")
+	}
+	waitStatus(t, a, r.ID, "completed")
+	if r, _ = a.Run(r.ID); r.Phase != "" || r.PRURL == "" {
+		t.Fatalf("phase %q pr %q", r.Phase, r.PRURL)
+	}
+}
+
+// Nobody watches a terminal or a credential dialog: a push from the app must fail instead of waiting.
+func TestPushNeverWaitsForCredentials(t *testing.T) {
+	args, env := pushCredentials("https://github.com/acme/app.git")
+	if len(args) != 4 || args[1] != "credential.helper=" || !strings.HasSuffix(args[3], " auth git-credential") || !slices.Contains(env, "GCM_INTERACTIVE=never") {
+		t.Fatalf("https: %q %q", args, env)
+	}
+	t.Setenv("GIT_SSH_COMMAND", "")
+	args, env = pushCredentials("git@github.com:acme/app.git")
+	if len(args) != 0 || !slices.Contains(env, "GIT_SSH_COMMAND=ssh -o BatchMode=yes") {
+		t.Fatalf("ssh: %q %q", args, env)
+	}
+}
+
+// “Merge after checks”: the reviewed pull request is merged once every check passed, exactly at the reviewed head;
+// failing or missing checks leave it open and say why.
+func TestMergeAfterChecksOnlyWhenGreen(t *testing.T) {
+	checksPoll, checksAppear = 10*time.Millisecond, 200*time.Millisecond
+	t.Cleanup(func() { checksPoll, checksAppear = 30*time.Second, 3*time.Minute })
+	run := func(checks []map[string]string, pending int) (Run, fakeGitHub, string) {
+		a, l, _, state, origin := issueSetup(t, "edit", []fakeIssue{trustedIssue()}, func(l *Loop) { l.PullRequest.Merge = "after-checks" })
+		st := readFakeGitHub(t, state)
+		st.Checks, st.PendingPolls = checks, pending
+		b, _ := json.Marshal(st)
+		os.WriteFile(state, b, 0600)
+		r, _ := a.Start(l.ID)
+		waitStatus(t, a, r.ID, "waiting")
+		a.Decide(r.ID, true, "LGTM")
+		deadline := time.Now().Add(20 * time.Second)
+		for time.Now().Before(deadline) {
+			if r, _ = a.Run(r.ID); r.Status != "waiting" && r.Status != "running" {
+				break
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		return r, readFakeGitHub(t, state), gitOutput(t, origin, "rev-parse", "loopbee/issue-4")
+	}
+	r, st, head := run([]map[string]string{{"name": "core", "bucket": "pass"}, {"name": "browser", "bucket": "pass"}}, 2)
+	if r.Status != "completed" || !r.Merged || len(st.Merged) != 1 || st.Merged[0] != r.PRURL+"@"+head ||
+		!strings.Contains(r.Result.Summary, "Merged after checks passed: "+r.PRURL) || len(st.Deleted) != 1 {
+		t.Fatalf("green: %s %+v merged %v deleted %v", r.Status, r.Result, st.Merged, st.Deleted)
+	}
+	r, st, _ = run([]map[string]string{{"name": "core", "bucket": "pass"}, {"name": "windows", "bucket": "fail"}}, 0)
+	if r.Status != "blocked" || r.Merged || len(st.Merged) != 0 || r.PRURL == "" || !strings.Contains(r.Result.Summary, "Not merged — checks failed: windows") {
+		t.Fatalf("red: %s %+v", r.Status, r.Result)
+	}
+	if text := runNotification(r, "en", false); !strings.Contains(text, "checks failed: windows") || !strings.Contains(text, r.PRURL) {
+		t.Fatalf("notification: %s", text)
+	}
+	r, st, _ = run(nil, 0)
+	if r.Status != "blocked" || len(st.Merged) != 0 || !strings.Contains(r.Error, "no checks ran") {
+		t.Fatalf("no checks: %s %q", r.Status, r.Error)
+	}
+	// A draft was never reviewed in Loopbee: it can never be merged automatically.
+	a, l, _, _, _ := issueSetup(t, "edit", []fakeIssue{trustedIssue()}, nil)
+	l.PullRequest = &PullRequest{Mode: "draft", Merge: "after-checks"}
+	if _, err := a.SaveLoop(l); err == nil || !strings.Contains(err.Error(), "a draft has not been reviewed") {
+		t.Fatal(err)
+	}
 }
 
 func TestDraftPullRequestAndNoAutomaticCIChanges(t *testing.T) {
@@ -429,9 +568,12 @@ func TestAuthorProposalIntakeAndPullRequest(t *testing.T) {
 // A base ref that does not exist (origin/master in a main repository) names the branches that do.
 func TestMissingBaseRefNamesTheRemoteBranches(t *testing.T) {
 	a, l, _, _, _ := issueSetup(t, "edit", []fakeIssue{trustedIssue()}, func(l *Loop) { l.BaseRef = "origin/trunk" })
+	// Git 2.48+ records the remote's HEAD on fetch, and newer Git prints it as a bare "origin" in short form: CI failed
+	// with "one of: origin, origin/master" while older Git passed. Set it here so every Git version sees it.
+	gitOutput(t, l.Directory, "remote", "set-head", "origin", "master")
 	r, _ := a.Start(l.ID)
 	waitStatus(t, a, r.ID, "blocked")
-	if r, _ = a.Run(r.ID); !strings.Contains(r.Error, "the base origin/trunk does not exist in this repository; set the Loop's base to one of: origin/master") {
+	if r, _ = a.Run(r.ID); !strings.HasSuffix(r.Error, "the base origin/trunk does not exist in this repository; set the Loop's base to one of: origin/master") {
 		t.Fatal(r.Error)
 	}
 }

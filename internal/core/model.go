@@ -89,9 +89,12 @@ type Intake struct {
 // PullRequest delivers the Run's branch: Mode "after-review" opens a pull request when the Run completes, which
 // requires a gate after the agent; "draft" opens a draft pull request without a gate in Loopbee (the draft is the
 // review). Changes to .github/ are never pushed automatically.
+// Merge "after-checks" (only with after-review) then waits for the pull request's checks and squash-merges it when
+// all of them pass; with failing, missing or unfinished checks, or a conflict, it leaves the pull request open.
 type PullRequest struct {
-	Mode string `json:"mode"`
-	Base string `json:"base,omitempty"` // target branch; default: the branch of baseRef, else the default branch
+	Mode  string `json:"mode"`
+	Base  string `json:"base,omitempty"`  // target branch; default: the branch of baseRef, else the default branch
+	Merge string `json:"merge,omitempty"` // "" (a person merges) or "after-checks"
 }
 
 func (i Intake) label() string        { return orDefault(i.Label, "agent-ready") }
@@ -164,6 +167,8 @@ type Run struct {
 	Commits    []string           `json:"commits,omitempty"` // commits Loopbee made on it (short hashes)
 	Issue      *IssueRef          `json:"issue,omitempty"`   // the work item taken by the Loop's intake
 	PRURL      string             `json:"prUrl,omitempty"`   // pull request opened by the Loop's delivery
+	Merged     bool               `json:"merged,omitempty"`  // the pull request was merged by the Loop's delivery
+	Phase      string             `json:"phase,omitempty"`   // what a running Run does between steps: "delivering", "merging"
 }
 type Event struct {
 	ID    int64     `json:"id"`
@@ -425,6 +430,15 @@ func validateIntakeAndDelivery(l Loop) error {
 			}
 		default:
 			return errors.New("pull request mode must be after-review or draft")
+		}
+		switch pr.Merge {
+		case "":
+		case "after-checks":
+			if pr.Mode != "after-review" {
+				return errors.New("merging automatically needs “after my review”: a draft has not been reviewed")
+			}
+		default:
+			return errors.New("pull request merge must be empty or after-checks")
 		}
 	}
 	return nil

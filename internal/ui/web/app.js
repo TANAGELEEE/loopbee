@@ -690,10 +690,17 @@ const actions = {
     markDirty();
     render();
   },
+  "ed-merge": (b) => {
+    if (b.dataset.value) draft.pullRequest.merge = b.dataset.value;
+    else delete draft.pullRequest.merge;
+    markDirty();
+    render();
+  },
   "ed-pr": (b) => {
     if (b.dataset.value === "none") delete draft.pullRequest;
     else {
       draft.pullRequest = { ...(draft.pullRequest || {}), mode: b.dataset.value };
+      if (b.dataset.value !== "after-review") delete draft.pullRequest.merge;
       draft.workspace = "worktree";
       draft.requireClean = false;
       draft.branch ||= "loopbee/change-{date}-{run}";
@@ -900,6 +907,10 @@ function friendly(msg) {
 }
 document.addEventListener("input", (e) => {
   const el = e.target;
+  if (el.closest?.("#gate-form") && el.name === "note") {
+    ctx.gateNotes[route.path[1]] = el.value;
+    return;
+  }
   if (el.id === "search") {
     const page = route.path[0] === "artifact" ? "artifacts" : route.path[0];
     filters[page] = el.value;
@@ -1008,6 +1019,7 @@ document.addEventListener("submit", async (e) => {
         }
       }
       await mutate(`/runs/${route.path[1]}/gate`, { approve, note });
+      delete ctx.gateNotes[route.path[1]];
       toast(t(approve ? "Approved — the run continues" : "Sent back"));
       go(approve ? "#/run/" + route.path[1] : "#/today");
     } else if (form.id === "chat-form") {
@@ -1107,6 +1119,9 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
 function busy() {
   if ($("#dialog").open || !$("#menu").hidden || ui.channel) return true;
   if (isEditor(route) || isChat(route)) return true;
+  // A review note being written must survive the 3-second refresh, also after focus left the field (the desktop
+  // window swallows the first click after typing, so the reviewer often clicks twice).
+  if ($("#gate-form textarea")?.value.trim()) return true;
   const a = document.activeElement;
   return a && a.id !== "search" && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && !!a.closest("main");
 }

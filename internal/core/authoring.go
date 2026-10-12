@@ -66,7 +66,7 @@ func authorSchema() map[string]any {
 			"channels": map[string]any{"type": "array", "items": map[string]any{"type": "string", "enum": []string{"desktop", "telegram", "feishu", "bark"}}}}),
 		// Strict schemas have no optional objects: an empty kind / mode means "not used".
 		"intake":      obj(map[string]any{"kind": map[string]any{"type": "string", "enum": []string{"", "github-issues"}}, "repo": str, "label": str, "trustedUsers": strs}),
-		"pullRequest": obj(map[string]any{"mode": map[string]any{"type": "string", "enum": []string{"", "after-review", "draft"}}, "base": str}),
+		"pullRequest": obj(map[string]any{"mode": map[string]any{"type": "string", "enum": []string{"", "after-review", "draft"}}, "base": str, "merge": map[string]any{"type": "string", "enum": []string{"", "after-checks"}}}),
 		"env":         map[string]any{"type": "array", "items": obj(map[string]any{"name": str, "secret": map[string]any{"type": "boolean"}})},
 	})
 	return obj(map[string]any{
@@ -129,7 +129,9 @@ Design rules:
 - Pull requests are Loopbee's job: set pullRequest.mode "after-review" (default; put a gate after the agent step —
   the person reviews the diff in Loopbee, then Loopbee pushes and opens the pull request) or "draft" (no gate; a
   draft pull request is the review, e.g. when the user wants to review on GitHub or the phone). Never put push or
-  pull-request commands in steps or prompts. Leave mode empty when a branch is enough.
+  pull-request commands in steps or prompts. Leave mode empty when a branch is enough. When the user wants the
+  reviewed change merged without merging by hand, set pullRequest.merge "after-checks" (only with "after-review"):
+  Loopbee waits for the pull request's checks and squash-merges it when all pass, otherwise leaves it open.
 - notify.channels: the channels the user names (telegram, feishu, bark, desktop); empty means all configured.
 - Loopbee hands the output of earlier run/verify steps to later agent steps of the same round. Set
   continueOnError=true on a run step when a non-zero exit is information, not a failure (e.g. failing tests
@@ -172,9 +174,9 @@ func definitionForAgent(l Loop) map[string]any {
 	if l.Intake != nil {
 		intake = map[string]any{"kind": l.Intake.Kind, "repo": l.Intake.Repo, "label": l.Intake.Label, "trustedUsers": nonNil(l.Intake.TrustedUsers)}
 	}
-	pr := map[string]any{"mode": "", "base": ""}
+	pr := map[string]any{"mode": "", "base": "", "merge": ""}
 	if l.PullRequest != nil {
-		pr = map[string]any{"mode": l.PullRequest.Mode, "base": l.PullRequest.Base}
+		pr = map[string]any{"mode": l.PullRequest.Mode, "base": l.PullRequest.Base, "merge": l.PullRequest.Merge}
 	}
 	steps := []map[string]any{}
 	for _, s := range l.Steps {

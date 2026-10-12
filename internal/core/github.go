@@ -211,6 +211,96 @@ func pickIssue(ctx context.Context, l Loop) (*issueItem, []string, error) {
 	return nil, skipped, nil
 }
 
+// Checks are polled while a Run waits to merge; tests shorten these.
+var (
+	checksPoll    = 30 * time.Second
+	checksAppear  = 3 * time.Minute  // checks must show up on the pull request within this time
+	checksTimeout = 60 * time.Minute // and finish within this time
+)
+
+// mergeWhenGreen waits until every check on the pull request has finished, then squash-merges it if all passed and
+// its head is still the commit Loopbee pushed. It returns why it did not merge (merged == false, err == nil) for
+// failing, missing or unfinished checks and refusals by GitHub, so the pull request stays open for a person.
+func mergeWhenGreen(ctx context.Context, l Loop, r Run, url, head string, onWait func()) (merged bool, why string, err error) {
+	repo := ""
+	if l.Intake != nil {
+		repo = l.Intake.Repo
+	}
+	start := time.Now()
+	waited := false
+	for {
+		out, cerr := gh(ctx, l.Directory, repo, "pr", "checks", url, "--json", "name,bucket")
+		var checks []struct {
+			Name   string `json:"name"`
+			Bucket string `json:"bucket"`
+		}
+		if cerr == nil {
+			if e := json.Unmarshal(out, &checks); e != nil {
+				return false, "", fmt.Errorf("gh pr checks: %w", e)
+			}
+		} else if !strings.Contains(cerr.Error(), "no checks reported") {
+			return false, "", cerr
+		}
+		var pending, failed []string
+		for _, c := range checks {
+			switch c.Bucket {
+			case "pending":
+				pending = append(pending, c.Name)
+			case "fail", "cancel":
+				failed = append(failed, c.Name)
+			}
+		}
+		switch {
+		case len(failed) > 0:
+			return false, "checks failed: " + strings.Join(failed, ", "), nil
+		case len(checks) > 0 && len(pending) == 0:
+			// All passed (or skipped): merge exactly what was reviewed and pushed.
+			if _, err := gh(ctx, l.Directory, repo, "pr", "merge", url, "--squash", "--match-head-commit", head); err != nil {
+				return false, "GitHub did not merge it: " + firstLine(err.Error(), 300), nil
+			}
+			// The merged branch is no longer needed on GitHub; the local branch stays with the Run's worktree.
+			gh(ctx, l.Directory, repo, "api", "-X", "DELETE", "repos/{owner}/{repo}/git/refs/heads/"+r.Branch)
+			return true, "", nil
+		case len(checks) == 0 && time.Since(start) > checksAppear:
+			return false, "no checks ran on the pull request; Loopbee merges only after checks pass", nil
+		case time.Since(start) > checksTimeout:
+			return false, "checks still running after " + checksTimeout.String() + ": " + strings.Join(pending, ", "), nil
+		}
+		if !waited && onWait != nil {
+			onWait()
+			waited = true
+		}
+		select {
+		case <-ctx.Done():
+			return false, "", ctx.Err()
+		case <-time.After(checksPoll):
+		}
+	}
+}
+
+// pushCredentials makes a push from the desktop app non-interactive: nobody watches a terminal or a credential
+// dialog, so a prompt would only hang the Run until its timeout. GitHub over HTTPS uses the gh login (the same
+// account that reads issues and opens the pull request); SSH never asks for a passphrase.
+func pushCredentials(remoteURL string) (args, env []string) {
+	env = []string{"GCM_INTERACTIVE=never", "GIT_ASKPASS=", "SSH_ASKPASS="}
+	if os.Getenv("GIT_SSH_COMMAND") == "" {
+		env = append(env, "GIT_SSH_COMMAND=ssh -o BatchMode=yes")
+	}
+	if !strings.HasPrefix(remoteURL, "https://github.com/") {
+		return nil, env
+	}
+	cmd, err := ghCommand()
+	if err != nil {
+		return nil, env
+	}
+	quoted := make([]string, len(cmd))
+	for i, c := range cmd {
+		quoted[i] = "'" + strings.ReplaceAll(c, "'", `'\''`) + "'"
+	}
+	// An empty helper first clears the user's helpers (osxkeychain, Git Credential Manager) for this push.
+	return []string{"-c", "credential.helper=", "-c", "credential.helper=!" + strings.Join(quoted, " ") + " auth git-credential"}, env
+}
+
 // releaseIssue removes the working label from an issue the Run claimed but never handed to an agent (for example
 // when the workspace could not be prepared), so the next Run can take it again.
 func releaseIssue(l Loop, number int) error {
@@ -293,7 +383,9 @@ func deliverPullRequest(ctx context.Context, l Loop, r Run, ws *workspace, revie
 		}
 		baseBranch = v.DefaultBranchRef.Name
 	}
-	if out, err := ws.git(ctx, "push", "--no-verify", "--set-upstream", remote, "HEAD:refs/heads/"+r.Branch); err != nil {
+	remoteURL, _ := ws.git(ctx, "remote", "get-url", remote)
+	credArgs, credEnv := pushCredentials(strings.TrimSpace(string(remoteURL)))
+	if out, err := ws.gitEnv(ctx, credEnv, append(credArgs, "push", "--no-verify", "--set-upstream", remote, "HEAD:refs/heads/"+r.Branch)...); err != nil {
 		return "", fmt.Errorf("git push: %s", tail(strings.TrimSpace(string(out)), 400))
 	}
 	out, err = gh(ctx, l.Directory, repo, "pr", "list", "--head", r.Branch, "--state", "open", "--json", "url")

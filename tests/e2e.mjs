@@ -4,6 +4,7 @@ import { mkdir, rm } from "node:fs/promises";
 import assert from "node:assert/strict";
 import { startCore } from "./demo.mjs";
 import { uiFlow } from "./ui-flow.mjs";
+import { sidebarFlow } from "./sidebar-flow.mjs";
 // CI sets LOOPBEE_EVIDENCE_DIR to a fresh directory so uploaded screenshots always come from this run.
 const EVIDENCE = process.env.LOOPBEE_EVIDENCE_DIR || "docs/evidence";
 
@@ -18,6 +19,7 @@ try {
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(core.url);
   const { gateLoop } = await uiFlow(page, { data: core.data, node: process.execPath });
+  await sidebarFlow(page, core.base, core.api);
 
   // Cancel through the confirmation dialog: the destructive action is not the default focus.
   await page.goto(core.base + "/#/loop/" + gateLoop.id);
@@ -68,7 +70,7 @@ try {
   await page.goto(core.base + "/#/today");
   await page.screenshot({ path: `${EVIDENCE}/mobile.png`, fullPage: true });
   assert.deepEqual(errors, [], "browser runtime errors");
-  console.log("PASS: onboarding, editor, run, gate review, edit, evidence, artifact download, cancel dialog, three languages, themes, 960px and mobile layouts, no script errors");
+  console.log("PASS: onboarding, sidebar, editor, run, gate review, edit, evidence, artifact download, cancel dialog, three languages, themes, 960px and mobile layouts, no script errors");
 } finally {
   await browser?.close();
   await core.stop();

@@ -89,6 +89,30 @@ try {
   await page.locator(".row.top", { hasText: "Stop reason" }).locator(".sub", { hasText: "No actionable errors" }).waitFor();
   assert.equal(await page.getByText("All steps succeeded and the completion condition was met.").count(), 0);
 
+  // The gate shows what Loopbee committed first, and approving closes it at once.
+  const edit = await core.api("/loops", { ...loop, id: "", version: 0, name: "Branch fix", conversation: [], workspace: "worktree", baseRef: "", branch: "loopbee/e2e-{run}", requireClean: false, steps: [{ kind: "act", name: "Fix", prompt: "EDIT_FILE" }, { kind: "gate", name: "Review the diff" }] });
+  const editLoop = edit.loops.find((l) => l.name === "Branch fix");
+  await core.api(`/loops/${editLoop.id}/run`, {});
+  s = await waitFor(core.api, (st) => st.runs.find((r) => r.loopId === editLoop.id && r.status === "waiting") && st);
+  const editRun = s.runs.find((r) => r.loopId === editLoop.id);
+  await page.goto(core.base + "/#/gate/" + editRun.id);
+  await page.reload();
+  const firstEvidence = page.locator('[data-action="gate-preview"]').first();
+  await firstEvidence.getByText("Changes to review").waitFor();
+  assert.match(await firstEvidence.getAttribute("class"), /selrow/, "the diff is selected for review");
+  await page.locator("#ev-preview", { hasText: "+edited by the fake agent" }).waitFor();
+  // The note survives the 3-second refresh after focus has left it (the desktop window swallows the first click).
+  await page.locator('#gate-form [name="note"]').fill("LGTM");
+  await page.locator(".gb-t").click();
+  await page.waitForTimeout(3600);
+  assert.equal(await page.locator('#gate-form [name="note"]').inputValue(), "LGTM", "the review note was wiped by a refresh");
+  await page.getByRole("button", { name: "Approve and continue" }).click();
+  await page.waitForURL(/#\/run\//); // the approval went through and the page moved to the run
+  await waitFor(core.api, (st) => st.runs.find((r) => r.id === editRun.id && r.status === "completed"));
+  await page.goto(core.base + "/#/gate/" + editRun.id);
+  await page.reload();
+  await page.getByText("This gate is closed").waitFor();
+
   // A draft above the device limit says what it needs and links to Settings (default limit: read only).
   await page.goto(core.base + "/#/new");
   await page.reload();
@@ -142,14 +166,16 @@ try {
   await page.getByRole("radio", { name: "Draft, review on GitHub" }).click();
   await page.getByText("A draft pull request pushes the agent's change to GitHub before anyone has reviewed it").waitFor();
   await page.getByRole("radio", { name: "After my review" }).click();
+  await page.getByRole("radio", { name: "When all checks pass" }).click();
+  await page.getByText("After your approval Loopbee waits for the pull request's checks").waitFor();
   await page.locator("#ed-work").locator("..").getByText("gh version 2.99.0 (fake) · signed in").waitFor();
   await page.getByRole("button", { name: "Save as v2" }).click();
   await page.locator(".hd .chip", { hasText: "Version v2" }).waitFor();
   const v2 = (await core.api("/state")).loops.find((l) => l.id === loop.id);
   assert.equal(v2.branch, "loopbee/issue-{issue}");
   assert.deepEqual(v2.intake, { kind: "github-issues", label: "bug" });
-  assert.deepEqual(v2.pullRequest, { mode: "after-review" });
-  await page.getByText("GitHub issues labelled bug → pull request after your review").waitFor();
+  assert.deepEqual(v2.pullRequest, { mode: "after-review", merge: "after-checks" });
+  await page.getByText("GitHub issues labelled bug → pull request after your review, merged when checks pass").waitFor();
   assert.equal(v2.agent, "codex");
   const cmd = v2.steps.find((st) => st.kind === "run");
   assert.ok(cmd && cmd.name === "Command" && cmd.continueOnError === true && cmd.argv.join(" ") === "node -v", JSON.stringify(cmd));
