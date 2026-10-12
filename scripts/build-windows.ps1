@@ -86,6 +86,14 @@ try {
         throw 'Portable archive contains unexpected files.'
     }
 } finally { $archive.Dispose() }
-$hash = (Get-FileHash -LiteralPath $loopbeeZip -Algorithm SHA256).Hash.ToLowerInvariant()
-Set-Content -LiteralPath "$loopbeeZip.sha256" -Value "$hash  Loopbee-windows-amd64.zip" -Encoding ASCII
-Write-Output 'Built and validated bin/loopbee.exe, bin/loopbee-nogui.exe, bin/beectl.exe and bin/Loopbee-windows-amd64.zip (unsigned).'
+# Release downloads: the portable ZIP (desktop, headless and beectl) and the desktop program itself as a
+# directly runnable .exe (not an installer). Each gets a .sha256 file; the release adds a combined SHA256SUMS.
+$loopbeeExe = Join-Path (Get-Location) 'bin/Loopbee-windows-amd64.exe'
+Copy-Item -LiteralPath 'bin/loopbee.exe' -Destination $loopbeeExe -Force
+Assert-Executable $loopbeeExe 2 $true
+foreach ($file in @($loopbeeZip, $loopbeeExe)) {
+    $hash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+    $name = Split-Path $file -Leaf
+    [IO.File]::WriteAllText("$file.sha256", "$hash  $name`n", [Text.Encoding]::ASCII)
+}
+Write-Output 'Built and validated bin/loopbee.exe, bin/loopbee-nogui.exe, bin/beectl.exe, bin/Loopbee-windows-amd64.exe and bin/Loopbee-windows-amd64.zip (unsigned).'

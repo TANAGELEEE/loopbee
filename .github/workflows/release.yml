@@ -1,19 +1,68 @@
 name: Release Loopbee
-# Push a tag such as v0.2.0 to build, test and publish the Windows and macOS packages as a GitHub Release.
-# Tags with a suffix (v0.2.0-rc.1) become pre-releases. The packages are unsigned and not notarized.
+# Push a tag such as v0.1.1 to build, test and publish Loopbee as a GitHub Release.
+#
+# Release notes come from docs/releases/<tag>.md (see docs/releases/README.md). Without that file nothing is built
+# or published. Tags with a suffix (v0.2.0-rc.1) become pre-releases. Packages are unsigned and not notarized.
+#
+# Run it by hand (Actions › Release Loopbee › Run workflow) to rebuild an existing tag, or with "notes only" to
+# replace the text of an existing release with the current docs/releases/<tag>.md, without rebuilding.
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag, e.g. v0.1.0
+        required: true
+      notes_only:
+        description: Only update the release text from docs/releases/<tag>.md
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
 jobs:
+  notes:
+    name: Release notes
+    runs-on: ubuntu-latest
+    steps:
+      # Notes come from the commit that runs the workflow, so a published text can be fixed after tagging.
+      - uses: actions/checkout@v4
+      - name: Check docs/releases/<tag>.md
+        run: |
+          set -eu
+          f="docs/releases/$TAG.md"
+          if [ ! -s "$f" ]; then
+            echo "::error file=$f::Write the release notes in $f before releasing $TAG (see docs/releases/README.md)."
+            exit 1
+          fi
+          if ! grep -q '^## 下載與安裝' "$f"; then
+            echo "::error file=$f::$f needs a '## 下載與安裝' section listing the files to download."
+            exit 1
+          fi
+          if grep -n 'TODO\|TBD\|待補' "$f"; then
+            echo "::error file=$f::$f still has placeholders."
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: docs/releases/${{ env.TAG }}.md
+          if-no-files-found: error
+
   windows:
+    name: Windows x64
+    needs: notes
+    if: ${{ !inputs.notes_only }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.TAG }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -21,59 +70,119 @@ jobs:
       - run: go test -tags nogui ./...
       - shell: pwsh
         run: |
-          $version = '${{ github.ref_name }}'.TrimStart('v')
+          $version = $env:TAG.TrimStart('v')
           ./scripts/build-windows.ps1 -Version $version
       - uses: actions/upload-artifact@v4
         with:
-          name: release-windows
+          name: release-windows-amd64
           if-no-files-found: error
           path: |
+            bin/Loopbee-windows-amd64.exe
+            bin/Loopbee-windows-amd64.exe.sha256
             bin/Loopbee-windows-amd64.zip
             bin/Loopbee-windows-amd64.zip.sha256
 
   macos:
-    runs-on: macos-latest
+    name: macOS ${{ matrix.arch }}
+    needs: notes
+    if: ${{ !inputs.notes_only }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64 # Apple Silicon
+            runner: macos-latest
+          - arch: amd64 # Intel, built and tested natively
+            runner: macos-15-intel
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.TAG }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
+      - name: Check the runner architecture
+        run: test "$(go env GOARCH)" = "${{ matrix.arch }}"
       - run: go test -tags nogui ./...
-      - run: LOOPBEE_VERSION="${GITHUB_REF_NAME#v}" sh scripts/build-macos.sh
+      - run: LOOPBEE_VERSION="${TAG#v}" sh scripts/build-macos.sh
+      - name: Start the packaged app headless
+        run: |
+          set -eu
+          data=$(mktemp -d)
+          bin/Loopbee.app/Contents/MacOS/loopbee -nogui -data "$data" &
+          pid=$!
+          for i in $(seq 1 50); do [ -s "$data/launch-url.txt" ] && break; sleep 0.2; done
+          kill "$pid"
+          test -s "$data/launch-url.txt"
       - uses: actions/upload-artifact@v4
         with:
-          name: release-macos
+          name: release-macos-${{ matrix.arch }}
           if-no-files-found: error
           path: |
-            bin/Loopbee-macos-*.zip
-            bin/Loopbee-macos-*.zip.sha256
+            bin/Loopbee-macos-${{ matrix.arch }}.dmg
+            bin/Loopbee-macos-${{ matrix.arch }}.dmg.sha256
+            bin/Loopbee-macos-${{ matrix.arch }}.zip
+            bin/Loopbee-macos-${{ matrix.arch }}.zip.sha256
 
   publish:
-    needs: [windows, macos]
+    name: Publish
+    needs: [notes, windows, macos]
+    if: ${{ always() && needs.notes.result == 'success' && (inputs.notes_only || (needs.windows.result == 'success' && needs.macos.result == 'success')) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # previous tag for the Full Changelog link
       - uses: actions/download-artifact@v4
         with:
-          pattern: release-*
+          name: release-notes
+          path: notes
+      - if: ${{ !inputs.notes_only }}
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*-*
           path: dist
           merge-multiple: true
-      - name: Create the release and upload the packages
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
+      - name: Verify the packages and write SHA256SUMS
+        if: ${{ !inputs.notes_only }}
         run: |
           set -eu
           cd dist
+          expected="Loopbee-windows-amd64.exe Loopbee-windows-amd64.zip Loopbee-macos-arm64.dmg Loopbee-macos-arm64.zip Loopbee-macos-amd64.dmg Loopbee-macos-amd64.zip"
+          for f in $expected; do
+            test -s "$f" || { echo "::error::$f is missing"; exit 1; }
+            tr -d '\r' < "$f.sha256" | sha256sum -c -
+          done
+          sha256sum $expected > SHA256SUMS
+          rm -f ./*.sha256
           ls -l
-          for f in *.zip; do tr -d '\r' < "$f.sha256" | sha256sum -c -; done
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber ./*.zip ./*.sha256
+          cat SHA256SUMS
+      - name: Compose the release text
+        run: |
+          set -eu
+          cp "notes/$TAG.md" release-notes.md
+          prev=$(git describe --tags --abbrev=0 --match 'v*' "$TAG^" 2>/dev/null || true)
+          if [ -n "$prev" ]; then
+            printf '\n**Full Changelog**: https://github.com/%s/compare/%s...%s\n' "$GITHUB_REPOSITORY" "$prev" "$TAG" >> release-notes.md
           else
-            prerelease=""
-            case "$TAG" in *-*) prerelease="--prerelease" ;; esac
-            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes $prerelease \
-              --title "Loopbee $TAG" ./*.zip ./*.sha256
+            printf '\n**Full Changelog**: https://github.com/%s/commits/%s\n' "$GITHUB_REPOSITORY" "$TAG" >> release-notes.md
+          fi
+      - name: Create or update the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          prerelease=false
+          case "$TAG" in *-*) prerelease=true ;; esac
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "Loopbee $TAG" --notes-file release-notes.md --prerelease="$prerelease"
+            if [ -d dist ]; then gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber dist/*; fi
+          else
+            if [ ! -d dist ]; then echo "::error::Release $TAG does not exist yet; run without notes only."; exit 1; fi
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --title "Loopbee $TAG" \
+              --notes-file release-notes.md --prerelease="$prerelease" dist/*
           fi

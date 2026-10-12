@@ -37,3 +37,4 @@
 | CI uploaded screenshots committed in docs/ as if they were this run's evidence | Tests write to `LOOPBEE_EVIDENCE_DIR`; CI uses a fresh directory | .github/workflows/ci.yml |
 | Codex's sandbox cannot write Git metadata, so agents could not commit in a worktree | Loopbee creates the branch and commits after each agent step | TestBranchWorkspaceCommitsForTheAgent |
 | Read-only Claude Code has no shell, so “run the tests and report” failed | Command steps with continueOnError; their output is passed to later agent steps | TestCommandOutputReachesTheAgentStep |
+| `--generate-notes` produced a one-line release text (it only lists merged PRs) | Each release publishes `docs/releases/<tag>.md`; the workflow stops without it and updates the text when re-run | .github/workflows/release.yml |

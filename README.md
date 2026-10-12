@@ -90,7 +90,16 @@ Set `LOOPBEE_WINDOWS_INTEGRATION=1` when running core tests to check and restore
 
 `.github/workflows/ci.yml` runs on every push: Go tests on Linux (plus race), Windows and macOS with `fail-fast: false`, the Windows package with native-lifecycle and WebView2 desktop acceptance, the macOS `.app`, and the browser E2E. The Windows ZIP and the macOS ZIP are uploaded as build artifacts; screenshots are written to a fresh directory and uploaded only if the run produced them.
 
-To publish a release, push a tag: `git tag v0.2.0 && git push origin v0.2.0`. `.github/workflows/release.yml` tests and builds both platforms with the version stamped in, checks the SHA-256 files and creates the GitHub Release with `Loopbee-windows-amd64.zip`, `Loopbee-macos-arm64.zip` and their checksums. Tags with a suffix such as `v0.2.0-rc.1` become pre-releases. Packages are unsigned and not notarized.
+To publish a release, write its notes in `docs/releases/vX.Y.Z.md` ([format](docs/releases/README.md)), commit, then push the tag: `git tag v0.1.1 && git push origin v0.1.1`. `.github/workflows/release.yml` stops if the notes file is missing; otherwise it tests and builds Windows x64, macOS Apple Silicon and macOS Intel (natively, version stamped in), verifies every package and publishes:
+
+| Platform | Files |
+|---|---|
+| Windows x64 | `Loopbee-windows-amd64.exe` (the desktop app, run directly) · `Loopbee-windows-amd64.zip` (desktop, headless and beectl) |
+| macOS Apple Silicon | `Loopbee-macos-arm64.dmg` (drag to Applications) · `Loopbee-macos-arm64.zip` |
+| macOS Intel | `Loopbee-macos-amd64.dmg` · `Loopbee-macos-amd64.zip` |
+| All | `SHA256SUMS` |
+
+The release text is the notes file plus a Full Changelog link. To correct the text of a published release, edit the notes on the main branch and run the workflow by hand with the tag and **notes only**. Tags with a suffix such as `v0.2.0-rc.1` become pre-releases. Packages are unsigned and not notarized.
 
 `.gitattributes` keeps text files LF in every checkout (PowerShell scripts CRLF); embedded files such as `cmd/beectl/SKILL.md` must not change with `core.autocrlf`.
 

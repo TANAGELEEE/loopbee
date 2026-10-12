@@ -45,9 +45,35 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
 PLIST
 plain_version=$(printf '%s' "$version" | sed 's/[^0-9.].*$//')
 sed -i '' "s/__VERSION__/${plain_version:-0.1.0}/g" "$app/Contents/Info.plist"
-# Portable archive for CI artifacts and releases (ditto keeps the bundle's symlinks and permissions).
-zip="bin/Loopbee-macos-$(uname -m).zip"
+# Release downloads, named by CPU architecture (arm64 = Apple Silicon, amd64 = Intel):
+#   Loopbee-macos-<arch>.dmg  disk image with Loopbee.app and an Applications shortcut (drag to install)
+#   Loopbee-macos-<arch>.zip  the same .app as a plain archive
+arch=$(go env GOARCH)
+actual=$(lipo -archs "$app/Contents/MacOS/loopbee")
+case "$arch:$actual" in
+  arm64:arm64|amd64:x86_64) ;;
+  *) echo "Loopbee.app was built for $actual, expected $arch" >&2; exit 1 ;;
+esac
+zip="bin/Loopbee-macos-$arch.zip"
 rm -f "$zip"
 ditto -c -k --keepParent "$app" "$zip"
-(cd bin && shasum -a 256 "$(basename "$zip")" > "$(basename "$zip").sha256")
-echo "Built $app ${version:-dev} (unsigned; not notarized), $zip and bin/beectl. Put beectl on your PATH, e.g. ln -s \"$PWD/bin/beectl\" /usr/local/bin/beectl, then run: beectl skill install"
+dmg="bin/Loopbee-macos-$arch.dmg"
+stage=$(mktemp -d)
+trap 'rm -rf "$stage"' EXIT
+ditto "$app" "$stage/Loopbee.app"
+ln -s /Applications "$stage/Applications"
+rm -f "$dmg"
+hdiutil create -quiet -volname "Loopbee" -srcfolder "$stage" -fs HFS+ -format UDZO -ov "$dmg"
+# Verify the image: checksum, then mount it read-only and check its contents.
+hdiutil verify -quiet "$dmg"
+mnt="$stage/mnt"
+mkdir "$mnt"
+hdiutil attach -quiet -nobrowse -readonly -mountpoint "$mnt" "$dmg"
+ok=1
+[ -x "$mnt/Loopbee.app/Contents/MacOS/loopbee" ] && [ -x "$mnt/Loopbee.app/Contents/MacOS/beectl" ] && [ -L "$mnt/Applications" ] || ok=0
+hdiutil detach -quiet "$mnt"
+[ "$ok" = 1 ] || { echo "$dmg does not contain Loopbee.app and the Applications shortcut" >&2; exit 1; }
+for f in "$zip" "$dmg"; do
+  (cd bin && shasum -a 256 "$(basename "$f")" > "$(basename "$f").sha256")
+done
+echo "Built $app ${version:-dev} for $arch (unsigned; not notarized), $dmg, $zip and bin/beectl. Put beectl on your PATH, e.g. ln -s \"$PWD/bin/beectl\" /usr/local/bin/beectl, then run: beectl skill install"

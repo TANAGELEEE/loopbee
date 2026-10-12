@@ -34,8 +34,9 @@ jobs:
           name: Loopbee-macos-arm64
           if-no-files-found: error
           path: |
+            bin/Loopbee-macos-*.dmg
             bin/Loopbee-macos-*.zip
-            bin/Loopbee-macos-*.zip.sha256
+            bin/Loopbee-macos-*.sha256
 
       # Windows: package, native lifecycle and WebView2 desktop acceptance.
       - if: runner.os == 'Windows'
@@ -47,8 +48,9 @@ jobs:
           name: Loopbee-windows-amd64
           if-no-files-found: error
           path: |
+            bin/Loopbee-windows-amd64.exe
             bin/Loopbee-windows-amd64.zip
-            bin/Loopbee-windows-amd64.zip.sha256
+            bin/Loopbee-windows-amd64.*.sha256
       - if: runner.os == 'Windows'
         run: go test ./cmd/loopbee
       - if: runner.os == 'Windows'
