@@ -43,6 +43,7 @@ func usage(w io.Writer) {
 	fmt.Fprint(w, `Usage: beectl [-data DIR] <command>
 
   status                         app, agents and active runs
+  version | --version            print beectl's version (no app required)
   loops [--json]                 list loops
   runs [--loop ID|NAME] [--json] recent runs
   schema                         JSON schema of a loop definition with an example
@@ -141,12 +142,17 @@ func findLoop(s core.State, key string) (core.Loop, error) {
 func run(args []string, out io.Writer) error {
 	fs := flag.NewFlagSet("beectl", flag.ContinueOnError)
 	data := fs.String("data", "", "Loopbee data directory (default: LOOPBEE_DATA_DIR or the app default)")
+	version := fs.Bool("version", false, "print beectl's version")
 	fs.SetOutput(io.Discard)
 	if err := fs.Parse(args); err != nil {
 		usage(out)
 		return err
 	}
 	rest := fs.Args()
+	if *version || (len(rest) > 0 && rest[0] == "version") {
+		_, err := fmt.Fprintf(out, "beectl %s\n", core.Version)
+		return err
+	}
 	if len(rest) == 0 || rest[0] == "help" || rest[0] == "-h" {
 		usage(out)
 		return nil

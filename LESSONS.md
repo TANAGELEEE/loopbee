@@ -22,6 +22,12 @@ The check fails while such a lesson is still here.
 
 ## Fix the class, not the sample
 
+### Local CLI information must not require the app to be running
+`beectl version` reached the app connection and `--version` failed flag parsing. Handle both before connecting,
+print the CLI's own build version, and list them in help.
+- Evidence: `TestBeectlVersionWithoutApp`, `TestBeectlHelpListsVersion`
+- Seen: 2026-10-12
+
 ### When the same list exists in two places, fix both or make them share one source
 The 10-11 fix added “Command” to the add-step menu, but the function that inserts the step kept its own name
 table without `run`: new command steps were named `undefined` and had no command field. Both now use `kindLabel`.
