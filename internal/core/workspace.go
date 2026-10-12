@@ -2,34 +2,51 @@ package core
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
 
-// prepareWorkspace returns the directory a Run executes in, plus extra writable directories.
-// In worktree mode each Run gets a fresh detached git worktree under the data directory, so agents
+// workspace is where a Run executes. In worktree mode it is a fresh git worktree under the data directory, so agents
 // never switch branches or collide with uncommitted work in the developer's own checkout.
-// With l.Branch set, the worktree checks out a new branch of that name instead of a detached HEAD.
-func (a *App) prepareWorkspace(ctx context.Context, l Loop, runID string) (string, []string, string, error) {
+type workspace struct {
+	// Reviewed is the commit up to which the reviewer has been shown the change; the next diff starts there.
+	Reviewed string
+	Dir      string
+	Branch   string // branch Loopbee created and commits to ("" = detached or direct mode)
+	Base     string // commit the worktree started from
+	gitFile  []byte // <Dir>/.git right after creation; a changed file means the agent tampered with it
+	hooks    string // empty hooks directory for Loopbee's own Git commands
+}
+
+// prepareWorkspace creates the Run's workspace. Agents get no write access to Git metadata: with l.Branch set,
+// Loopbee creates the branch and commits for them (Codex's sandbox forbids .git writes, and writable hooks or
+// config would let an agent run code outside its sandbox through Loopbee's own Git commands).
+func (a *App) prepareWorkspace(ctx context.Context, l Loop, runID string, issue int) (*workspace, error) {
 	if l.Workspace != "worktree" {
-		return l.Directory, nil, "", nil
+		return &workspace{Dir: l.Directory}, nil
 	}
 	root := filepath.Join(a.Dir, "worktrees")
-	if err := os.MkdirAll(root, 0700); err != nil {
-		return "", nil, "", err
+	hooks := filepath.Join(a.Dir, "no-hooks")
+	for _, d := range []string{root, hooks} {
+		if err := os.MkdirAll(d, 0700); err != nil {
+			return nil, err
+		}
 	}
 	path := filepath.Join(root, l.ID)
 	git := func(args ...string) ([]byte, error) {
 		return runCommand(ctx, l.Directory, append([]string{"git"}, args...), nil)
 	}
 	if _, err := git("rev-parse", "--is-inside-work-tree"); err != nil {
-		return "", nil, "", errors.New("worktree mode requires the working directory to be a Git repository")
+		return nil, errors.New("worktree mode requires the working directory to be a Git repository")
 	}
 	if _, err := os.Stat(path); err == nil {
 		git("worktree", "remove", "--force", path)
@@ -47,64 +64,162 @@ func (a *App) prepareWorkspace(ctx context.Context, l Loop, runID string) (strin
 		}
 	}
 	branch := ""
+	continued := false
 	add := []string{"worktree", "add", "--detach", path, base}
 	if l.Branch != "" {
-		branch = expandBranch(l.Branch, runID, time.Now())
+		branch = expandBranch(l.Branch, runID, time.Now(), issue)
 		if out, err := git("check-ref-format", "--branch", branch); err != nil {
-			return "", nil, "", fmt.Errorf("invalid branch name %s: %s", branch, strings.TrimSpace(string(out)))
-		}
-		if _, err := git("rev-parse", "--verify", "--quiet", "refs/heads/"+branch); err == nil {
-			return "", nil, "", fmt.Errorf("branch %s already exists; merge or delete it, or put {date} in the Loop's branch name", branch)
+			return nil, fmt.Errorf("invalid branch name %s: %s", branch, strings.TrimSpace(string(out)))
 		}
 		add = []string{"worktree", "add", "-b", branch, path, base}
-	}
-	if out, err := git(add...); err != nil {
-		return "", nil, "", fmt.Errorf("could not create worktree from %s: %s", base, strings.TrimSpace(string(out)))
-	}
-	a.event(runID, "workspace.worktree", path+" @ "+base+map[bool]string{true: " → " + branch, false: ""}[branch != ""])
-	extra := []string{}
-	if out, err := runCommand(ctx, path, []string{"git", "rev-parse", "--path-format=absolute", "--git-common-dir"}, nil); err == nil {
-		if d := strings.TrimSpace(string(out)); d != "" {
-			extra = append(extra, d) // commits and branches in a worktree write to the main repository's .git
+		if _, err := git("rev-parse", "--verify", "--quiet", "refs/heads/"+branch); err == nil {
+			if issue == 0 {
+				return nil, fmt.Errorf("branch %s already exists; merge or delete it, or put {date} in the Loop's branch name", branch)
+			}
+			// A retry of the same issue (after a blocked Run or a sent-back review): continue its branch, so earlier
+			// work is not lost. A branch without commits of its own is simply started again from the base.
+			if out, err := git("rev-list", "--count", base+".."+branch); err == nil && strings.TrimSpace(string(out)) == "0" {
+				add = []string{"worktree", "add", "-B", branch, path, base}
+			} else {
+				add = []string{"worktree", "add", path, branch}
+				continued = true
+			}
 		}
 	}
-	return path, extra, branch, nil
+	if out, err := git(add...); err != nil {
+		msg := fmt.Sprintf("could not create worktree from %s: %s", base, strings.TrimSpace(string(out)))
+		if _, e := git("rev-parse", "--verify", "--quiet", base+"^{commit}"); e != nil {
+			// The usual cause: a base like origin/master in a repository whose default branch is main.
+			if refs, e := git("branch", "-r", "--format=%(refname:short)"); e == nil && strings.TrimSpace(string(refs)) != "" {
+				msg = fmt.Sprintf("the base %s does not exist in this repository; set the Loop's base to one of: %s", base, strings.Join(strings.Fields(string(refs)), ", "))
+			}
+		}
+		return nil, errors.New(msg)
+	}
+	a.event(runID, "workspace.worktree", path+" @ "+base+map[bool]string{true: " → " + branch, false: ""}[branch != ""])
+	w := &workspace{Dir: path, Branch: branch, hooks: hooks}
+	w.gitFile, _ = os.ReadFile(filepath.Join(path, ".git"))
+	out, err := w.git(ctx, "rev-parse", "HEAD")
+	if err != nil {
+		return nil, fmt.Errorf("worktree has no commit: %s", strings.TrimSpace(string(out)))
+	}
+	w.Base = strings.TrimSpace(string(out))
+	if continued {
+		// Everything since the base counts as the agent's work: command steps refuse it and the reviewer sees it.
+		out, err := w.git(ctx, "merge-base", base, "HEAD")
+		if err != nil {
+			return nil, fmt.Errorf("cannot continue %s from %s: %s", branch, base, strings.TrimSpace(string(out)))
+		}
+		w.Base = strings.TrimSpace(string(out))
+		a.event(runID, "workspace.continue", fmt.Sprintf("%s already has work from an earlier Run; continuing it", branch))
+	}
+	w.Reviewed = w.Base
+	return w, nil
 }
 
-// expandBranch fills {date}, {time} and {run} in a branch template.
-func expandBranch(tpl, runID string, now time.Time) string {
+// git runs one of Loopbee's own Git commands in a workspace an agent may have changed: never with hooks, an
+// fsmonitor or an external diff, and only while the worktree still points at its real Git directory.
+func (w *workspace) git(ctx context.Context, args ...string) ([]byte, error) {
+	if w.gitFile != nil {
+		if b, err := os.ReadFile(filepath.Join(w.Dir, ".git")); err != nil || !bytes.Equal(b, w.gitFile) {
+			msg := "the worktree's .git file was changed during the run; Loopbee will not run Git there"
+			return []byte(msg), errors.New(msg)
+		}
+	}
+	safe := []string{"git", "-c", "core.hooksPath=" + w.hooks, "-c", "core.fsmonitor=false", "-c", "core.pager=cat"}
+	// GIT_TERMINAL_PROMPT=0: a push that needs credentials fails instead of waiting for input forever.
+	return runCommandEnv(ctx, w.Dir, append(safe, args...), nil, nil, []string{"GIT_TERMINAL_PROMPT=0"})
+}
+
+// changed lists files that differ from the commit the Run started from: committed, staged, modified or new.
+func (w *workspace) changed(ctx context.Context) (map[string]bool, error) {
+	set := map[string]bool{}
+	for _, args := range [][]string{{"diff", "--no-ext-diff", "--name-only", w.Base}, {"ls-files", "--others", "--exclude-standard"}} {
+		out, err := w.git(ctx, args...)
+		if err != nil {
+			return nil, fmt.Errorf("git %s: %s", args[0], strings.TrimSpace(string(out)))
+		}
+		for _, f := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			if f = strings.TrimSpace(f); f != "" {
+				set[f] = true
+			}
+		}
+	}
+	return set, nil
+}
+
+// changedFileIn returns the first argument of argv that names a file changed during the Run, or "".
+func (w *workspace) changedFileIn(argv []string, changed map[string]bool) string {
+	for _, arg := range argv {
+		p := arg
+		if !filepath.IsAbs(p) {
+			p = filepath.Join(w.Dir, p)
+		}
+		rel, err := filepath.Rel(w.Dir, p)
+		if err != nil || rel == "." || strings.HasPrefix(rel, "..") {
+			continue
+		}
+		if changed[filepath.ToSlash(rel)] {
+			return filepath.ToSlash(rel)
+		}
+	}
+	return ""
+}
+
+// expandBranch fills {date}, {time}, {run} and {issue} in a branch template.
+func expandBranch(tpl, runID string, now time.Time, issue int) string {
 	short := runID
 	if len(short) > 8 {
 		short = short[:8]
 	}
-	return strings.NewReplacer("{date}", now.Format("20060102"), "{time}", now.Format("1504"), "{run}", short).Replace(tpl)
+	return strings.NewReplacer("{date}", now.Format("20060102"), "{time}", now.Format("1504"), "{run}", short, "{issue}", strconv.Itoa(issue)).Replace(tpl)
 }
 
-// commitWorkspace commits every change in dir (a Loopbee worktree) and returns the short hash, or "" when
-// nothing changed. It runs as Loopbee, outside the agent's sandbox, and keeps the repository's hooks.
-func commitWorkspace(ctx context.Context, dir, message string) (string, error) {
-	git := func(args ...string) ([]byte, error) {
-		return runCommand(ctx, dir, append([]string{"git"}, args...), nil)
-	}
-	out, err := git("status", "--porcelain")
+// commit commits every change in the workspace and returns the short hash, or "" when nothing changed. It runs as
+// Loopbee, outside the agent's sandbox, so it never runs hooks: the agent may have written them (e.g. .husky/).
+func (w *workspace) commit(ctx context.Context, message string) (string, error) {
+	out, err := w.git(ctx, "status", "--porcelain")
 	if err != nil {
 		return "", fmt.Errorf("git status: %s", strings.TrimSpace(string(out)))
 	}
 	if strings.TrimSpace(string(out)) == "" {
 		return "", nil
 	}
-	if out, err := git("add", "-A"); err != nil {
+	if out, err := w.git(ctx, "add", "-A"); err != nil {
 		return "", fmt.Errorf("git add: %s", strings.TrimSpace(string(out)))
 	}
 	identity := []string{}
-	if out, _ := git("config", "user.email"); strings.TrimSpace(string(out)) == "" {
+	if out, _ := w.git(ctx, "config", "user.email"); strings.TrimSpace(string(out)) == "" {
 		identity = []string{"-c", "user.name=Loopbee", "-c", "user.email=loopbee@localhost"}
 	}
-	if out, err := git(append(identity, "commit", "-q", "-m", message)...); err != nil {
+	if out, err := w.git(ctx, append(identity, "commit", "-q", "--no-verify", "-m", message)...); err != nil {
 		return "", fmt.Errorf("git commit: %s", tail(string(out), 600))
 	}
-	out, err = git("rev-parse", "--short", "HEAD")
+	out, err = w.git(ctx, "rev-parse", "--short", "HEAD")
 	return strings.TrimSpace(string(out)), err
+}
+
+// diffSecretPattern finds credentials in added lines. Narrower than secretPattern: code legitimately contains
+// e-mail addresses and the words "token" or "password".
+var diffSecretPattern = regexp.MustCompile(`-----BEGIN [A-Z ]*PRIVATE KEY-----|\bsk-(?:ant-|proj-)?[A-Za-z0-9_-]{20,}|\bgh[pousr]_[A-Za-z0-9]{30,}|\bgithub_pat_[A-Za-z0-9_]{30,}|\bAKIA[0-9A-Z]{16}\b|\bxox[abprs]-[A-Za-z0-9-]{10,}`)
+
+// secretsInPatch returns "file: kind" for every added line in a unified diff that looks like a credential.
+func secretsInPatch(patch []byte) []string {
+	var found []string
+	file := ""
+	for _, line := range strings.Split(string(patch), "\n") {
+		switch {
+		case strings.HasPrefix(line, "+++ "):
+			file = strings.TrimPrefix(strings.TrimPrefix(line, "+++ "), "b/")
+		case strings.HasPrefix(line, "+") && diffSecretPattern.MatchString(line):
+			m := diffSecretPattern.FindString(line)
+			if len(m) > 12 {
+				m = m[:12] + "…"
+			}
+			found = append(found, file+": "+m)
+		}
+	}
+	return found
 }
 
 // loopEnv resolves the Loop's environment variables, reading secrets from the keychain.

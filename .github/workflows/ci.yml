@@ -1,5 +1,10 @@
 name: Verify Loopbee
-on: [push, pull_request]
+# Pushes to the main branch and pull requests. Pushing a pull request's branch would otherwise run the whole
+# matrix twice (push + pull_request) — costly on private repositories, where macOS and Windows minutes are billed.
+on:
+  push:
+    branches: [main]
+  pull_request:
 permissions:
   contents: read
 concurrency:

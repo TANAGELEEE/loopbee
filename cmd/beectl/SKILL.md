@@ -16,7 +16,7 @@ beectl status                      # app, agents, active runs
 beectl loops                       # list loops (id, name, schedule, last result)
 beectl runs --loop <id|name>       # recent runs of a loop
 beectl schema                      # JSON schema of a loop definition, with an example
-beectl create -f loop.json         # create a DISABLED draft (use -f - to read stdin)
+beectl create -f loop.json         # create a DISABLED draft (use -f - to read stdin; --dir DIR sets the project, default: current folder)
 beectl run <id|name>               # start a run now
 ```
 
@@ -60,7 +60,13 @@ Rules:
 - `sandbox`: the lowest that works — `read-only`, `workspace-write` (no network), `workspace-network` (git push,
   deploys, databases, APIs), `agent-config` (the agent's own configuration decides; only when asked). The device has
   a ceiling set in Loopbee; drafts above it are rejected.
-- `workspace: "worktree"` when the loop creates branches or commits, so the developer's checkout is untouched.
+- `workspace: "worktree"` with a `branch` (e.g. `loopbee/fix-{date}`) when the loop changes code: Loopbee creates the
+  branch and commits after each agent step. Prompts must not tell the agent to branch, commit or push.
+- To work from GitHub issues, set `"intake": {"kind": "github-issues"}` (optional `label`, `repo`, `trustedUsers`)
+  and `"branch": "loopbee/issue-{issue}"`. Loopbee picks one issue per run and gives it to the agent.
+- To get a pull request, set `"pullRequest": {"mode": "after-review"}` with a `gate` after the agent step, or
+  `{"mode": "draft"}` without one. Loopbee pushes and opens it; never script that yourself. Use
+  `"notify": {"channels": ["telegram"]}` to receive the link on the user's phone.
 - Never put secrets in the definition. Declare `"env": [{"name": "DB_PASSWORD", "secret": true}]` and tell the user to
   fill the value in Loopbee (stored in the system keychain).
 - `cron` is five fields in `timezone`; empty means manual only.

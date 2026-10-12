@@ -8,7 +8,7 @@ import { uiFlow } from "./ui-flow.mjs";
 const EVIDENCE = process.env.LOOPBEE_EVIDENCE_DIR || "docs/evidence";
 
 // Real agent CLIs on this machine are ignored so the test never calls a model.
-const core = await startCore(undefined, { LOOPBEE_CODEX_BIN: "/nonexistent/codex", LOOPBEE_CLAUDE_BIN: "/nonexistent/claude" });
+const core = await startCore(undefined, { LOOPBEE_CODEX_BIN: "/nonexistent/codex", LOOPBEE_CLAUDE_BIN: "/nonexistent/claude", LOOPBEE_GH_BIN: "/nonexistent/gh" });
 let browser;
 try {
   browser = await chromium.launch({ headless: true, channel: process.env.LOOPBEE_BROWSER || undefined });

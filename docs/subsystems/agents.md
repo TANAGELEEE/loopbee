@@ -23,9 +23,13 @@ Claude Code's Bash sandbox runs on macOS, Linux and WSL2 only. With `failIfUnava
 
 ## Git work in worktrees
 
-Codex's workspace-write sandbox makes Git metadata read-only, including a worktree's own gitdir: on the real CLI (0.162.1, macOS) the agent could create a branch ref but failed on `HEAD.lock` and could not switch or commit. Claude Code's sandbox allowed it. So for both CLIs Loopbee does the Git work itself: with `branch` set it creates the branch in the fresh worktree, tells the agent not to branch or commit, and commits all changes after each agent step as `<Loop name>: <result summary>`. The Run records `branch` and `commits`; notifications include them. Pushing and merging stay with the agent (workspace-network, if the user asks) or with a person after the gate.
+Codex's workspace-write sandbox makes Git metadata read-only, including a worktree's own gitdir: on the real CLI (0.162.1, macOS) the agent could create a branch ref but failed on `HEAD.lock` and could not switch or commit. Claude Code's sandbox allowed it. So for both CLIs Loopbee does the Git work itself: with `branch` set it creates the branch in the fresh worktree, tells the agent not to branch or commit, and commits all changes after each agent step as `<Loop name>: <result summary>`. The Run records `branch` and `commits`; notifications include them.
+
+Agents get **no** write access to Git metadata (no `--add-dir` for the common Git directory). Loopbee's own Git commands in a worktree run without hooks (`core.hooksPath` → an empty folder, `commit --no-verify`) and without fsmonitor, and stop if the worktree's `.git` file changed — otherwise an agent could plant a hook (e.g. in `.husky/`) that Loopbee would execute as the user. Each commit is stored as `round-NN-step-NN.diff` for the reviewer and scanned for credentials (private keys, `sk-`, `ghp_`/`github_pat_`, `AKIA`, Slack tokens); a match fails the Run. A command step that would run a file the agent changed in this Run is refused. Pushing and merging stay with the agent (workspace-network, if the user asks) or with a person after the gate.
 
 ## Command output for agent steps
+
+A failed verification's output (last 6 KB) is added to the next round's agent prompt, so a retry is informed. A command step exiting 78 ends the Run as “nothing to do” before any agent call. See [issue-driven iteration](../workflows/issue-loop.md) for a Loop built on both.
 
 The output of `run` and `verify` steps (last 6 KB each, with the exit status) is appended to the prompt of later agent steps in the same round. A `run` step with `continueOnError` records a non-zero exit as a failed step and continues, so an agent can report on failing tests or log queries. This matters most for Claude Code at read-only, which has no shell at all: the chat designer is told so and puts commands in a `run` step before the agent step (verified with the real CLI).
 

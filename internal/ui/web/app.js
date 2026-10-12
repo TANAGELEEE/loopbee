@@ -678,6 +678,29 @@ const actions = {
     b.setAttribute("aria-checked", String(draft[f]));
     refreshGaps();
   },
+  "ed-intake": (b) => {
+    if (b.dataset.value === "none") delete draft.intake;
+    else {
+      draft.intake = { kind: "github-issues", ...(draft.intake || {}) };
+      draft.workspace = "worktree";
+      draft.requireClean = false;
+      if (!draft.branch || !draft.branch.includes("{issue}")) draft.branch = "loopbee/issue-{issue}";
+    }
+    if (b.dataset.value === "none" && draft.branch?.includes("{issue}")) draft.branch = draft.branch.replace("{issue}", "{run}");
+    markDirty();
+    render();
+  },
+  "ed-pr": (b) => {
+    if (b.dataset.value === "none") delete draft.pullRequest;
+    else {
+      draft.pullRequest = { ...(draft.pullRequest || {}), mode: b.dataset.value };
+      draft.workspace = "worktree";
+      draft.requireClean = false;
+      draft.branch ||= "loopbee/change-{date}-{run}";
+    }
+    markDirty();
+    render();
+  },
   "step-continue": (b) => {
     const s = draft.steps[Number(b.dataset.i)];
     s.continueOnError = !s.continueOnError;
@@ -709,8 +732,11 @@ const actions = {
   "step-add": (b) => {
     closeMenu();
     const k = b.dataset.kind;
-    const names = { observe: "Observe", act: "Act", verify: "Verify", gate: "Human gate", summarize: "Summarize" };
-    draft.steps.splice(ui.step + 1, 0, k === "verify" ? { kind: k, name: t(names[k]), argv: [] } : k === "gate" ? { kind: k, name: t(names[k]) } : { kind: k, name: t(names[k]), prompt: "" });
+    // One source for step labels (kindLabel) so a new kind cannot be missing here and in the menu.
+    const step = { kind: k, name: kindLabel(k) };
+    if (k === "verify" || k === "run") step.argv = [];
+    else if (k !== "gate") step.prompt = "";
+    draft.steps.splice(ui.step + 1, 0, step);
     ui.step = ui.step + 1;
     markDirty();
     render();
@@ -890,6 +916,20 @@ document.addEventListener("input", (e) => {
     return;
   }
   if (!draft || !isEditor(route)) return;
+  if (el.dataset.intake && draft.intake) {
+    const f = el.dataset.intake;
+    if (f === "trustedUsers") draft.intake.trustedUsers = el.value.split(/[\s,]+/).filter(Boolean);
+    else if (el.value.trim()) draft.intake[f] = el.value.trim();
+    else delete draft.intake[f];
+    refreshGaps();
+    return;
+  }
+  if (el.dataset.pr && draft.pullRequest) {
+    if (el.value.trim()) draft.pullRequest.base = el.value.trim();
+    else delete draft.pullRequest.base;
+    refreshGaps();
+    return;
+  }
   if (el.dataset.env) {
     const e = draft.env[Number(el.dataset.i)];
     if (el.dataset.env === "name") e.name = el.value.trim().toUpperCase();

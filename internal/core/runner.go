@@ -11,6 +11,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -182,7 +184,16 @@ func (a *App) execute(ctx context.Context, r Run) {
 			}
 		}
 	}
+	var claimed *issueItem // the issue this Run labelled as being worked on
+	issueWorked := false   // an agent has started on it; from then on the label stays until a person removes it
 	finish := func(status string, err error) {
+		if claimed != nil && !issueWorked {
+			if e := releaseIssue(l, claimed.Number); e != nil {
+				a.event(r.ID, "intake.release_failed", e.Error())
+			} else {
+				a.event(r.ID, "intake.released", fmt.Sprintf("#%d", claimed.Number))
+			}
+		}
 		switch status {
 		case "cancelled", "timed_out":
 			mark("cancelled", "")
@@ -215,8 +226,40 @@ func (a *App) execute(ctx context.Context, r Run) {
 		finish("failed", err)
 		return
 	}
+	// Intake: take one work item before anything else; with none, the Run costs no agent call.
+	var issue *issueItem
+	if l.Intake != nil {
+		ictx, icancel := context.WithTimeout(ctx, 2*time.Minute)
+		item, skipped, err := pickIssue(ictx, l)
+		icancel()
+		if err != nil {
+			finish("blocked", err)
+			return
+		}
+		if item == nil {
+			msg := fmt.Sprintf("No open issues labelled %s from people with write access.", l.Intake.label())
+			if len(skipped) > 0 {
+				msg += " Skipped: " + strings.Join(skipped, ", ") + "."
+			}
+			r.Result = &AgentResult{Status: "no_action", Summary: msg}
+			a.event(r.ID, "intake.none", msg)
+			finish("no_action", nil)
+			return
+		}
+		issue = item
+		claimed = item
+		r.Issue = &item.IssueRef
+		if b, err := json.MarshalIndent(item, "", "  "); err == nil && os.WriteFile(filepath.Join(dir, "issue.json"), b, 0600) == nil {
+			r.Artifacts = append(r.Artifacts, "issue.json")
+		}
+		a.event(r.ID, "intake.issue", fmt.Sprintf("#%d %s", item.Number, item.Title))
+	}
+	issueNumber := 0
+	if issue != nil {
+		issueNumber = issue.Number
+	}
 	prepCtx, prepCancel := context.WithTimeout(ctx, 5*time.Minute)
-	workdir, extraDirs, branch, err := a.prepareWorkspace(prepCtx, l, r.ID)
+	ws, err := a.prepareWorkspace(prepCtx, l, r.ID, issueNumber)
 	prepCancel()
 	if err != nil {
 		if ctx.Err() != nil {
@@ -226,13 +269,18 @@ func (a *App) execute(ctx context.Context, r Run) {
 		finish("blocked", err)
 		return
 	}
+	workdir := ws.Dir
 	r.Workdir = workdir
-	r.Branch = branch
+	r.Branch = ws.Branch
+	agentRan := false // after an agent step, commands must not run files the agent changed (see below)
 	env, err := loopEnv(l)
 	if err != nil {
 		finish("blocked", err)
 		return
 	}
+	// Steps can hand data to later steps through files in LOOPBEE_RUN_DIR (never committed: it is outside
+	// the worktree), e.g. the issue a polling script picked for a later "open a pull request" step.
+	env = append(env, "LOOPBEE_RUN_ID="+r.ID, "LOOPBEE_RUN_DIR="+dir, "LOOPBEE_BRANCH="+r.Branch, "LOOPBEE_ISSUE="+strconv.Itoa(issueNumber))
 	if l.RequireClean && l.Workspace != "worktree" {
 		cctx, ccancel := context.WithTimeout(ctx, time.Minute)
 		out, err := runCommand(cctx, workdir, []string{"git", "status", "--porcelain"}, nil)
@@ -252,6 +300,7 @@ func (a *App) execute(ctx context.Context, r Run) {
 		gateWait = 72 * gateUnit
 	}
 	reviewerNote := ""
+	lastFailure := "" // the failed verification of the previous round, shown to the next round's agent
 	var lastHash [32]byte
 	stall := 0
 	for round := 1; round <= l.MaxRounds; round++ {
@@ -324,7 +373,22 @@ func (a *App) execute(ctx context.Context, r Run) {
 			lastFile := ""
 			if !agentStep {
 				argv = s.Argv
+				// Command steps run as the user, outside any sandbox. Never let them execute a script the agent
+				// wrote or changed in this Run (a malicious issue could otherwise reach the user's credentials).
+				if agentRan && ws.Base != "" {
+					changed, err := ws.changed(ctx)
+					if err != nil {
+						finish("failed", err)
+						return
+					}
+					if f := ws.changedFileIn(argv, changed); f != "" {
+						mark("failed", "refused: "+f+" was changed by the agent")
+						finish("blocked", fmt.Errorf("command “%s” would run %s, which the agent changed in this run; review the branch instead", s.Name, f))
+						return
+					}
+				}
 			} else {
+				agentRan = true
 				ag, ok := a.agentInfo(l.Agent)
 				if !ok || ag.Status != "available" {
 					finish("blocked", errors.New("agent version unsupported; run detection first"))
@@ -338,10 +402,17 @@ func (a *App) execute(ctx context.Context, r Run) {
 				if l.Agent == "codex" && hasCap(ag.Caps, "last-message") {
 					lastFile = filepath.Join(dir, fmt.Sprintf("round-%02d-step-%02d.report.md", round, i+1))
 				}
-				argv = buildAgentArgs(base, ag.Caps, agentInvocation{Name: l.Agent, Dir: workdir, Sandbox: l.Sandbox, AddDirs: extraDirs, LastFile: lastFile})
+				argv = buildAgentArgs(base, ag.Caps, agentInvocation{Name: l.Agent, Dir: workdir, Sandbox: l.Sandbox, LastFile: lastFile})
+				issueWorked = true
 				prompt := s.Prompt
 				if r.Branch != "" {
 					prompt += "\n\nYou are on branch " + r.Branch + " in a fresh worktree that Loopbee created from " + orDefault(l.BaseRef, "HEAD") + ". Do not create or switch branches and do not commit: Loopbee commits your changes on this branch after this step."
+				}
+				if issue != nil {
+					prompt += issuePrompt(issue)
+				}
+				if lastFailure != "" {
+					prompt += "\n\nThe previous round's verification failed. Fix this first:\n" + lastFailure
 				}
 				if earlier.Len() > 0 {
 					prompt += "\n\nOutput of the earlier steps of this run (captured by Loopbee; use it instead of re-running the commands):\n" + earlier.String()
@@ -405,21 +476,6 @@ func (a *App) execute(ctx context.Context, r Run) {
 					finish("failed", err)
 					return
 				}
-				if res != nil {
-					switch res.Status {
-					case "no_action":
-						mark("ok", res.Summary)
-						finish("no_action", nil)
-						return
-					case "blocked":
-						msg := res.Summary
-						if msg == "" {
-							msg = "agent reported that it is blocked"
-						}
-						finish("blocked", errors.New(msg))
-						return
-					}
-				}
 				note := ""
 				if res != nil {
 					note = res.Summary
@@ -429,8 +485,18 @@ func (a *App) execute(ctx context.Context, r Run) {
 					if res != nil && res.Summary != "" {
 						subject = l.Name + ": " + firstLine(res.Summary, 120)
 					}
+					if res != nil && res.Status == "blocked" {
+						subject = l.Name + " (unfinished): " + firstLine(res.Summary, 120)
+					}
 					cctx, ccancel := context.WithTimeout(ctx, 2*time.Minute)
-					sha, err := commitWorkspace(cctx, workdir, subject+"\n\nCommitted by Loopbee for run "+r.ID+".")
+					sha, err := ws.commit(cctx, subject+"\n\nCommitted by Loopbee for run "+r.ID+".")
+					var patch []byte
+					if err == nil && sha != "" {
+						// The reviewer at the gate sees exactly what was committed since the last review point; on a
+						// continued branch that includes the commits of earlier Runs.
+						patch, _ = ws.git(cctx, "log", "--no-ext-diff", "--stat", "--patch", "--format=fuller", ws.Reviewed+".."+sha)
+						ws.Reviewed = sha
+					}
 					ccancel()
 					if err != nil {
 						mark("failed", err.Error())
@@ -441,11 +507,47 @@ func (a *App) execute(ctx context.Context, r Run) {
 						r.Commits = append(r.Commits, sha)
 						note = strings.TrimSpace(note + " · " + r.Branch + " @ " + sha)
 						a.event(r.ID, "workspace.commit", r.Branch+" @ "+sha)
+						name := fmt.Sprintf("round-%02d-step-%02d.diff", round, i+1)
+						if len(patch) > 2<<20 {
+							patch = append(patch[:2<<20], []byte("\n… (truncated)\n")...)
+						}
+						if e := os.WriteFile(filepath.Join(dir, name), patch, 0600); e == nil {
+							r.Artifacts = append(r.Artifacts, name)
+						}
+						if found := secretsInPatch(patch); len(found) > 0 {
+							mark("failed", "possible credentials in the change")
+							finish("failed", fmt.Errorf("the agent's change on %s contains what looks like a credential (%s); nothing was pushed — review and delete the branch", r.Branch, strings.Join(found, "; ")))
+							return
+						}
+					}
+				}
+				if res != nil {
+					switch res.Status {
+					case "no_action":
+						mark("ok", note)
+						finish("no_action", nil)
+						return
+					case "blocked":
+						msg := res.Summary
+						if msg == "" {
+							msg = "agent reported that it is blocked"
+						}
+						// Anything the agent changed is already committed above, so a retry continues from it.
+						finish("blocked", errors.New(msg))
+						return
 					}
 				}
 				mark("ok", note)
 				a.event(r.ID, "step.completed", s.Name)
 				continue
+			}
+			if s.Kind == "run" && exitCode(err) == NothingToDoExit {
+				// A polling script found nothing to do: end quietly without calling the agent.
+				msg := firstLine(string(out), 200)
+				mark("ok", msg)
+				r.Result = &AgentResult{Status: "no_action", Summary: msg}
+				finish("no_action", nil)
+				return
 			}
 			exit := "succeeded"
 			if err != nil {
@@ -461,6 +563,7 @@ func (a *App) execute(ctx context.Context, r Run) {
 			if err != nil {
 				a.event(r.ID, "step.failed", err.Error())
 				if s.Kind == "verify" {
+					lastFailure = fmt.Sprintf("### %s — `%s` (%s)\n```\n%s\n```\n", s.Name, strings.Join(argv, " "), err.Error(), tail(string(out), 6000))
 					verified = false
 					mark("failed", err.Error())
 					break
@@ -477,7 +580,26 @@ func (a *App) execute(ctx context.Context, r Run) {
 				r.Metrics[s.Metric] = value
 				r.Trace[len(r.Trace)-1].Note = fmt.Sprintf("%s = %g", s.Metric, value)
 			}
-			mark("ok", "")
+			note := ""
+			if s.Kind == "run" {
+				// A command can report too (e.g. the pull request it opened): its summary and links are added to the
+				// Run's result, so notifications carry them. Only agents decide the outcome.
+				if res := parseResult(string(out)); res != nil {
+					note = res.Summary
+					if r.Result == nil {
+						r.Result = &AgentResult{Status: "done"}
+					}
+					if res.Summary != "" {
+						r.Result.Summary = strings.TrimSpace(r.Result.Summary + "\n" + res.Summary)
+					}
+					for _, link := range res.Links {
+						if !slices.Contains(r.Result.Links, link) {
+							r.Result.Links = append(r.Result.Links, link)
+						}
+					}
+				}
+			}
+			mark("ok", note)
 			a.event(r.ID, "step.completed", s.Name)
 		}
 		done, err := condition(l.DoneWhen, r.Metrics, verified)
@@ -486,6 +608,28 @@ func (a *App) execute(ctx context.Context, r Run) {
 			return
 		}
 		if verified && done {
+			if l.PullRequest != nil {
+				pctx, pcancel := context.WithTimeout(ctx, 5*time.Minute)
+				url, err := deliverPullRequest(pctx, l, r, ws, reviewerNote)
+				pcancel()
+				if err != nil {
+					finish("failed", fmt.Errorf("pull request: %w", err))
+					return
+				}
+				r.PRURL = url
+				if r.Result == nil {
+					r.Result = &AgentResult{Status: "done"}
+				}
+				label := "Pull request ready for review and merge"
+				if l.PullRequest.Mode == "draft" {
+					label = "Draft pull request ready for review"
+				}
+				r.Result.Summary = strings.TrimSpace(r.Result.Summary + "\n" + label + ": " + url)
+				if !slices.Contains(r.Result.Links, url) {
+					r.Result.Links = append(r.Result.Links, url)
+				}
+				a.event(r.ID, "delivery.pull_request", url)
+			}
 			finish("completed", nil)
 			return
 		}
@@ -659,4 +803,17 @@ func firstLine(s string, n int) string {
 		return string(r[:n]) + "…"
 	}
 	return s
+}
+
+// NothingToDoExit is the exit code a command step uses to say "nothing to do": the Run ends as no_action
+// instead of failing, and later steps (agents, gates) do not run. 78 follows the CI convention for a
+// neutral result.
+const NothingToDoExit = 78
+
+func exitCode(err error) int {
+	var ee *exec.ExitError
+	if errors.As(err, &ee) {
+		return ee.ExitCode()
+	}
+	return -1
 }

@@ -29,6 +29,7 @@ type App struct {
 	wg          sync.WaitGroup
 	lock        *flock.Flock
 	agents      []Agent
+	github      GitHubStatus
 	syncMu      sync.Mutex
 	awakeCancel context.CancelFunc
 }
@@ -405,6 +406,7 @@ func (a *App) State() (State, error) {
 	}
 	a.mu.Lock()
 	s.Agents = append([]Agent{}, a.agents...)
+	s.GitHub = a.github
 	s.Info = Info{Version: Version, OS: runtime.GOOS, Arch: runtime.GOARCH, DataDir: a.Dir, Active: len(a.active)}
 	a.mu.Unlock()
 	return s, nil

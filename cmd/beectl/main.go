@@ -46,7 +46,7 @@ func usage(w io.Writer) {
   loops [--json]                 list loops
   runs [--loop ID|NAME] [--json] recent runs
   schema                         JSON schema of a loop definition with an example
-  create -f FILE|-               create a disabled draft loop from JSON
+  create -f FILE|- [--dir DIR]   create a disabled draft loop from JSON (directory defaults to the current folder)
   run ID|NAME                    start a run now
   skill print                    print the agent skill
   skill install [--agent codex|claude|all] [--dir DIR]
@@ -260,12 +260,24 @@ func run(args []string, out io.Writer) error {
 		if err != nil {
 			return err
 		}
+		// --dir sets the project; a definition without one (like examples/*.json) uses the current folder.
+		if dir := flagValue(rest, "--dir"); dir != "" {
+			l.Directory = dir
+		} else if l.Directory == "" {
+			l.Directory, _ = os.Getwd()
+		}
+		if abs, err := filepath.Abs(l.Directory); err == nil {
+			l.Directory = abs
+		}
 		before := map[string]bool{}
 		for _, x := range s.Loops {
 			before[x.ID] = true
 		}
 		var after core.State
 		if err := c.do("POST", "/api/loops", l, &after); err != nil {
+			if strings.Contains(err.Error(), "permission exceeds this device's limit") {
+				return fmt.Errorf("Loopbee rejected the draft: it needs the permission %q, but this device allows at most %q.\nRaise it in Loopbee → Settings → General → Maximum permission, then run this command again", l.Sandbox, s.Settings.MaxSandbox)
+			}
 			return fmt.Errorf("Loopbee rejected the draft: %w", err)
 		}
 		for _, x := range after.Loops {

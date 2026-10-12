@@ -1,0 +1,51 @@
+{
+  "name": "Loopbee improves itself",
+  "description": "Weekdays, hourly: take the oldest open Loopbee issue labelled agent-ready that a maintainer opened, fix it in a fresh worktree following AGENTS.md and LESSONS.md, stop for review, then open the pull request. The same definition works for any repository that has an AGENTS.md: point the folder at it.",
+  "sandbox": "workspace-write",
+  "workspace": "worktree",
+  "baseRef": "origin/main",
+  "branch": "loopbee/issue-{issue}",
+  "intake": {
+    "kind": "github-issues"
+  },
+  "pullRequest": {
+    "mode": "after-review"
+  },
+  "cron": "0 9-18 * * 1-5",
+  "timezone": "Asia/Taipei",
+  "lock": "repo:loopbee",
+  "maxRounds": 1,
+  "wallMinutes": 60,
+  "stallRounds": 2,
+  "gateHours": 72,
+  "doneWhen": "verify.passed",
+  "allowedTools": [],
+  "env": [
+    {
+      "name": "GOCACHE",
+      "value": "/tmp/loopbee-go-build"
+    }
+  ],
+  "steps": [
+    {
+      "kind": "act",
+      "name": "Fix the issue",
+      "prompt": "Fix the GitHub issue Loopbee gives you, following AGENTS.md (“Working from an issue”) and LESSONS.md (“How to add a lesson”): reproduce it with a failing test, fix every place with the same cause, add or update the lesson, and run go vet ./... and go test ./... yourself. If the issue is unclear or needs a product decision, change nothing and report it as blocked with the question to ask."
+    },
+    {
+      "kind": "gate",
+      "name": "Review the diff"
+    }
+  ],
+  "notify": {
+    "events": [
+      "done",
+      "attention",
+      "failed"
+    ],
+    "channels": [
+      "telegram"
+    ],
+    "includeReport": true
+  }
+}

@@ -91,6 +91,9 @@ func runNotification(r Run, lang string, includeReport bool) string {
 	if r.Status == "waiting" && r.Step < len(r.Definition.Steps) {
 		fmt.Fprintf(&b, " · %s", r.Definition.Steps[r.Step].Name)
 	}
+	if r.Issue != nil {
+		fmt.Fprintf(&b, "\n#%d %s", r.Issue.Number, r.Issue.Title)
+	}
 	if r.Result != nil && r.Result.Summary != "" {
 		b.WriteString("\n" + r.Result.Summary)
 	} else if r.Error != "" && r.Status != "completed" {

@@ -112,8 +112,12 @@ func (a *App) DetectAgents() {
 		}
 		out = append(out, ag)
 	}
+	gctx, gcancel := context.WithTimeout(a.ctx, 8*time.Second)
+	github := detectGitHub(gctx)
+	gcancel()
 	a.mu.Lock()
 	a.agents = out
+	a.github = github
 	if a.config.DefaultAgent == "" {
 		for _, ag := range out {
 			if ag.Status == "available" {

@@ -2,6 +2,7 @@
 import { ctx, t, T, esc, icon, btn, sec, empty, seg, cronText, sandboxLabel, agentLabel, hm, errText } from "./ui.js";
 import { flowState, renderFlow } from "./flow.js";
 import { gapsPanel, gaps, kindLabel } from "./forms.js";
+import { workSummary } from "./views.js";
 
 const S = () => ctx.state;
 export const EXAMPLES = [
@@ -69,6 +70,7 @@ function preview(c) {
     [t("Limits"), t("rounds {r} · {m} min · gate {h} h", { r: d.maxRounds, m: d.wallMinutes, h: d.gateHours || 72 })],
   ];
   if (d.workspace !== "worktree" && d.requireClean) facts.push([t("Before running"), t("The folder must be a Git repository without uncommitted changes")]);
+  if (d.intake || d.pullRequest) facts.push([t("Work & delivery"), workSummary(d)]);
   if (d.branch) facts.push([t("Commits"), t("Loopbee commits the agent's changes on {branch}; nothing is pushed or merged by Loopbee", { branch: d.branch })]);
   if (d.env?.length) facts.push([t("Environment"), d.env.map((e) => e.name + (e.secret ? "*" : "")).join(", ")]);
   return `${sec(T("Preview"), { note: T(c.loop ? "Changes since v{n}" : "Draft · not saved", { n: c.loop?.version }) })}

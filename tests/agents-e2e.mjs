@@ -9,7 +9,7 @@ import { startCore, waitFor } from "./demo.mjs";
 const EVIDENCE = process.env.LOOPBEE_EVIDENCE_DIR || "docs/evidence";
 
 const fake = (n) => resolve(`tests/fake-agent/${n}.mjs`);
-const core = await startCore(undefined, { LOOPBEE_CODEX_BIN: fake("codex"), LOOPBEE_CLAUDE_BIN: fake("claude") });
+const core = await startCore(undefined, { LOOPBEE_CODEX_BIN: fake("codex"), LOOPBEE_CLAUDE_BIN: fake("claude"), LOOPBEE_GH_BIN: fake("gh") });
 let browser;
 try {
   const s0 = await waitFor(core.api, (s) => s.agents.length === 2 && s.agents.every((a) => a.status === "available") && s);
@@ -84,9 +84,33 @@ try {
   s = await waitFor(core.api, (st) => st.runs.find((r) => r.loopId === quietLoop.id && r.status === "no_action") && st);
   await page.goto(core.base + "/#/runs");
   await page.locator(".row.r", { hasText: "Quiet sweep" }).getByText("Nothing to do").waitFor();
+  // The run page says why it stopped in the Run's own words (e.g. intake finding no issue), not a generic sentence.
+  await page.goto(core.base + "/#/run/" + s.runs.find((r) => r.loopId === quietLoop.id).id);
+  await page.locator(".row.top", { hasText: "Stop reason" }).locator(".sub", { hasText: "No actionable errors" }).waitFor();
+  assert.equal(await page.getByText("All steps succeeded and the completion condition was met.").count(), 0);
+
+  // A draft above the device limit says what it needs and links to Settings (default limit: read only).
+  await page.goto(core.base + "/#/new");
+  await page.reload();
+  await page.locator("#chat-dir").fill(project);
+  await page.locator("#chat-input").fill("Fix on a branch and push it. NEEDS_NETWORK");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.locator(".chat-side").getByText("This Loop needs “Workspace write + network”, but this device allows at most “Read only”.").waitFor();
+  assert.ok(await page.locator(".chat-side").getByRole("link", { name: "Raise the limit in Settings" }).isVisible());
+  assert.equal(await page.getByRole("button", { name: "Save as draft" }).isDisabled(), true);
+  assert.ok(await page.locator(".chat-side").getByText("→ loopbee/fix-{date}").isVisible(), "preview shows the Loopbee-managed branch");
+  // A subscription limit reads as a sentence, not raw JSON.
+  await page.locator("#chat-input").fill("HIT_LIMIT");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.locator(".msg.err", { hasText: "You've hit your session limit · resets 10:20pm" }).waitFor();
+  assert.equal(await page.locator(".msg.err", { hasText: "is_error" }).count(), 0);
+
+  // The rest of the editor checks run under a workspace-write device limit.
+  await core.api("/state").then((st) => core.api("/settings", { ...st.settings, maxSandbox: "workspace-write" }));
 
   // Change by chat keeps the history; the form shows the new fields.
   await page.goto(core.base + "/#/loop/" + loop.id + "/chat");
+  await page.reload();
   assert.equal(await page.locator(".msg.me").count(), 2);
   await page.goto(core.base + "/#/loop/" + loop.id + "/edit");
   for (const level of ["Read only", "Workspace write", "Workspace write + network", "Agent's own config"]) {
@@ -94,13 +118,51 @@ try {
   }
   await page.getByRole("radio", { name: "Fresh git worktree" }).click();
   await page.locator("#f-baseRef").waitFor();
+  // Agents never write Git metadata: the editor asks for a branch that Loopbee commits to.
+  await page.locator("#f-agent").selectOption("codex");
+  await page.getByRole("radio", { name: "Workspace write", exact: true }).click();
+  const codexGit = page.getByText("Agents cannot commit in a worktree; set a branch so Loopbee commits the changes");
+  await codexGit.waitFor();
+  await page.locator("#f-branch").fill("loopbee/fix-{date}");
+  await codexGit.waitFor({ state: "detached" });
+  // Every step kind in the add menu has a label, and an added command step is a usable command step.
+  await page.getByRole("button", { name: /Add step/ }).click();
+  const labels = await page.locator("#menu [role=menuitem]").allTextContents();
+  assert.ok(labels.every((l) => !/undefined/.test(l)) && labels.some((l) => l.startsWith("Command")), labels.join(" | "));
+  await page.locator("#menu [role=menuitem]", { hasText: "(run)" }).click();
+  await page.locator('[data-sf="argv"]').fill('["node","-v"]');
+  await page.locator("#f-allowedTools").fill("node");
+  await page.getByRole("switch", { name: "Continue and pass the output on" }).click();
+  // A command between the agent and any gate runs the agent's changes outside the sandbox: the editor says so.
+  await page.getByText("“Command” runs after the agent and before any review").waitFor();
+  // Work from GitHub issues and open the pull request after review: Loopbee's own intake and delivery.
+  await page.getByRole("radio", { name: "GitHub issues" }).click();
+  await page.locator("#f-intake-label").fill("bug");
+  assert.equal(await page.locator("#f-branch").inputValue(), "loopbee/issue-{issue}");
+  await page.getByRole("radio", { name: "Draft, review on GitHub" }).click();
+  await page.getByText("A draft pull request pushes the agent's change to GitHub before anyone has reviewed it").waitFor();
+  await page.getByRole("radio", { name: "After my review" }).click();
+  await page.locator("#ed-work").locator("..").getByText("gh version 2.99.0 (fake) · signed in").waitFor();
+  await page.getByRole("button", { name: "Save as v2" }).click();
+  await page.locator(".hd .chip", { hasText: "Version v2" }).waitFor();
+  const v2 = (await core.api("/state")).loops.find((l) => l.id === loop.id);
+  assert.equal(v2.branch, "loopbee/issue-{issue}");
+  assert.deepEqual(v2.intake, { kind: "github-issues", label: "bug" });
+  assert.deepEqual(v2.pullRequest, { mode: "after-review" });
+  await page.getByText("GitHub issues labelled bug → pull request after your review").waitFor();
+  assert.equal(v2.agent, "codex");
+  const cmd = v2.steps.find((st) => st.kind === "run");
+  assert.ok(cmd && cmd.name === "Command" && cmd.continueOnError === true && cmd.argv.join(" ") === "node -v", JSON.stringify(cmd));
+  await page.goto(core.base + "/#/loop/" + loop.id + "/edit");
+  await page.reload();
+  await page.locator("#f-baseRef").waitFor();
   await page.getByRole("button", { name: "Add variable" }).click();
   await page.locator('[data-env="name"]').first().fill("db_password");
   await page.locator('[data-env="secret"]').first().check();
   await page.getByText("DB_PASSWORD has no value yet").waitFor();
   await page.getByRole("radio", { name: "Workspace write + network" }).click();
   await page.getByText("Permission exceeds this device’s limit").waitFor();
-  assert.equal(await page.getByRole("button", { name: "Save as v2" }).isDisabled(), true);
+  assert.equal(await page.getByRole("button", { name: "Save as v3" }).isDisabled(), true);
   // Traditional Chinese screenshots of the chat (with history) and the agent settings for review.
   await core.api("/state").then((st) => core.api("/settings", { ...st.settings, language: "zh-TW" }));
   for (const [name, hash] of [["chat-authoring.zh-TW.light", `#/loop/${loop.id}/chat`], ["settings-agents.zh-TW.light", "#/settings/agents"], ["run-report.zh-TW.light", `#/run/${run.id}`]]) {
@@ -111,7 +173,7 @@ try {
     await page.screenshot({ path: `${EVIDENCE}/screens/${name}.png`, fullPage: true });
   }
   assert.deepEqual(errors, [], "browser errors");
-  console.log("PASS: agent detection and default, chat authoring with follow-up, draft save with conversation, Claude-run agent step with report and gate, no_action outcome, form fields for permissions, worktree and secrets");
+  console.log("PASS: agent detection and default, chat authoring with follow-up, draft save with conversation, Claude-run agent step with report and gate, no_action outcome, form fields for permissions, worktree, branch, command steps and secrets, device-limit and usage-limit messages");
 } finally {
   await browser?.close();
   await core.stop();

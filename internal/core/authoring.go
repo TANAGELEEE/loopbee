@@ -61,9 +61,13 @@ func authorSchema() map[string]any {
 		"workspace": map[string]any{"type": "string", "enum": []string{"direct", "worktree"}},
 		"baseRef":   str, "branch": str, "lock": str, "maxRounds": integer, "wallMinutes": integer, "stallRounds": integer, "gateHours": integer,
 		"doneWhen": str, "allowedTools": strs,
-		"steps":  map[string]any{"type": "array", "items": step},
-		"notify": obj(map[string]any{"events": strs, "includeReport": map[string]any{"type": "boolean"}}),
-		"env":    map[string]any{"type": "array", "items": obj(map[string]any{"name": str, "secret": map[string]any{"type": "boolean"}})},
+		"steps": map[string]any{"type": "array", "items": step},
+		"notify": obj(map[string]any{"events": strs, "includeReport": map[string]any{"type": "boolean"},
+			"channels": map[string]any{"type": "array", "items": map[string]any{"type": "string", "enum": []string{"desktop", "telegram", "feishu", "bark"}}}}),
+		// Strict schemas have no optional objects: an empty kind / mode means "not used".
+		"intake":      obj(map[string]any{"kind": map[string]any{"type": "string", "enum": []string{"", "github-issues"}}, "repo": str, "label": str, "trustedUsers": strs}),
+		"pullRequest": obj(map[string]any{"mode": map[string]any{"type": "string", "enum": []string{"", "after-review", "draft"}}, "base": str}),
+		"env":         map[string]any{"type": "array", "items": obj(map[string]any{"name": str, "secret": map[string]any{"type": "boolean"}})},
 	})
 	return obj(map[string]any{
 		"reply":     str,
@@ -112,6 +116,21 @@ Design rules:
   the last step means a person takes over from there.
 - Use "run" steps only for deterministic scripts (argv array, no shell; argv[0] must be in allowedTools).
   Use "verify" only for commands whose exit code decides whether another round is needed.
+- run/verify steps execute as the user, outside any sandbox. When the Loop acts on input others can write (issues,
+  e-mail, web pages, logs), put no run/verify step between the agent step and a gate: they would execute code the
+  agent changed before anyone reviewed it; rely on the agent's own sandboxed tests and on CI after the gate.
+- Work from GitHub issues when the user asks for it (“work through our issues”, “fix issues labelled bug”): set
+  intake {kind "github-issues", label (empty = agent-ready), repo only when it is not this folder's origin,
+  trustedUsers only for logins the user names}. Each Run Loopbee takes one issue opened by someone with write
+  access, labels it agent-working and gives it to the agent; no issue means “nothing to do” without an agent call.
+  Use workspace "worktree", branch "loopbee/issue-{issue}", baseRef "origin/<default branch>", and one agent step
+  whose prompt says to follow the repository's AGENTS.md and lessons if it has them. A schedule such as hourly on
+  weekdays suits it.
+- Pull requests are Loopbee's job: set pullRequest.mode "after-review" (default; put a gate after the agent step —
+  the person reviews the diff in Loopbee, then Loopbee pushes and opens the pull request) or "draft" (no gate; a
+  draft pull request is the review, e.g. when the user wants to review on GitHub or the phone). Never put push or
+  pull-request commands in steps or prompts. Leave mode empty when a branch is enough.
+- notify.channels: the channels the user names (telegram, feishu, bark, desktop); empty means all configured.
 - Loopbee hands the output of earlier run/verify steps to later agent steps of the same round. Set
   continueOnError=true on a run step when a non-zero exit is information, not a failure (e.g. failing tests
   that the agent should report on).
@@ -120,11 +139,12 @@ Design rules:
   workspace-network (git push, deployments, databases, HTTP APIs, e-mail); agent-config only if the user
   explicitly wants the agent's own configuration to decide.
 - When the Loop changes code, use workspace "worktree" with baseRef (e.g. "origin/master") and branch (e.g.
-  "loopbee/fix-{date}"; {date}, {time} and {run} are filled per run). Loopbee fetches baseRef itself (this never
-  requires network permission), creates the branch in a fresh worktree and commits the agent's changes after
-  each agent step. Agent prompts must therefore NOT create branches or commit (Codex's sandbox cannot write Git
-  metadata at all). Pushing, merging or deploying is done by the agent only if the user asks for it (needs
-  workspace-network); otherwise a person does it after the gate. Read-only Loops use "direct" without a branch.
+  "loopbee/fix-{date}"; {date}, {time}, {run} and {issue} are filled per run). Loopbee fetches baseRef itself (this
+  never requires network permission), creates the branch in a fresh worktree and commits the agent's changes after
+  each agent step. Agent prompts must therefore NOT create branches, commit or push (agents have no Git access).
+  Pull requests come from pullRequest (below). Merging to the main branch or deploying to production is done by the
+  agent only if the user asks for it (needs workspace-network); otherwise a person does it after the gate.
+  Read-only Loops use "direct" without a branch.
 - This device allows at most "` + maxSandbox + `". Stay within it. If the task cannot work without more (for
   example it must push, deploy or call an API), keep the level it needs and say in "reply" that the device
   limit must be raised in Settings › General.
@@ -148,6 +168,14 @@ Return ONLY one JSON object: {"reply": string, "questions": [{"text","options"}]
 
 // definitionForAgent strips runtime-only fields from a draft.
 func definitionForAgent(l Loop) map[string]any {
+	intake := map[string]any{"kind": "", "repo": "", "label": "", "trustedUsers": []string{}}
+	if l.Intake != nil {
+		intake = map[string]any{"kind": l.Intake.Kind, "repo": l.Intake.Repo, "label": l.Intake.Label, "trustedUsers": nonNil(l.Intake.TrustedUsers)}
+	}
+	pr := map[string]any{"mode": "", "base": ""}
+	if l.PullRequest != nil {
+		pr = map[string]any{"mode": l.PullRequest.Mode, "base": l.PullRequest.Base}
+	}
 	steps := []map[string]any{}
 	for _, s := range l.Steps {
 		steps = append(steps, map[string]any{"kind": s.Kind, "name": s.Name, "prompt": s.Prompt, "argv": nonNil(s.Argv), "metric": s.Metric, "metricPath": s.MetricPath, "continueOnError": s.ContinueOnError})
@@ -161,7 +189,8 @@ func definitionForAgent(l Loop) map[string]any {
 		"workspace": orDefault(l.Workspace, "direct"), "baseRef": l.BaseRef, "branch": l.Branch, "lock": l.Lock, "maxRounds": l.MaxRounds,
 		"wallMinutes": l.WallMinutes, "stallRounds": l.StallRounds, "gateHours": l.GateHours, "doneWhen": l.DoneWhen,
 		"allowedTools": nonNil(l.AllowedTools), "steps": steps,
-		"notify": map[string]any{"events": nonNil(l.Notify.Events), "includeReport": l.Notify.IncludeReport}, "env": env,
+		"notify": map[string]any{"events": nonNil(l.Notify.Events), "includeReport": l.Notify.IncludeReport, "channels": nonNil(l.Notify.Channels)}, "env": env,
+		"intake": intake, "pullRequest": pr,
 	}
 }
 func nonNil(s []string) []string {
@@ -363,6 +392,18 @@ func normalizeDraft(p, base Loop, agent string) Loop {
 		}
 		if p.Steps[i].Kind == "run" || p.Steps[i].Kind == "verify" || p.Steps[i].Kind == "gate" {
 			p.Steps[i].Prompt = "" // only agent steps have prompts
+		}
+	}
+	if p.Intake != nil && p.Intake.Kind == "" {
+		p.Intake = nil
+	}
+	if p.PullRequest != nil && p.PullRequest.Mode == "" {
+		p.PullRequest = nil
+	}
+	if p.Intake != nil {
+		p.Intake.Label = strings.TrimSpace(p.Intake.Label)
+		if p.Intake.Label == "agent-ready" {
+			p.Intake.Label = "" // the default
 		}
 	}
 	// Keep secret values already stored for this Loop; never accept values from the agent.

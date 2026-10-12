@@ -248,6 +248,7 @@ export function loopDetail(id) {
         ${defRow(t("Agent & permission"), `${esc(agentLabel(l.agent))} · ${esc(sandboxLabel(l.sandbox))}`, T("This device allows at most: {max}", { max: sandboxLabel(s.settings.maxSandbox) }))}
         ${defRow(t("Workspace"), l.workspace === "worktree" ? T("Fresh git worktree from {ref} for every run", { ref: l.baseRef || "HEAD" }) + (l.branch ? " → " + l.branch : "") : T("Runs directly in the working directory"), l.workspace === "worktree" ? T("Your own checkout and uncommitted work are never touched.") + (l.branch ? " " + T("Loopbee commits the agent's changes on this branch; it never pushes or merges.") : "") : "")}
         ${l.env?.length ? defRow(t("Environment"), `<div class="chips">${l.env.map((e) => `<span class="chip ${e.secret && !e.value ? "warn" : ""}">${esc(e.name)}${e.secret ? " · " + T(e.value ? "secret" : "secret missing") : ""}</span>`).join("")}</div>`, T("Injected into agent and command steps; secrets come from the system keychain.")) : ""}
+        ${defRow(t("Work & delivery"), esc(workSummary(l)), l.intake ? T("Only issues opened by people with write access; others' comments never reach the agent.") : "")}
         ${defRow(t("Notifications"), esc(notifySummary(l)), "")}
         ${defRow(t("Tools"), `<div class="chips">${tools}</div>`, T("Verification commands run without a shell; the first argument must be on this list."))}
         ${defRow(t("Done when"), `<span class="mono">${esc(l.doneWhen || "verify.passed")}</span>`, T("Metrics come only from verification output, never from the agent’s own claims."))}
@@ -271,6 +272,11 @@ export function loopDetail(id) {
     </div>
   </div>
   ${footer([t("Each run keeps its own definition snapshot; edits never change history")])}`;
+}
+export function workSummary(l) {
+  const from = l.intake ? t("GitHub issues labelled {label}", { label: l.intake.label || "agent-ready" }) + (l.intake.repo ? ` (${l.intake.repo})` : "") : t("The prompt");
+  const pr = { "after-review": t("pull request after your review"), draft: t("draft pull request") }[l.pullRequest?.mode] || (l.branch ? t("branch only") : t("no branch"));
+  return `${from} → ${pr}`;
 }
 function notifySummary(l) {
   const ev = l.notify?.events?.length ? l.notify.events : ["done", "attention", "failed"];
@@ -400,7 +406,7 @@ export function runDetail(id, ui) {
       ${selX.artifact ? `<div class="sub">${T("Evidence")}</div><pre class="ev-pre" id="ev-preview" data-run="${r.id}" data-name="${esc(selX.artifact)}">${T("Loading…")}</pre><a class="btn sm" href="#/artifact/${r.id}/${encodeURIComponent(selX.artifact)}">${T("Open {name}", { name: selX.artifact })}</a>` : ""}</div></div>`
     : `<div class="card sm">${empty(T("Nothing selected"), T(trace.length ? "Pick a step in the timeline." : "Steps appear here once the run starts."))}</div>`;
   const nextLoop = loopById(r.loopId);
-  const stop = life === "ended" ? `<div class="row top">${icon(outcome(r) === "done" ? "ok" : outcome(r) === "agent_error" ? "err" : "warn")}<div class="grow"><div class="nm">${T("Stop reason: {reason}", { reason: outcomeLabel(r) })}</div><div class="sub">${esc(errText(r.error) || t("All steps succeeded and the completion condition was met."))}</div>${["budget_exhausted", "stalled"].includes(r.status) ? `<div class="sub">${T("A normal end does not mean the goal was reached.")}</div>` : ""}</div></div>` : life === "interrupted" ? `<div class="row top">${icon("lost")}<div class="grow"><div class="nm">${T("Interrupted — review before continuing")}</div><div class="sub">${esc(errText(r.error))}</div></div></div>` : `<div class="row top">${icon(life === "waiting" ? "warn" : "run")}<div class="grow"><div class="nm">${T(life === "waiting" ? "Waiting at a human gate" : "In progress")}</div><div class="sub">${T("Round {r} / {max} · {step}", { r: r.round, max: l.maxRounds, step: stepName(r) })}</div></div></div>`;
+  const stop = life === "ended" ? `<div class="row top">${icon(outcome(r) === "done" ? "ok" : outcome(r) === "agent_error" ? "err" : "warn")}<div class="grow"><div class="nm">${T("Stop reason: {reason}", { reason: outcomeLabel(r) })}</div><div class="sub">${esc(stopDetail(r))}</div>${["budget_exhausted", "stalled"].includes(r.status) ? `<div class="sub">${T("A normal end does not mean the goal was reached.")}</div>` : ""}</div></div>` : life === "interrupted" ? `<div class="row top">${icon("lost")}<div class="grow"><div class="nm">${T("Interrupted — review before continuing")}</div><div class="sub">${esc(errText(r.error))}</div></div></div>` : `<div class="row top">${icon(life === "waiting" ? "warn" : "run")}<div class="grow"><div class="nm">${T(life === "waiting" ? "Waiting at a human gate" : "In progress")}</div><div class="sub">${T("Round {r} / {max} · {step}", { r: r.round, max: l.maxRounds, step: stepName(r) })}</div></div></div>`;
   return `
   ${crumbs([[t("Runs"), "#/runs"], [l.name, `#/loop/${r.loopId}`], [short(r.id)]])}
   <div class="card">
@@ -414,6 +420,8 @@ export function runDetail(id, ui) {
     <div class="main">
       ${sec(T("Round timeline"), { note: T("{r} rounds · {n} steps", { r: rounds.size, n: trace.length }) })}
       <div class="grp">${trace.length ? timeline : empty(T(active(r) ? "Starting…" : "No step records"), T(active(r) ? "Steps appear as soon as they start." : "This run was recorded before step tracing existed or stopped before its first step."))}<button type="button" class="foot" data-action="toggle-events">${T(ui.events ? "Hide raw events" : "Show raw events")}</button>${ui.events ? `<div id="events" class="event-list">${T("Loading…")}</div>` : ""}</div>
+      ${r.issue ? `<div class="bn mt10">${icon("run")}<span>${T("Issue")} <span class="mono">#${esc(r.issue.number)}</span> ${esc(r.issue.title)} · <span class="mono">${esc(r.issue.url)}</span></span></div>` : ""}
+      ${r.prUrl ? `<div class="bn mt10">${icon("ok")}<span>${T("Pull request")} <span class="mono">${esc(r.prUrl)}</span></span>${btn("Copy links", "copy-links", { cls: "sm", attrs: `data-id="${r.id}"` })}</div>` : ""}
       ${r.branch ? `<div class="bn mt10">${icon("ok")}<span>${T("Branch {branch}", { branch: "" })}<span class="mono">${esc(r.branch)}</span>${(r.commits || []).length ? " · " + T("commits {list}", { list: "" }) + `<span class="mono">${esc(r.commits.join(", "))}</span>` : " · " + T("no changes committed")}</span></div>` : ""}
       ${r.report ? `${sec(T("Agent report"), { note: T("Written by the agent; not translated") })}<div class="card sm report">${r.result ? `<div class="hd">${resultChip(r.result)}<span class="nm">${esc(r.result.summary || "")}</span></div>${(r.result.links || []).length ? `<div class="links">${r.result.links.map((u) => `<span class="mono">${esc(u)}</span>`).join("")}${btn("Copy links", "copy-links", { cls: "sm", attrs: `data-id="${r.id}"` })}</div>` : ""}<hr class="hair mt10">` : ""}<pre class="report-text">${esc(stripMarker(r.report))}</pre></div>` : ""}
       ${sec(T("Outcome and next steps"))}
@@ -428,6 +436,11 @@ export function runDetail(id, ui) {
   </div>
   ${footer([`run ${r.id}`, t("{n} trace records", { n: trace.length })])}`;
 }
+
+// Why an ended Run stopped: the error, else what the Run itself reported (e.g. intake finding no issue), else the
+// generic sentence for a completed Run.
+const stopDetail = (r) =>
+  errText(r.error) || r.result?.summary || (r.status === "completed" ? t("All steps succeeded and the completion condition was met.") : outcomeLabel(r));
 
 const stripMarker = (t) => {
   const i = t.lastIndexOf("LOOPBEE_RESULT");

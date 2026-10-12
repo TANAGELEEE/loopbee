@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"loopbee/internal/testenv"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -58,6 +59,16 @@ func TestHelperProcess(t *testing.T) {
 	case "failure":
 		fmt.Println("evidence")
 		os.Exit(1)
+	case "prlink":
+		fmt.Println("pushed loopbee/issue-1")
+		fmt.Println(`LOOPBEE_RESULT {"status":"done","summary":"Pull request #13 is ready to merge","links":["https://github.com/acme/app/pull/13"]}`)
+		os.Exit(0)
+	case "nothing":
+		fmt.Println("No open issues labelled agent-ready")
+		os.Exit(NothingToDoExit)
+	case "runenv":
+		fmt.Printf("run=%s dir=%s branch=%q\n", os.Getenv("LOOPBEE_RUN_ID"), filepath.Base(os.Getenv("LOOPBEE_RUN_DIR")), os.Getenv("LOOPBEE_BRANCH"))
+		os.Exit(0)
 	case "env":
 		fmt.Printf("PLAIN=%s DB_PASSWORD=%s\n", os.Getenv("PLAIN"), os.Getenv("DB_PASSWORD"))
 		os.Exit(0)
@@ -170,6 +181,7 @@ func TestSecretScan(t *testing.T) {
 	}
 }
 func TestNotificationResponses(t *testing.T) {
+	testenv.Loopback(t)
 	for _, tc := range []struct {
 		code       int
 		body, want string

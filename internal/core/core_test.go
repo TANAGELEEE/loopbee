@@ -128,11 +128,16 @@ func TestHelperSleep(t *testing.T) {
 
 func waitStatus(t *testing.T, a *App, id, status string) {
 	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
+	// Generous deadline (race-instrumented helper processes start slowly), but a Run that already ended in
+	// another state fails at once.
+	deadline := time.Now().Add(60 * time.Second)
 	for time.Now().Before(deadline) {
 		r, e := a.Run(id)
 		if e == nil && r.Status == status {
 			return
+		}
+		if e == nil && r.Finished != nil && r.Status != status {
+			break
 		}
 		time.Sleep(10 * time.Millisecond)
 	}

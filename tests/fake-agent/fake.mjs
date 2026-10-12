@@ -13,6 +13,12 @@ export async function main(name) {
   if (process.env.LOOPBEE_FAKE_LOG) appendFileSync(process.env.LOOPBEE_FAKE_LOG, JSON.stringify({ name, args, cwd: process.cwd() }) + "\n");
   let text;
   let structured;
+  if (prompt.includes("HIT_LIMIT")) {
+    // Real Claude Code 2.1.296 output when the subscription's session limit is reached.
+    console.log(JSON.stringify({ type: "result", subtype: "success", is_error: true, api_error_status: 429, api_error: "usage_limit_reached", result: "You've hit your session limit · resets 10:20pm (Asia/Taipei)" }));
+    process.exit(1);
+  }
+  const network = prompt.includes("NEEDS_NETWORK");
   if (prompt.includes("You are helping a developer configure Loopbee")) {
     const turns = (prompt.match(/^\[user\]/gm) || []).length;
     const proposal = {
@@ -20,7 +26,7 @@ export async function main(name) {
       questions: turns > 1 ? [] : [{ text: "Who merges to master after approval?", options: ["I do it myself", "Loopbee continues after approval"] }],
       loop: {
         name: "Fix production errors", description: "Check production errors, fix on a branch, deploy to test; stop before master.",
-        cron: turns > 1 ? "0 2 * * *" : "0 9 * * 1-5", timezone: "Asia/Taipei", sandbox: "read-only", workspace: "direct", baseRef: "", lock: "env:test",
+        cron: turns > 1 ? "0 2 * * *" : "0 9 * * 1-5", timezone: "Asia/Taipei", sandbox: network ? "workspace-network" : "read-only", workspace: network ? "worktree" : "direct", baseRef: network ? "origin/master" : "", branch: network ? "loopbee/fix-{date}" : "", lock: "env:test",
         maxRounds: 1, wallMinutes: 90, stallRounds: 2, gateHours: 48, doneWhen: "verify.passed", allowedTools: [],
         steps: [
           { kind: "act", name: "Fix and deploy to test", prompt: "Use the fix-prod-errors skill. Stop before merging to master.", argv: [], metric: "", metricPath: "" },

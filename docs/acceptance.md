@@ -67,3 +67,68 @@ Same container and module setup as the second pass.
 | Real Claude Code 2.1.296 | Accepted the workspace-network flag set and refused to run without bubblewrap/socat, as intended |
 
 Not run: real Codex CLI, real model calls, Windows/macOS desktop builds of this pass, real notification channels.
+
+## Fourth pass: real agents, Loopbee-managed branches, CI and releases (2026-10-11 – 10-12)
+
+Real-agent smoke test (`scripts/real-smoke.sh` → `tests/real-smoke.mjs`): the packaged binary, a throw-away Git
+repository with a bare origin, and the real CLIs on the developer's subscription.
+
+| Environment | Scenario | Result |
+|---|---|---|
+| macOS 27.0 arm64, packaged `Loopbee.app`, Codex CLI 0.162.1 | report (read-only) | Passed: drafted 39 s, run 40 s, report names the TODO and the failing test |
+| same, Claude Code 2.1.296 | report (read-only) | Passed: drafted 24 s, run 16 s |
+| same, Claude Code 2.1.296 | fix → gate → approve | Passed: branch with the committed fix, checkout untouched, nothing pushed, approval completes the Run |
+| same, Codex CLI 0.162.1 | fix → gate | Failed twice, both fixed: first above the device limit (designer now told the limit), then blocked by Codex's Git sandbox (`HEAD.lock`) → Loopbee-managed branches. **Not re-run since** |
+| Linux container, Claude Code 2.1.296 | report / fix | Report passed; fix cannot run without bubblewrap (expected; error surfaced) |
+
+Defects found only with real CLIs: UTC default time zone, no shell for read-only Claude Code, Codex cannot write Git
+metadata, usage limit shown as raw JSON. Each is a lesson with a test (LESSONS.md “Real agent CLIs”).
+
+CI and releases: Windows checkout with `core.autocrlf` broke `TestBeectlWithoutAppAndSkillInstall` (reproduced
+locally, fixed with `.gitattributes` and CRLF-tolerant code, `TestSkillWithCRLFCheckout`); `fail-fast: false`;
+evidence uploaded only from this run; release workflow with Windows `.exe`/ZIP, macOS arm64/amd64 DMG/ZIP,
+`SHA256SUMS` and notes from `docs/releases/<tag>.md`. `v0.1.0` was published with the earlier workflow (ZIPs only,
+one-line notes).
+
+Process: `AGENTS.md`/`CLAUDE.md`, LESSONS.md rewritten by theme with checked evidence (`tests/lessons.test.mjs`),
+PR template, a first issue-driven Loop built from repository scripts (replaced the same day, see below) and the
+weekly lessons review (`examples/lessons-review.json`).
+
+| Check (container, 2026-10-12) | Result |
+|---|---|
+| `go vet ./...`, `go test ./...`, `go test -race -tags nogui ./...`, `GOOS=windows go vet` | Passed |
+| `npm test` (i18n, lessons, issue-loop scripts with fake gh and real git) | Passed |
+| `npm run test:e2e` (incl. branch field, command step from the add menu, continue-on-error, device-limit and usage-limit messages) | Passed |
+| actionlint on both workflows | Passed (`macos-15-intel` declared as a known label) |
+
+Not verified: the DMG step of `build-macos.sh` and the new `build-windows.ps1` section on their platforms; the release
+workflow end to end (first run on the next tag), including the `macos-15-intel` runner and go-winres version flags;
+Codex fix scenario with Loopbee-managed branches; the issue Loop against real GitHub (`gh`), which is only tested
+with a fake `gh`.
+
+Security review of the issue Loop (2026-10-12): the first version could execute agent-written code as the user before
+review (a `go test` verify step between agent and gate; repository hooks such as `.husky/` run by Loopbee's commit,
+writable by Claude Code through `--add-dir`). Fixed and covered by `TestHostileAgentCannotEscapeThroughLoopbee`
+(confirmed failing with the hook protection removed): no Git access for agents, hook-less Git with a `.git` check,
+refusal to run agent-changed files, diff artifact and credential scan before the gate, trusted-author filter for issues
+(then in the scripts, now in Loopbee's intake), editor warning for commands between an agent and a gate. Residual risks are listed in
+[docs/workflows/issue-loop.md](workflows/issue-loop.md).
+
+
+## Fifth pass: issue intake and pull requests built into Loopbee (2026-10-12)
+
+The repository scripts that picked issues and opened pull requests (`scripts/loopbee/*.mjs`) were replaced by Loop
+settings run by Loopbee: `intake` (GitHub issues, trusted authors only, claim label, fenced prompt, `{issue}` branch,
+no issue → `no_action`) and `pullRequest` (`after-review` with a gate, or `draft`; `.github/` never pushed; link in the
+result and notifications). Any repository can use them; `examples/self-improve.json` is Loopbee's own Loop and contains
+no commands. Editor section “Work & delivery”, chat authoring (schema, prompt, notify channels), GitHub CLI status in
+Settings › Agents, loop and run details.
+
+| Check (container) | Result |
+|---|---|
+| `go test ./...` incl. TestIssueIntakeToPullRequestAfterReview, TestIssueIntakeWithNothingTrustedCostsNoAgentCall, TestDraftPullRequestAndNoAutomaticCIChanges, TestIntakeWithoutGitHubCLIIsBlocked, TestIntakeAndPullRequestValidation, TestAuthorProposalIntakeAndPullRequest (fake gh = the test binary, real git with a bare origin) | Passed |
+| `go test -race -tags nogui ./internal/core` | Passed |
+| `npm test`, `npm run test:e2e` (Work & delivery section, draft warning, gh status, saved definition, loop summary) | Passed |
+
+Not verified: real GitHub (`gh` against a real repository: labels, `gh api` association values, `gh pr create`), a real
+push with the user's credentials, Telegram delivery of the pull request link.

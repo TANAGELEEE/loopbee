@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test tests/i18n.test.mjs",
+    "test": "node --test tests/i18n.test.mjs tests/lessons.test.mjs",
     "test:e2e": "node tests/e2e.mjs && node tests/agents-e2e.mjs",
     "test:desktop": "node tests/desktop-e2e.mjs",
     "test:screens": "node tests/screens.mjs",

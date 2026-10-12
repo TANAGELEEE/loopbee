@@ -47,7 +47,22 @@ export function gaps(d) {
     else if (!e.value) add(e.secret ? "warn" : "block", t("{name} has no value yet; runs are blocked until it is set", { name: e.name }), "env");
   }
   if (d.workspace === "worktree" && !d.baseRef) add("warn", t("Worktree starts from HEAD of the working directory; set a base such as origin/master"), "baseRef");
-  if (d.workspace === "worktree" && !d.branch && d.agent === "codex" && sandboxRank(d.sandbox) >= sandboxRank("workspace-write") && sandboxRank(d.sandbox) < sandboxRank("agent-config")) add("warn", t("Codex cannot commit inside its sandbox; set a branch so Loopbee commits the changes"), "branch");
+  if (d.workspace === "worktree" && !d.branch && sandboxRank(d.sandbox) >= sandboxRank("workspace-write") && sandboxRank(d.sandbox) < sandboxRank("agent-config")) add("warn", t("Agents cannot commit in a worktree; set a branch so Loopbee commits the changes"), "branch");
+  // A command after an agent step runs code the agent may have written, as you and outside any sandbox.
+  const firstAgent = d.steps.findIndex((s) => !["run", "verify", "gate"].includes(s.kind));
+  const unreviewed = firstAgent < 0 ? -1 : d.steps.findIndex((s, i) => i > firstAgent && (s.kind === "run" || s.kind === "verify") && !d.steps.slice(firstAgent, i).some((x) => x.kind === "gate"));
+  if (unreviewed >= 0 && d.sandbox !== "agent-config") add("warn", t("“{name}” runs after the agent and before any review: it executes the agent's changes on this computer outside the sandbox. Fine for your own tasks; for issues, e-mail or web content put a gate first", { name: d.steps[unreviewed].name || kindLabel(d.steps[unreviewed].kind) }), `step-${unreviewed}`);
+  // Work from issues and pull requests (Loopbee's own intake and delivery).
+  if ((d.intake || d.pullRequest) && (d.workspace !== "worktree" || !d.branch)) add("block", t("Issues and pull requests need a fresh git worktree and a branch"), "branch");
+  if (d.branch?.includes("{issue}") && !d.intake) add("block", t("{issue} in the branch name needs GitHub issues as the work source"), "branch");
+  if (d.pullRequest?.mode === "after-review") {
+    const lastAgent = d.steps.map((s) => !["run", "verify", "gate"].includes(s.kind)).lastIndexOf(true);
+    const lastGate = d.steps.map((s) => s.kind === "gate").lastIndexOf(true);
+    if (lastGate < 0 || lastGate < lastAgent) add("block", t("Add a gate after the agent step: the pull request opens after your review"), "pr");
+  }
+  if (d.pullRequest?.mode === "draft") add("warn", t("A draft pull request pushes the agent's change to GitHub before anyone has reviewed it"), "pr");
+  if ((d.intake || d.pullRequest) && !S().github?.version) add("warn", t("GitHub CLI (gh) not found: install it, then detect again in Settings › Agents"), "intake");
+  else if ((d.intake || d.pullRequest) && !S().github?.signedIn) add("warn", t("GitHub CLI is not signed in: run gh auth login"), "intake");
   if (d.branch && d.workspace !== "worktree") add("block", t("A branch needs the fresh git worktree workspace"), "branch");
   if (!d.steps.some((s) => s.kind === "verify" || ["act", "observe", "summarize"].includes(s.kind)) && (d.doneWhen || "verify.passed") !== "true") add("warn", t("No verify step: completion relies on “{c}”", { c: d.doneWhen || "verify.passed" }), "doneWhen");
   if (d.enabled && !d.cron) add("warn", t("Enabled without a schedule only allows manual runs"), "cron");
@@ -65,7 +80,7 @@ export function gapsPanel(d) {
 
 export function editorPage(d, ui) {
   const isNew = !d.id;
-  const nav = [["basic", "Basics"], ["target", "Target"], ["agent", "Agent & permission"], ["workspace", "Workspace"], ["schedule", "Schedule"], ["flow", "Flow"], ["limits", "Limits & completion"], ["notify", "Notifications"]];
+  const nav = [["basic", "Basics"], ["target", "Target"], ["agent", "Agent & permission"], ["workspace", "Workspace"], ["work", "Work & delivery"], ["schedule", "Schedule"], ["flow", "Flow"], ["limits", "Limits & completion"], ["notify", "Notifications"]];
   const blocking = gaps(d).filter((x) => x.level === "block");
   const sel = Math.min(ui.step ?? 0, d.steps.length - 1);
   const s = d.steps[sel];
@@ -100,6 +115,7 @@ export function editorPage(d, ui) {
       ${sec(T("Workspace"), { id: "ed-workspace" })}
       <div class="grp">${fld(T("Where it runs"), seg("workspace", d.workspace || "direct", [["direct", t("Working directory")], ["worktree", t("Fresh git worktree")]], { action: "ed-seg", label: t("Workspace") }), T("A worktree keeps your own checkout and uncommitted work untouched; use it when the Loop creates branches or commits."))}${d.workspace === "worktree" ? fld(T("Start from"), input("baseRef", d.baseRef || "", 'class="inp mono" placeholder="origin/master" id="f-baseRef"'), T("Loopbee fetches the remote first and creates the worktree at this ref for every run.")) + fld(T("Branch"), input("branch", d.branch || "", 'class="inp mono" placeholder="loopbee/fix-{date}" id="f-branch"'), T("Loopbee creates this branch and commits the agent's changes on it after each agent step, so the agent never touches Git itself. {date}, {time} and {run} are filled per run. Empty: a detached worktree.")) : ""}
       ${fld(T("Environment"), `<div id="f-env" class="envlist">${(d.env || []).map((e, i) => `<div class="pair envrow"><input class="inp mono" data-env="name" data-i="${i}" value="${esc(e.name)}" placeholder="DB_HOST" aria-label="${T("Name")}"><input class="inp ${e.secret ? "" : "mono"}" data-env="value" data-i="${i}" type="${e.secret ? "password" : "text"}" value="${esc(e.secret && e.value ? "" : e.value)}" placeholder="${esc(e.secret ? (e.value ? t("Saved in keychain · type to replace") : t("Secret value")) : t("Value"))}" aria-label="${T("Value")}"><label class="check sm"><input type="checkbox" data-env="secret" data-i="${i}" ${e.secret ? "checked" : ""}>${T("Secret")}</label>${btn("Remove", "env-remove", { cls: "sm ghost", attrs: `data-i="${i}"` })}</div>`).join("")}${btn("Add variable", "env-add", { cls: "sm" })}</div>`, T("Injected into agent and command steps. Secret values go to the system keychain; the definition keeps a reference only."))}</div>
+      ${workSection(d)}
       ${sec(T("Schedule"), { id: "ed-schedule" })}
       <div class="grp">${fld(T("Rule"), `<div class="pair"><input class="inp mono" data-f="cron" id="f-cron" value="${esc(d.cron)}" placeholder="0 9 * * 1-5" aria-label="Cron"><input class="inp" data-f="timezone" value="${esc(d.timezone)}" aria-label="${T("Timezone")}"><span class="sub t2" id="cron-text">= ${esc(cronText(d.cron))}</span></div>`, T("Five-field cron; leave empty for manual runs only."))}${fld(T("Enabled"), toggle(d.enabled, "ed-toggle", t("Enable schedule"), 'data-f="enabled"'))}${fld(T("Missed runs"), seg("catchUp", d.catchUp ? "1" : "0", [["1", t("Catch up the latest once")], ["0", t("Skip")]], { action: "ed-seg", label: t("Missed runs") }))}</div>
       ${sec(T("Flow"), { id: "ed-flow", note: T("Steps run in order; a failed verify starts the next round from step 1"), act: `<button type="button" class="btn sm" data-action="step-add-menu" aria-haspopup="menu">＋ ${T("Add step")} ▾</button>` })}
@@ -119,6 +135,20 @@ export function editorPage(d, ui) {
 }
 const chipToggle = (group, value, label, on) =>
   `<button type="button" class="chip tgl ${on ? "ok" : ""}" aria-pressed="${on}" data-action="ed-notify" data-group="${group}" data-value="${value}">${on ? "✓ " : ""}${esc(label)}</button>`;
+function workSection(d) {
+  const intake = d.intake ? "github-issues" : "none";
+  const mode = d.pullRequest?.mode || "none";
+  const gh = S().github || {};
+  const ghRow = d.intake || d.pullRequest
+    ? fld(T("GitHub CLI"), gh.version ? `<span class="chip ${gh.signedIn ? "ok" : "warn"}">${icon(gh.signedIn ? "ok" : "warn")}${esc(gh.version)} · ${T(gh.signedIn ? "signed in" : "not signed in")}</span>` : `<span class="chip err">${icon("err")}${T("not found")}</span>`, T("Loopbee uses your own gh login; it is never stored by Loopbee."))
+    : "";
+  return `${sec(T("Work & delivery"), { id: "ed-work" })}
+  <div class="grp">${fld(T("Work comes from"), seg("intake", intake, [["none", t("The prompt")], ["github-issues", t("GitHub issues")]], { action: "ed-intake", label: t("Work comes from") }), T(intake === "none" ? "Each run does what the agent step says." : "Each run takes the oldest open issue with the label, opened by someone with write access, marks it agent-working and gives it to the agent as untrusted text. No issue: the run ends as “Nothing to do” without an agent call."))}
+  ${d.intake ? `${fld(T("Issue label"), `<input class="inp mono narrowi" data-intake="label" id="f-intake-label" value="${esc(d.intake.label || "")}" placeholder="agent-ready">`)}${fld(T("Repository"), `<input class="inp mono" data-intake="repo" value="${esc(d.intake.repo || "")}" placeholder="${T("owner/name — empty: this folder's origin")}">`)}${fld(T("Also trust"), `<input class="inp mono" data-intake="trustedUsers" value="${esc((d.intake.trustedUsers || []).join(" "))}" placeholder="login another-login">`, T("Comments from people without write access never reach the agent. Add logins to trust more people."))}` : ""}
+  ${fld(T("Pull request"), `<span id="f-pr">${seg("prmode", mode, [["none", t("No, keep the branch")], ["after-review", t("After my review")], ["draft", t("Draft, review on GitHub")]], { action: "ed-pr", label: t("Pull request") })}</span>`, T(mode === "after-review" ? "You review the diff at the gate; then Loopbee pushes the branch and opens the pull request. The link is sent with the notification." : mode === "draft" ? "Loopbee pushes the branch and opens a draft pull request right away; you review it on GitHub. The link is sent with the notification." : "The branch stays local; push it yourself."))}
+  ${d.pullRequest ? fld(T("Target branch"), `<input class="inp mono narrowi" data-pr="base" value="${esc(d.pullRequest.base || "")}" placeholder="${T("from the base ref")}">`) : ""}${ghRow}</div>`;
+}
+
 export function definitionOnly(d) {
   const { next, updated, ...rest } = d;
   return rest;
@@ -168,6 +198,8 @@ function agents() {
   return `
   ${sec(T("Agents"), { note: T("The default agent writes Loops from your description and runs new Loops"), act: viewer() ? "" : btn("Detect again", "detect", { cls: "sm" }) })}
   <div class="grp">${agentRows(true)}<div class="row"><span class="idot" data-c="#76767f"></span><div class="grow"><div class="nm">${T("Other agents")}</div><div class="sub">${T("Gemini, OpenCode and others have no adapter yet.")}</div></div><span class="chip mut">${T("No adapter")}</span></div></div>
+  ${sec(T("GitHub"), { note: T("For Loops that work from issues or open pull requests") })}
+  <div class="grp"><div class="row"><span class="idot" data-c="#24292f"></span><div class="grow"><div class="nm">GitHub CLI (gh)</div><div class="sub">${S().github?.version ? esc(S().github.version) : T("Install it from cli.github.com, run gh auth login, then detect again.")}</div></div><span class="chip ${S().github?.signedIn ? "ok" : S().github?.version ? "warn" : "mut"}">${T(S().github?.signedIn ? "signed in" : S().github?.version ? "not signed in" : "not found")}</span></div></div>
   <div class="bn mt10">${icon("ok")}<span>${T("Loopbee reads your login shell's PATH at start-up, so agents installed through nvm or Homebrew are found even when the app starts from the Dock or Start menu.")}</span></div>
   ${sec(T("Permission mapping"), { note: T("What each level passes to the agent CLI") })}
   <div class="grp perm">${SANDBOXES.map((x) => `<div class="fld"><div class="lb">${esc(sandboxLabel(x))}${sandboxRank(x) > sandboxRank(c.maxSandbox) ? ` <span class="chip mut">${T("above device limit")}</span>` : ""}</div><div class="ctl"><div class="sub">${esc(sandboxHelp(x))}</div><div class="mono sub">Codex: ${esc(flags[x][0])}</div><div class="mono sub">Claude Code: ${esc(flags[x][1])}</div></div></div>`).join("")}${fld(T("Device limit"), `<span class="nm">${esc(sandboxLabel(c.maxSandbox))}</span>`, `<a href="#/settings/general">${T("Change in General")}</a>`)}</div>

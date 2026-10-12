@@ -10,10 +10,12 @@ import (
 
 	"loopbee/internal/core"
 	"loopbee/internal/httpapi"
+	"loopbee/internal/testenv"
 )
 
 func startApp(t *testing.T) (*core.App, string) {
 	t.Helper()
+	testenv.Loopback(t)
 	dir := t.TempDir()
 	a, err := core.Open(dir)
 	if err != nil {
@@ -67,6 +69,22 @@ func TestBeectlCreatesDisabledDraftAndRuns(t *testing.T) {
 	if err := run([]string{"-data", dir, "create", "-f", file}, &out); err == nil || !strings.Contains(err.Error(), "must not be in the definition") {
 		t.Fatal(err)
 	}
+	// A draft above the device limit says which level it needs and where to raise the limit.
+	os.WriteFile(file, []byte(`{"name":"Writer","directory":"`+filepath.ToSlash(work)+`","sandbox":"workspace-write","steps":[{"kind":"act","name":"a","prompt":"p"}]}`), 0600)
+	if err := run([]string{"-data", dir, "create", "-f", file}, &out); err == nil || !strings.Contains(err.Error(), `it needs the permission "workspace-write", but this device allows at most "read-only"`) || !strings.Contains(err.Error(), "Settings → General → Maximum permission") {
+		t.Fatal(err)
+	}
+	// Without a directory in the definition, --dir (or the current folder) is the project.
+	os.WriteFile(file, []byte(`{"name":"No dir","steps":[{"kind":"gate","name":"g"}]}`), 0600)
+	if err := run([]string{"-data", dir, "create", "-f", file, "--dir", work}, &out); err != nil {
+		t.Fatal(err)
+	}
+	s, _ = a.State()
+	for _, l := range s.Loops {
+		if l.Name == "No dir" && l.Directory != work {
+			t.Fatalf("directory %q, want %q", l.Directory, work)
+		}
+	}
 	// Unknown fields are rejected with a pointer to the schema.
 	os.WriteFile(file, []byte(`{"name":"x","bogus":1}`), 0600)
 	if err := run([]string{"-data", dir, "create", "-f", file}, &out); err == nil || !strings.Contains(err.Error(), "beectl schema") {
@@ -119,5 +137,65 @@ func TestSkillWithCRLFCheckout(t *testing.T) {
 	out.Reset()
 	if err := run([]string{"schema"}, &out); err != nil || !strings.Contains(out.String(), "Fix production errors") {
 		t.Fatalf("schema example lost with CRLF: %v %s", err, out.String())
+	}
+}
+
+// Every example definition must load through beectl and pass validation.
+func TestExampleLoopsAreValid(t *testing.T) {
+	root, _ := filepath.Abs(filepath.Join("..", ".."))
+	files, _ := filepath.Glob(filepath.Join(root, "examples", "*.json"))
+	if len(files) < 2 {
+		t.Fatalf("examples: %v", files)
+	}
+	for _, f := range files {
+		src, _ := os.ReadFile(f)
+		l, err := draftFromJSON(src, core.Settings{DefaultAgent: "codex", DigestTimezone: "UTC"})
+		if err != nil {
+			t.Fatalf("%s: %v", filepath.Base(f), err)
+		}
+		l.Directory = root
+		if err := core.Validate(l); err != nil {
+			t.Fatalf("%s: %v", filepath.Base(f), err)
+		}
+		// No command may run after an agent step before a gate: it would run the agent's changes unreviewed.
+		agent, gate := false, false
+		for _, s := range l.Steps {
+			switch s.Kind {
+			case "gate":
+				gate = true
+			case "act", "observe", "summarize":
+				agent = true
+			case "run", "verify":
+				if agent && !gate {
+					t.Fatalf("%s: %q runs after the agent without review", filepath.Base(f), s.Name)
+				}
+			}
+		}
+	}
+}
+
+// The self-improvement Loop is what docs/workflows/issue-loop.md tells people to create; keep it valid.
+func TestSelfImproveExampleIsValid(t *testing.T) {
+	root, _ := filepath.Abs(filepath.Join("..", ".."))
+	src, err := os.ReadFile(filepath.Join(root, "examples", "self-improve.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	l, err := draftFromJSON(src, core.Settings{DefaultAgent: "codex", DigestTimezone: "UTC"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	l.Directory = root
+	if err := core.Validate(l); err != nil {
+		t.Fatal(err)
+	}
+	if l.Enabled || l.Intake == nil || l.PullRequest == nil || l.PullRequest.Mode != "after-review" || l.Branch != "loopbee/issue-{issue}" || len(l.AllowedTools) != 0 {
+		t.Fatalf("unexpected definition: %+v", l)
+	}
+	// Picking work and opening the pull request are Loopbee's job: no project scripts, no commands at all.
+	for _, s := range l.Steps {
+		if s.Kind == "run" || s.Kind == "verify" {
+			t.Fatalf("step %q: the example must not run commands", s.Name)
+		}
 	}
 }

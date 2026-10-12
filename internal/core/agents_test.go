@@ -73,7 +73,7 @@ func TestFakeAgent(t *testing.T) {
 			"reply":     "Here is a nightly Loop.",
 			"questions": []map[string]any{{"text": "Who merges to master?", "options": []string{"Loopbee after approval", "I do it myself"}}},
 			"loop": map[string]any{
-				"name": "Fix production errors", "description": "Nightly log sweep", "cron": "0 2 * * *", "timezone": "Asia/Taipei",
+				"name": "Fix production errors", "description": "Nightly log sweep", "cron": "0 2 * * *", "timezone": fakeTimezone(),
 				"sandbox": "workspace-network", "workspace": "worktree", "baseRef": "origin/master", "lock": "env:test", "maxRounds": 1,
 				"wallMinutes": 90, "stallRounds": 2, "gateHours": 48, "doneWhen": "verify.passed", "allowedTools": []string{},
 				"steps": []map[string]any{
@@ -89,10 +89,31 @@ func TestFakeAgent(t *testing.T) {
 		if has("--json-schema") {
 			structured = proposal
 		}
+	case "limit":
+		// Real Claude Code 2.1.296 output when the subscription's session limit is reached.
+		fmt.Println(`{"type":"result","subtype":"success","is_error":true,"api_error_status":429,"api_error":"usage_limit_reached","result":"You've hit your session limit · resets 10:20pm (Asia/Taipei)"}`)
+		os.Exit(1)
 	case "sleep":
 		time.Sleep(10 * time.Second)
 	case "edit":
 		os.WriteFile(filepath.Join(cwd, "fixed.txt"), []byte("fixed by the agent\n"), 0600)
+	case "partial": // started the fix, then stopped with a question
+		os.WriteFile(filepath.Join(cwd, "fixed.txt"), []byte("half done\n"), 0600)
+		text = resultMarker + ` {"status":"blocked","summary":"Should the old flag stay?"}`
+	// Hostile agents (a prompt-injected issue): each tries to get code run outside its sandbox.
+	case "tamper":
+		os.WriteFile(filepath.Join(cwd, "tool.txt"), []byte("changed by the agent\n"), 0600)
+	case "hook":
+		os.MkdirAll(filepath.Join(cwd, ".husky"), 0700)
+		os.WriteFile(filepath.Join(cwd, ".husky", "pre-commit"), []byte("#!/bin/sh\ntouch "+os.Getenv("LOOPBEE_FAKE_MARKER")+"\n"), 0700)
+		os.WriteFile(filepath.Join(cwd, ".husky", "post-commit"), []byte("#!/bin/sh\ntouch "+os.Getenv("LOOPBEE_FAKE_MARKER")+"\n"), 0700)
+	case "gitfile":
+		os.WriteFile(filepath.Join(cwd, ".git"), []byte("gitdir: /tmp/agent-controlled\n"), 0600)
+	case "ci":
+		os.MkdirAll(filepath.Join(cwd, ".github", "workflows"), 0700)
+		os.WriteFile(filepath.Join(cwd, ".github", "workflows", "x.yml"), []byte("on: push\n"), 0600)
+	case "secret":
+		os.WriteFile(filepath.Join(cwd, "config.txt"), []byte("token = ghp_"+strings.Repeat("a1B2", 9)+"\n"), 0600)
 	}
 	if name == "codex" {
 		fmt.Println(`{"type":"thread.started","thread_id":"t1"}`)
@@ -618,6 +639,258 @@ func TestBranchWorkspaceCommitsForTheAgent(t *testing.T) {
 		c.Workspace, c.Branch = bad.Workspace, bad.Branch
 		if Validate(c) == nil {
 			t.Fatalf("accepted %+v", bad)
+		}
+	}
+}
+
+func fakeTimezone() string {
+	if tz, ok := os.LookupEnv("LOOPBEE_FAKE_TZ"); ok {
+		return tz
+	}
+	return "Asia/Taipei"
+}
+
+// Lesson: drafts defaulted to UTC. A draft without a time zone takes the user's (sent by the UI).
+func TestAuthorUsesTheUserTimezone(t *testing.T) {
+	a := testApp(t)
+	log := useFakeAgents(t, a, "author")
+	t.Setenv("LOOPBEE_FAKE_AGENT", "claude")
+	t.Setenv("LOOPBEE_FAKE_TZ", "")
+	a.DetectAgents()
+	reply, err := a.Author(t.Context(), AuthorRequest{Agent: "claude", Timezone: "America/New_York", Messages: []ChatMessage{{Role: "user", Text: "every morning"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reply.Loop.Timezone != "America/New_York" {
+		t.Fatalf("timezone %q", reply.Loop.Timezone)
+	}
+	if prompt := fakeCalls(t, log)[0]["prompt"].(string); !strings.Contains(prompt, "timezone America/New_York") {
+		t.Fatal("the designer was not told the user's time zone")
+	}
+	// An invalid zone from the client is ignored rather than producing an unsavable draft.
+	reply, err = a.Author(t.Context(), AuthorRequest{Agent: "claude", Timezone: "Mars/Olympus", Messages: []ChatMessage{{Role: "user", Text: "every morning"}}})
+	if err != nil || reply.Loop.Timezone != a.Settings().DigestTimezone {
+		t.Fatalf("invalid zone: %v %q", err, reply.Loop.Timezone)
+	}
+}
+
+// Lesson: a draft above the device ceiling must say so instead of failing later at save time.
+func TestAuthorFlagsPermissionAboveTheDeviceLimit(t *testing.T) {
+	a := testApp(t)
+	useFakeAgents(t, a, "author") // proposes workspace-network; the default ceiling is read-only
+	t.Setenv("LOOPBEE_FAKE_AGENT", "codex")
+	a.DetectAgents()
+	reply, err := a.Author(t.Context(), AuthorRequest{Agent: "codex", Messages: []ChatMessage{{Role: "user", Text: "fix and deploy"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reply.Problem != "permission exceeds this device's limit" {
+		t.Fatalf("problem %q", reply.Problem)
+	}
+}
+
+// Lesson: a subscription limit showed up as raw JSON in the chat.
+func TestAuthorReportsAgentUsageLimit(t *testing.T) {
+	a := testApp(t)
+	useFakeAgents(t, a, "limit")
+	t.Setenv("LOOPBEE_FAKE_AGENT", "claude")
+	a.DetectAgents()
+	_, err := a.Author(t.Context(), AuthorRequest{Agent: "claude", Messages: []ChatMessage{{Role: "user", Text: "anything"}}})
+	if err == nil || err.Error() != "agent failed: You've hit your session limit · resets 10:20pm (Asia/Taipei)" {
+		t.Fatalf("error: %v", err)
+	}
+}
+
+// A polling command can end the Run as "nothing to do" (exit 78) before any agent or gate runs, and
+// every step sees the Run's id, folder and branch.
+func TestCommandStepNothingToDoAndRunEnvironment(t *testing.T) {
+	a := testApp(t)
+	log := useFakeAgents(t, a, "done")
+	t.Setenv("LOOPBEE_FAKE_AGENT", "codex")
+	a.DetectAgents()
+	l := agentLoop(t, "codex")
+	l.AllowedTools = []string{os.Args[0]}
+	poll := Step{Kind: "run", Name: "Find issues", Argv: []string{os.Args[0], "-test.run=^TestHelperProcess$"}}
+	l.Steps = append([]Step{poll}, append(l.Steps, Step{Kind: "gate", Name: "Review"})...)
+	l, err := a.SaveLoop(l)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("LOOPBEE_HELPER", "nothing")
+	r, _ := a.Start(l.ID)
+	waitStatus(t, a, r.ID, "no_action")
+	r, _ = a.Run(r.ID)
+	if r.Result == nil || r.Result.Summary != "No open issues labelled agent-ready" || len(r.Trace) != 1 || len(fakeCalls(t, log)) != 0 {
+		t.Fatalf("nothing to do: %+v calls=%d", r, len(fakeCalls(t, log)))
+	}
+	t.Setenv("LOOPBEE_HELPER", "runenv")
+	r, _ = a.Start(l.ID)
+	waitStatus(t, a, r.ID, "waiting")
+	r, _ = a.Run(r.ID)
+	b, _ := a.ReadArtifact(r.ID, r.Artifacts[0])
+	if want := fmt.Sprintf("run=%s dir=%s branch=\"\"", r.ID, r.ID); !strings.Contains(string(b), want) {
+		t.Fatalf("run environment: %s, want %s", b, want)
+	}
+	a.Cancel(r.ID)
+}
+
+// A failed verification is shown to the agent in the next round; otherwise it retries blind.
+func TestVerifyFailureReachesTheNextRound(t *testing.T) {
+	a := testApp(t)
+	log := useFakeAgents(t, a, "done")
+	t.Setenv("LOOPBEE_FAKE_AGENT", "claude")
+	t.Setenv("LOOPBEE_HELPER", "failure")
+	a.DetectAgents()
+	l := agentLoop(t, "claude")
+	l.MaxRounds, l.StallRounds = 2, 3
+	l.AllowedTools = []string{os.Args[0]}
+	l.Steps = append(l.Steps, Step{Kind: "verify", Name: "Go tests", Argv: []string{os.Args[0], "-test.run=^TestHelperProcess$"}})
+	l, err := a.SaveLoop(l)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, _ := a.Start(l.ID)
+	waitStatus(t, a, r.ID, "budget_exhausted")
+	calls := fakeCalls(t, log)
+	if len(calls) != 2 {
+		t.Fatalf("agent calls: %d", len(calls))
+	}
+	if first := calls[0]["prompt"].(string); strings.Contains(first, "previous round's verification failed") {
+		t.Fatal("round 1 has no previous failure")
+	}
+	second := calls[1]["prompt"].(string)
+	if !strings.Contains(second, "previous round's verification failed") || !strings.Contains(second, "### Go tests") || !strings.Contains(second, "evidence") {
+		t.Fatalf("round 2 prompt: %s", second)
+	}
+}
+
+// A prompt-injected agent must not get code executed outside its sandbox through Loopbee: not through scripts that
+// later command steps run, not through Git hooks or a redirected .git file, and credentials in its change stop the
+// Run before review. The reviewer gets the committed diff.
+func TestHostileAgentCannotEscapeThroughLoopbee(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	setup := func(t *testing.T, mode string) (*App, Loop, string) {
+		repo := t.TempDir()
+		git := func(args ...string) {
+			cmd := exec.Command("git", args...)
+			cmd.Dir = repo
+			cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@example.invalid", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@example.invalid")
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("git %v: %s", args, out)
+			}
+		}
+		git("init", "-q", "-b", "master")
+		os.WriteFile(filepath.Join(repo, "tool.txt"), []byte("trusted\n"), 0600)
+		os.MkdirAll(filepath.Join(repo, ".husky"), 0700)
+		os.WriteFile(filepath.Join(repo, ".husky", "pre-commit"), []byte("#!/bin/sh\nexit 0\n"), 0700)
+		git("add", ".")
+		git("commit", "-qm", "init")
+		git("config", "core.hooksPath", ".husky") // like a repository using husky
+		a := testApp(t)
+		log := useFakeAgents(t, a, mode)
+		t.Setenv("LOOPBEE_FAKE_AGENT", "claude")
+		t.Setenv("LOOPBEE_HELPER", "success")
+		a.DetectAgents()
+		l := agentLoop(t, "claude")
+		l.Directory, l.Workspace, l.Branch = repo, "worktree", "loopbee/fix-{run}"
+		l.AllowedTools = []string{os.Args[0]}
+		l.Steps = append(l.Steps, Step{Kind: "run", Name: "Use the tool", Argv: []string{os.Args[0], "-test.run=^TestHelperProcess$", "tool.txt"}})
+		l, err := a.SaveLoop(l)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return a, l, log
+	}
+	t.Run("ordinary change: committed, diff kept, no .git access for the agent", func(t *testing.T) {
+		a, l, log := setup(t, "edit")
+		r, _ := a.Start(l.ID)
+		waitStatus(t, a, r.ID, "completed")
+		r, _ = a.Run(r.ID)
+		b, _ := a.ReadArtifact(r.ID, "round-01-step-01.diff")
+		if !strings.Contains(string(b), "+fixed by the agent") {
+			t.Fatalf("diff artifact: %q", b)
+		}
+		if args := fmt.Sprint(fakeCalls(t, log)[0]["args"]); strings.Contains(args, "--add-dir") {
+			t.Fatalf("agent got extra writable directories: %s", args)
+		}
+	})
+	t.Run("changed script is not executed", func(t *testing.T) {
+		a, l, _ := setup(t, "tamper")
+		r, _ := a.Start(l.ID)
+		waitStatus(t, a, r.ID, "blocked")
+		if r, _ = a.Run(r.ID); !strings.Contains(r.Error, "would run tool.txt, which the agent changed") {
+			t.Fatal(r.Error)
+		}
+	})
+	t.Run("hooks written by the agent never run", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("shell hooks")
+		}
+		marker := filepath.Join(t.TempDir(), "pwned")
+		t.Setenv("LOOPBEE_FAKE_MARKER", marker)
+		a, l, _ := setup(t, "hook")
+		r, _ := a.Start(l.ID)
+		waitStatus(t, a, r.ID, "completed") // .husky changed, tool.txt did not, so the command step may run
+		r, _ = a.Run(r.ID)
+		if len(r.Commits) != 1 {
+			t.Fatalf("commit: %+v", r)
+		}
+		if _, err := os.Stat(marker); err == nil {
+			t.Fatal("a hook written by the agent was executed by Loopbee")
+		}
+	})
+	t.Run("redirected .git file stops Loopbee's Git", func(t *testing.T) {
+		a, l, _ := setup(t, "gitfile")
+		r, _ := a.Start(l.ID)
+		waitStatus(t, a, r.ID, "failed")
+		if r, _ = a.Run(r.ID); !strings.Contains(r.Error, ".git file was changed") {
+			t.Fatal(r.Error)
+		}
+	})
+	t.Run("credentials in the change stop the run before review", func(t *testing.T) {
+		a, l, _ := setup(t, "secret")
+		r, _ := a.Start(l.ID)
+		waitStatus(t, a, r.ID, "failed")
+		r, _ = a.Run(r.ID)
+		if !strings.Contains(r.Error, "looks like a credential (config.txt: ghp_a1B2a1B2…)") || !strings.Contains(r.Error, "nothing was pushed") {
+			t.Fatal(r.Error)
+		}
+	})
+}
+
+func TestSecretsInPatchIgnoresOrdinaryCode(t *testing.T) {
+	patch := "+++ b/a_test.go\n+\temail := \"t@example.invalid\"\n+\tpassword := os.Getenv(\"DB_PASSWORD\")\n-old ghp_" + strings.Repeat("x", 36) + "\n+++ b/key.pem\n+-----BEGIN OPENSSH PRIVATE KEY-----\n"
+	if got := secretsInPatch([]byte(patch)); len(got) != 1 || !strings.HasPrefix(got[0], "key.pem: -----BEGIN") {
+		t.Fatalf("%v", got)
+	}
+}
+
+// The pull request a command step opens must reach the notification (it is what the reviewer acts on).
+func TestCommandStepResultReachesTheNotification(t *testing.T) {
+	a := testApp(t)
+	useFakeAgents(t, a, "done")
+	t.Setenv("LOOPBEE_FAKE_AGENT", "codex")
+	t.Setenv("LOOPBEE_HELPER", "prlink")
+	a.DetectAgents()
+	l := agentLoop(t, "codex")
+	l.AllowedTools = []string{os.Args[0]}
+	l.Steps = append(l.Steps, Step{Kind: "run", Name: "Open pull request", Argv: []string{os.Args[0], "-test.run=^TestHelperProcess$"}})
+	l, err := a.SaveLoop(l)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, _ := a.Start(l.ID)
+	waitStatus(t, a, r.ID, "completed")
+	r, _ = a.Run(r.ID)
+	if r.Result == nil || r.Result.Status != "done" || r.Result.Summary != "Fixed 1 error, deployed to test\nPull request #13 is ready to merge" {
+		t.Fatalf("result: %+v", r.Result)
+	}
+	text := runNotification(r, "zh-TW", false)
+	for _, want := range []string{"Pull request #13 is ready to merge", "https://github.com/acme/app/pull/13", "https://example.com/pr/7"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("notification lacks %q:\n%s", want, text)
 		}
 	}
 }

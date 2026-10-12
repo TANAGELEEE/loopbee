@@ -41,6 +41,15 @@ Permission levels: read-only → workspace write → workspace write + network (
 
 From inside Codex or Claude Code: put `beectl` on PATH, run `beectl skill install`, then ask the agent to “make this a nightly Loopbee loop”. It creates a disabled draft for you to review. See [agents](docs/subsystems/agents.md).
 
+## Working from GitHub issues
+
+Any Loop can take its work from GitHub issues and hand back a pull request — for your own projects and for Loopbee
+itself ([examples/self-improve.json](examples/self-improve.json)). Loopbee picks one issue labelled `agent-ready`
+per run (only from people with write access), the agent fixes it on `loopbee/issue-<n>` following the repository's
+AGENTS.md, you review the diff, and Loopbee pushes and opens the pull request, sending the link to e.g. Telegram.
+The agent works without network or Git access. See [docs/workflows/issue-loop.md](docs/workflows/issue-loop.md),
+including what a malicious issue could try.
+
 ## Your first Loop
 
 1. Open Settings → Agents → Detect agents. Codex uses `exec --json --sandbox`; Claude Code remains experimental and execution is blocked.

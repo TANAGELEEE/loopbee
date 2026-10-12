@@ -60,14 +60,49 @@ type Loop struct {
 	BaseRef   string `json:"baseRef,omitempty"` // worktree base, e.g. origin/master; empty = HEAD
 	// Branch (worktree only): Loopbee creates this branch for the Run and commits the agent's changes on it
 	// after each agent step, so agents never write Git metadata (Codex's sandbox forbids it).
-	// {date}, {time} and {run} are replaced per Run.
+	// {date}, {time}, {run} and {issue} are replaced per Run.
 	Branch string `json:"branch,omitempty"`
+	// Intake: where a Run's work item comes from (nil = the prompt alone). PullRequest: what Loopbee does with the
+	// branch when the Run succeeds. Both are Loopbee's job, not the project's, so any repository can use them and
+	// an agent can never change how work is picked or delivered.
+	Intake      *Intake      `json:"intake,omitempty"`
+	PullRequest *PullRequest `json:"pullRequest,omitempty"`
 	// GateHours is how long a gate may wait for a decision; waiting does not consume WallMinutes.
 	GateHours    int           `json:"gateHours,omitempty"`
 	Env          []EnvVar      `json:"env,omitempty"`
 	Notify       NotifyRule    `json:"notify,omitempty"`
 	Conversation []ChatMessage `json:"conversation,omitempty"` // authoring chat that produced this definition
 	Source       string        `json:"source,omitempty"`       // where the definition came from (URL, template, chat)
+}
+
+// Intake picks one work item per Run. Kind "github-issues": the oldest open issue with Label, opened by a trusted
+// person (repository OWNER/MEMBER/COLLABORATOR or a listed login), that nobody is working on. Loopbee labels it
+// WorkingLabel and gives it to the agent as untrusted text; no issue ends the Run as "nothing to do".
+type Intake struct {
+	Kind         string   `json:"kind"`
+	Repo         string   `json:"repo,omitempty"`         // owner/name; empty = the repository of the working directory
+	Label        string   `json:"label,omitempty"`        // default agent-ready
+	WorkingLabel string   `json:"workingLabel,omitempty"` // default agent-working
+	TrustedUsers []string `json:"trustedUsers,omitempty"` // logins trusted in addition to people with write access
+}
+
+// PullRequest delivers the Run's branch: Mode "after-review" opens a pull request when the Run completes, which
+// requires a gate after the agent; "draft" opens a draft pull request without a gate in Loopbee (the draft is the
+// review). Changes to .github/ are never pushed automatically.
+type PullRequest struct {
+	Mode string `json:"mode"`
+	Base string `json:"base,omitempty"` // target branch; default: the branch of baseRef, else the default branch
+}
+
+func (i Intake) label() string        { return orDefault(i.Label, "agent-ready") }
+func (i Intake) workingLabel() string { return orDefault(i.WorkingLabel, "agent-working") }
+
+// IssueRef is the work item a Run took.
+type IssueRef struct {
+	Number int    `json:"number"`
+	Title  string `json:"title"`
+	URL    string `json:"url"`
+	Author string `json:"author"`
 }
 
 // EnvVar is injected into agent and command steps. Secret values live in the system keychain;
@@ -127,6 +162,8 @@ type Run struct {
 	Workdir    string             `json:"workdir,omitempty"`
 	Branch     string             `json:"branch,omitempty"`  // branch Loopbee created for this Run
 	Commits    []string           `json:"commits,omitempty"` // commits Loopbee made on it (short hashes)
+	Issue      *IssueRef          `json:"issue,omitempty"`   // the work item taken by the Loop's intake
+	PRURL      string             `json:"prUrl,omitempty"`   // pull request opened by the Loop's delivery
 }
 type Event struct {
 	ID    int64     `json:"id"`
@@ -182,6 +219,7 @@ type State struct {
 	Settings   Settings            `json:"settings"`
 	Deliveries []Delivery          `json:"deliveries"`
 	Agents     []Agent             `json:"agents"`
+	GitHub     GitHubStatus        `json:"github"` // GitHub CLI for issue intake and pull requests
 	Updated    time.Time           `json:"updated"`
 	Info       Info                `json:"info"`
 }
@@ -246,6 +284,9 @@ func Validate(l Loop) error {
 		case "master", "main", "head", "develop", "production", "release":
 			return errors.New("Loopbee never commits to a shared branch; use a name such as loopbee/fix-{date}")
 		}
+	}
+	if err := validateIntakeAndDelivery(l); err != nil {
+		return err
 	}
 	if l.GateHours < 0 || l.GateHours > 24*14 {
 		return errors.New("gate expiry must be 1–336 hours")
@@ -316,3 +357,75 @@ var envName = regexp.MustCompile(`^[A-Z_][A-Z0-9_]{0,63}$`)
 
 func terminal(s string) bool { return s != "running" && s != "waiting" && s != "queued" }
 func language(s string) bool { return s == "en" || s == "zh-TW" || s == "zh-CN" }
+
+var (
+	repoPattern  = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$`)
+	loginPattern = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$`)
+	labelPattern = regexp.MustCompile(`^[^\x00-\x1f,]{1,50}$`)
+)
+
+func validateIntakeAndDelivery(l Loop) error {
+	if strings.Contains(l.Branch, "{issue}") && l.Intake == nil {
+		return errors.New("{issue} in the branch name needs GitHub issues as the work source")
+	}
+	needsBranch := func(what string) error {
+		if l.Workspace != "worktree" || l.Branch == "" {
+			return errors.New(what + " needs a fresh git worktree and a branch")
+		}
+		return nil
+	}
+	if in := l.Intake; in != nil {
+		if in.Kind != "github-issues" {
+			return errors.New("work source must be github-issues")
+		}
+		if err := needsBranch("Working from issues"); err != nil {
+			return err
+		}
+		if in.Repo != "" && !repoPattern.MatchString(in.Repo) {
+			return errors.New("issue repository must look like owner/name")
+		}
+		for _, lb := range []string{in.label(), in.workingLabel()} {
+			if !labelPattern.MatchString(lb) {
+				return errors.New("invalid issue label")
+			}
+		}
+		if in.label() == in.workingLabel() {
+			return errors.New("the ready and working labels must differ")
+		}
+		for _, u := range in.TrustedUsers {
+			if !loginPattern.MatchString(u) {
+				return fmt.Errorf("invalid GitHub login %q", u)
+			}
+		}
+		if !slices.ContainsFunc(l.Steps, func(s Step) bool { return s.Kind == "act" || s.Kind == "observe" || s.Kind == "summarize" }) {
+			return errors.New("working from issues needs an agent step")
+		}
+	}
+	if pr := l.PullRequest; pr != nil {
+		if err := needsBranch("A pull request"); err != nil {
+			return err
+		}
+		if pr.Base != "" && (strings.HasPrefix(pr.Base, "-") || strings.ContainsAny(pr.Base, " \t\n;&|$`~^:?*[\\")) {
+			return errors.New("invalid pull request base branch")
+		}
+		switch pr.Mode {
+		case "draft":
+		case "after-review":
+			lastAgent, lastGate := -1, -1
+			for i, s := range l.Steps {
+				switch s.Kind {
+				case "gate":
+					lastGate = i
+				case "act", "observe", "summarize":
+					lastAgent = i
+				}
+			}
+			if lastGate < lastAgent || lastGate < 0 {
+				return errors.New("a pull request after review needs a gate after the last agent step")
+			}
+		default:
+			return errors.New("pull request mode must be after-review or draft")
+		}
+	}
+	return nil
+}

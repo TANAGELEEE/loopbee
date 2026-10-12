@@ -1,0 +1,21 @@
+{
+  "name": "Weekly lessons review",
+  "description": "Mondays: compare last week's commits with LESSONS.md and report fixes that left no lesson or test, and lessons due for promotion to the standards. Read only.",
+  "sandbox": "read-only",
+  "workspace": "direct",
+  "requireClean": false,
+  "cron": "0 10 * * 1",
+  "timezone": "Asia/Taipei",
+  "maxRounds": 1,
+  "wallMinutes": 20,
+  "allowedTools": ["git"],
+  "steps": [
+    { "kind": "run", "name": "Last week's commits", "argv": ["git", "log", "--since=7 days ago", "--no-merges", "--date=short", "--format=%h %ad %s", "--stat"] },
+    {
+      "kind": "act",
+      "name": "Review against LESSONS.md",
+      "prompt": "Read LESSONS.md and docs/development.md. Using the commit list from the previous step, report (1) commits that fix a defect but add no lesson, no new Seen date or no test, with the commit hash and what the lesson should say; (2) lessons whose Seen dates cover three or more days and must move to docs/development.md; (3) user-visible fixes that belong in the next docs/releases/<tag>.md. Do not change files. If everything is in order, end with status no_action."
+    }
+  ],
+  "notify": { "events": ["done", "failed"], "includeReport": true }
+}
