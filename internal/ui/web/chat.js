@@ -72,7 +72,10 @@ function preview(c) {
   if (d.workspace !== "worktree" && d.requireClean) facts.push([t("Before running"), t("The folder must be a Git repository without uncommitted changes")]);
   if (d.intake || d.pullRequest) facts.push([t("Work & delivery"), workSummary(d)]);
   if (d.branch) facts.push([t("Commits"), t("Loopbee commits the agent's changes on {branch}; nothing is pushed or merged by Loopbee", { branch: d.branch })]);
-  if (d.env?.length) facts.push([t("Environment"), d.env.map((e) => e.name + (e.secret ? "*" : "")).join(", ")]);
+  if (d.env?.length) facts.push([t("Environment"), d.env.map((e) => e.name + (e.secret ? "*" : "") + (e.value?.startsWith("env:") ? " ← " + t("your shell") : "")).join(", ")]);
+  if (d.readPaths?.length) facts.push([t("Read paths"), d.readPaths.join(", ")]);
+  if (d.agentMcp) facts.push([t("MCP tools"), t("The agent's own MCP tools, approved in advance; they run outside the sandbox with your rights")]);
+  if (d.copyFiles?.length) facts.push([t("Copy into the worktree"), d.copyFiles.join(", ")]);
   return `${sec(T("Preview"), { note: T(c.loop ? "Changes since v{n}" : "Draft · not saved", { n: c.loop?.version }) })}
   <div class="card sm"><div class="hd"><h1 class="h2 ell">${esc(d.name || t("Untitled Loop"))}</h1></div>${d.description ? `<div class="sub t2 mt3">${esc(d.description)}</div>` : ""}
   ${renderFlow(d.steps, flowState(d.steps, null), { maxRounds: d.maxRounds })}

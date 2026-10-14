@@ -10,10 +10,12 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/gofrs/flock"
+	"github.com/zalando/go-keyring"
 	_ "modernc.org/sqlite"
 )
 
@@ -32,6 +34,7 @@ type App struct {
 	github      GitHubStatus
 	syncMu      sync.Mutex
 	awakeCancel context.CancelFunc
+	upd         *updater
 }
 
 func Open(dir string) (*App, error) {
@@ -67,7 +70,7 @@ func Open(dir string) (*App, error) {
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	a := &App{db: db, Dir: dir, lock: lock, ctx: ctx, cancel: cancel, active: map[string]context.CancelFunc{}, gates: map[string]chan gateDecision{}}
+	a := &App{db: db, Dir: dir, lock: lock, ctx: ctx, cancel: cancel, active: map[string]context.CancelFunc{}, gates: map[string]chan gateDecision{}, upd: &updater{}}
 	a.config = Settings{DigestCron: "0 18 * * *", DigestTimezone: "UTC", MaxSandbox: "read-only", Language: "zh-TW", ReportLanguage: "zh-TW", DigestLanguage: "zh-TW", Theme: "system", Motion: true, Role: "executor", RetentionDays: 30, Channels: []Channel{}, TeamBranch: "loopbee", Publisher: newID()}
 	if err = a.get("settings", "general", &a.config); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		a.Close()
@@ -120,6 +123,7 @@ func Open(dir string) (*App, error) {
 	return a, nil
 }
 func (a *App) Close() {
+	a.installOnQuit()
 	a.cancel()
 	a.mu.Lock()
 	for _, cancel := range a.active {
@@ -200,7 +204,7 @@ func (a *App) SaveSettings(c Settings) error {
 	if !validSandbox(c.MaxSandbox) {
 		return errors.New("invalid maximum sandbox")
 	}
-	if c.DefaultAgent != "" && c.DefaultAgent != "codex" && c.DefaultAgent != "claude" {
+	if _, known := adapterFor(c.DefaultAgent); c.DefaultAgent != "" && !known {
 		return errors.New("unknown default agent")
 	}
 	if len(a.active) > 0 && c.MaxSandbox != a.config.MaxSandbox {
@@ -333,9 +337,52 @@ func (a *App) DeleteLoop(id string) error {
 			return errors.New("cancel active run first")
 		}
 	}
-	_, err = a.db.Exec("DELETE FROM objects WHERE kind='loop' AND id=?", id)
-	return err
+	var l Loop
+	found := a.get("loop", id, &l) == nil
+	if _, err = a.db.Exec("DELETE FROM objects WHERE kind='loop' AND id=?", id); err != nil {
+		return err
+	}
+	if found {
+		a.cleanupLoop(l)
+	}
+	return nil
 }
+
+// cleanupLoop removes what Loopbee created for a deleted Loop: its worktree (registered in the developer's
+// repository) and the secret values it stored in the system keychain. Branches stay: they may hold unreviewed work.
+// Runs keep their definition snapshot and evidence until retention prunes them.
+func (a *App) cleanupLoop(l Loop) {
+	path := filepath.Join(a.Dir, "worktrees", l.ID)
+	if _, err := os.Stat(path); err == nil && validID.MatchString(l.ID) {
+		ctx, cancel := context.WithTimeout(a.ctx, time.Minute)
+		if l.Directory != "" {
+			runCommand(ctx, l.Directory, []string{"git", "worktree", "remove", "--force", path}, nil)
+		}
+		if err := os.RemoveAll(path); err != nil {
+			a.event("", "loop.cleanup_failed", path+": "+err.Error())
+		}
+		if l.Directory != "" {
+			runCommand(ctx, l.Directory, []string{"git", "worktree", "prune"}, nil)
+		}
+		cancel()
+	}
+	for _, e := range l.Env {
+		if ref, ok := strings.CutPrefix(e.Value, "keyring:"); ok && strings.Contains(ref, "/loop/") {
+			if err := deleteSecret(ref); err != nil {
+				a.event("", "loop.cleanup_failed", "keychain entry for "+e.Name+": "+err.Error())
+			}
+		}
+	}
+}
+
+// deleteSecret removes a stored value from the system keychain; tests replace it.
+var deleteSecret = func(ref string) error {
+	if err := keyring.Delete(Brand, ref); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+		return err
+	}
+	return nil
+}
+
 func (a *App) event(id, kind, text string) error {
 	_, err := a.db.Exec("INSERT INTO events(run_id,time,type,text) VALUES(?,?,?,?)", id, time.Now().UTC().Format(time.RFC3339Nano), kind, text)
 	return err
@@ -409,5 +456,6 @@ func (a *App) State() (State, error) {
 	s.GitHub = a.github
 	s.Info = Info{Version: Version, OS: runtime.GOOS, Arch: runtime.GOARCH, DataDir: a.Dir, Active: len(a.active)}
 	a.mu.Unlock()
+	s.Update = a.UpdateState()
 	return s, nil
 }

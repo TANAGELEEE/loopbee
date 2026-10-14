@@ -2,7 +2,7 @@ package core
 
 import (
 	"errors"
-	"os"
+	"fmt"
 	"strings"
 
 	"github.com/zalando/go-keyring"
@@ -10,17 +10,17 @@ import (
 
 // Environment references permit headless hosts without an unlocked system keychain.
 func resolveSecret(value string) (string, error) {
-	if strings.HasPrefix(value, "env:") {
-		v, ok := os.LookupEnv(strings.TrimPrefix(value, "env:"))
-		if !ok || v == "" {
-			return "", errors.New("notification environment variable is not set")
+	if name, ok := strings.CutPrefix(value, "env:"); ok {
+		v, ok := userEnv(name)
+		if !ok {
+			return "", fmt.Errorf("%s is not set in Loopbee's environment or your login shell; export it in your shell profile (Windows: set it as a user environment variable), or store the value in Loopbee instead", name)
 		}
 		return v, nil
 	}
-	if strings.HasPrefix(value, "keyring:") {
-		v, err := keyring.Get(Brand, strings.TrimPrefix(value, "keyring:"))
+	if ref, ok := strings.CutPrefix(value, "keyring:"); ok {
+		v, err := keyring.Get(Brand, ref)
 		if err != nil {
-			return "", errors.New("notification credential unavailable in system keychain")
+			return "", errors.New("the stored value is missing from the system keychain; enter it again in Loopbee")
 		}
 		return v, nil
 	}

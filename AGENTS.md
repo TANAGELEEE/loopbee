@@ -1,8 +1,9 @@
 # Notes for coding agents
 
-Loopbee is a local desktop scheduler that runs Codex CLI and Claude Code headlessly, records evidence and stops at
-human gates. Go core (`internal/core`), loopback HTTP API (`internal/httpapi`), vanilla JS UI (`internal/ui/web`),
-Wails desktop shell (`cmd/loopbee`) and the `beectl` CLI (`cmd/beectl`). Keep those three layers; do not add a
+Loopbee is a local desktop scheduler that runs agent CLIs (Codex CLI, Claude Code, Gemini CLI, OpenCode, pi — one
+adapter each in `internal/core/agent_*.go`) headlessly, records evidence and stops at human gates. Go core
+(`internal/core`), loopback HTTP API (`internal/httpapi`), vanilla JS UI (`internal/ui/web`), Wails desktop shell
+(`cmd/loopbee`) and the `beectl` CLI (`cmd/beectl`). Keep those three layers; do not add a
 frontend framework, plugin host, cloud service or account system.
 
 ## Lessons
@@ -15,7 +16,8 @@ class, then add or update the lesson. `npm test` checks that every lesson's evid
 
 - Write and review changes against [docs/development.md](docs/development.md).
 - Before changing a subsystem, read its reference and the linked source: [agents and chat authoring](docs/subsystems/agents.md),
-  [desktop shell](docs/subsystems/gui-shell.md), [notifications](docs/subsystems/notify.md), plus
+  [desktop shell](docs/subsystems/gui-shell.md), [notifications](docs/subsystems/notify.md),
+  [updates](docs/subsystems/updates.md), plus
   [contracts](docs/contracts.md) (run states, permissions, workspaces) and [API](docs/api.md).
 - UI strings go through `T()`/`t()` with zh-TW and zh-CN entries in `internal/ui/web/i18n.js`; the page CSP forbids
   inline styles; component sizes and colours come from `loop.css`, not `app.css`.

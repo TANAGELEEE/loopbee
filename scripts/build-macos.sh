@@ -13,6 +13,8 @@ export CGO_LDFLAGS="${CGO_LDFLAGS:--O2 -g} -mmacosx-version-min=$MACOSX_DEPLOYME
 version="${LOOPBEE_VERSION:-}"
 ldflags=""
 [ -n "$version" ] && ldflags="-X loopbee/internal/core.Version=$version"
+# LOOPBEE_REPO (owner/name, set by the release workflow) is where the app looks for its updates.
+[ -n "${LOOPBEE_REPO:-}" ] && ldflags="$ldflags -X loopbee/internal/update.Repo=$LOOPBEE_REPO"
 app="bin/Loopbee.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 go build -trimpath -ldflags "$ldflags" -o "$app/Contents/MacOS/loopbee" ./cmd/loopbee

@@ -2,7 +2,8 @@
 import {
   ctx, t, T, esc, hm, hms, when, dayKey, dayLabel, isToday, duration, bytes, cronText,
   dot, short, lifecycle, outcome, badge, chip, outcomeLabel, active, icon, deliveryBadge, channelName,
-  btn, sec, empty, toggle, seg, fld, icons, errText, sandboxLabel, agentLabel, resultChip, artifactKind, artifactTitle, allArtifacts, toDate, loopColor,
+  btn, sec, empty, toggle, seg, fld, icons, errText, sandboxLabel, agentLabel, agentColor, resultChip, artifactKind, artifactTitle, allArtifacts, toDate, loopColor,
+  tokens, usageTotal, usageLine, usageDetail, sumUsage, money,
 } from "./ui.js";
 import { flowState, renderFlow, renderTopology } from "./flow.js";
 
@@ -48,7 +49,7 @@ export function runRow(r, { dateTitle = false } = {}) {
   const [t1, t2] = runTimes(r);
   const sub = [short(r.id), sourceLabel(r)].filter(Boolean).join(" · ");
   const title = dateTitle ? `${String(toDate(r.started).getMonth() + 1).padStart(2, "0")}-${String(toDate(r.started).getDate()).padStart(2, "0")} ${hm(r.started)}` : r.definition.name;
-  return `<a class="row r link" href="#/run/${r.id}"><div class="c-name">${dateTitle ? "" : dot(r.loopId)}<div class="min0"><div class="nm ell">${esc(title)}</div><div class="sub mono ell">${esc(dateTitle ? `${short(r.id)} · v${r.definition.version}` : sub)}</div></div></div>${badge(r)}${chip(r)}<div class="min0"><div class="sub t2 ell">${esc(f1)}</div><div class="sub ell">${esc(f2)}</div></div><div class="c-time"><div class="sub t2">${esc(t1)}</div><div class="sub">${esc(t2)}</div></div></a>`;
+  return `<a class="row r link" href="#/run/${r.id}"><div class="c-name">${dateTitle ? "" : dot(r.loopId)}<div class="min0"><div class="nm ell">${esc(title)}</div><div class="sub mono ell">${esc(dateTitle ? `${short(r.id)} · v${r.definition.version}` : sub)}</div></div></div>${badge(r)}${chip(r)}<div class="min0"><div class="sub t2 ell">${esc(f1)}</div><div class="sub ell">${esc(f2)}</div></div><div class="c-time"><div class="sub t2">${esc(t1)}</div><div class="sub">${esc(t2)}${r.usage ? ` · <span class="tok" title="${esc(usageLine(r.usage))}">${esc(tokens(usageTotal(r.usage)))}</span>` : ""}</div></div></a>`;
 }
 function artifactRow(a, { selected = false, showLoop = true } = {}) {
   return `<a class="row link ${selected ? "selrow" : ""}" href="#/artifact/${a.r.id}/${encodeURIComponent(a.name)}"><span class="tag">${artifactKind(a.name)}</span><div class="grow min0"><div class="nm ell">${esc(artifactTitle(a.r, a.name))}</div><div class="sub ell">${esc([showLoop ? a.r.definition.name : "", hm(a.at), a.size != null ? bytes(a.size) : ""].filter(Boolean).join(" · "))}</div></div>${a.r.definition.private ? `<span class="chip mut">${T("Private")}</span>` : ""}</a>`;
@@ -82,32 +83,55 @@ export function attentionItems() {
   const order = { gate: 0, interrupted: 1, delivery: 2, agent: 3 };
   return items.sort((a, b) => order[a.kind] - order[b.kind] || String(a.since).localeCompare(String(b.since)));
 }
-function attentionRow(it) {
+// ---------- Today (board) ----------
+// Four columns, left to right as work moves: coming up → running → needs you → done today. Failed or blocked runs
+// of today wait in "Needs you" until someone looks; everything else that ended today is "Done today".
+const NEEDS_LOOK = ["failed", "blocked", "timed_out", "budget_exhausted", "stalled"];
+function boardCol(id, title, cards, emptyTitle, emptySub) {
+  return `<section class="bcol" data-col="${id}" ${id === "needs" ? 'id="attention"' : ""} aria-label="${esc(title)}"><div class="sec"><h2>${esc(title)}</h2><span class="cnt">${cards.length}</span></div><div class="grp">${cards.length ? cards.join("") : empty(emptyTitle, emptySub)}</div></section>`;
+}
+function runCard(r, extra = "") {
+  const [f1, f2] = runFacts(r);
+  const [t1, t2] = runTimes(r);
+  return `<div class="row bcard"><span class="bc-dot">${dot(r.loopId)}</span><div class="grow min0"><a class="nm ell" href="#/run/${r.id}">${esc(r.definition.name)}</a><div class="sub ell">${esc(f1)}</div><div class="sub ell">${esc(f2)}</div><div class="bmeta">${badge(r)}${chip(r)}<span class="sub">${esc(t1)} · ${esc(t2)}</span>${r.usage ? `<span class="sub tok" title="${esc(usageLine(r.usage))}">${esc(tokens(usageTotal(r.usage)))}${r.usage.costUsd ? " · " + esc(money(r.usage.costUsd)) : ""}</span>` : ""}</div>${extra}</div></div>`;
+}
+function attentionCard(it) {
   const ro = viewer();
-  const handled = `<span class="chip mut">${T("Handled by the executor")}</span>`;
-  if (it.kind === "gate") {
-    const r = it.r;
-    return `<div class="row">${dot(r.loopId)}<div class="grow min0"><div class="nm ell">${T("{loop}: waiting at “{step}”", { loop: r.definition.name, step: stepName(r) })}</div><div class="sub ell">${esc(`${short(r.id)} · ${t("Round {r} / {max}", { r: r.round, max: r.definition.maxRounds })}`)}</div></div><div class="right"><span class="chip warn">${icon("warn")}${T("Human gate")}</span><div class="sub mt3">${T("since {time} · waited {d}", { time: hm(it.since), d: duration(ctx.now - toDate(it.since)) })}</div></div>${ro ? handled : `<a class="btn" href="#/gate/${r.id}">${T("Review")}</a>`}</div>`;
-  }
-  if (it.kind === "interrupted") {
-    const r = it.r;
-    return `<div class="row">${dot(r.loopId)}<div class="grow min0"><div class="nm ell">${T("{loop} was interrupted", { loop: r.definition.name })}</div><div class="sub ell">${esc(errText(r.error))}</div></div><div class="right"><span class="chip warn">${icon("lost")}${T("Needs review")}</span><div class="sub mt3">${esc(when(it.since))}</div></div>${ro ? handled : `<div class="actions"><a class="btn" href="#/run/${r.id}">${T("Open")}</a>${btn("Mark reviewed", "ack", { attrs: `data-id="${r.id}"` })}</div>`}</div>`;
-  }
+  if (it.kind === "gate") return runCard(it.r, ro ? "" : `<div class="bact"><a class="btn sm pri" href="#/gate/${it.r.id}">${T("Review")}</a><span class="sub">${T("since {time} · waited {d}", { time: hm(it.since), d: duration(ctx.now - toDate(it.since)) })}</span></div>`);
+  if (it.kind === "interrupted") return runCard(it.r, ro ? "" : `<div class="bact">${btn("Mark reviewed", "ack", { cls: "sm", attrs: `data-id="${it.r.id}"` })}</div>`);
+  if (it.kind === "run") return runCard(it.r, `<div class="bact"><a class="btn sm" href="#/run/${it.r.id}">${T("Open")}</a></div>`);
   if (it.kind === "delivery") {
     const d = it.d;
     const unknown = d.status === "unknown";
-    return `<div class="row"><span class="idot" data-c="#76767f"></span><div class="grow min0"><div class="nm ell">${T(unknown ? "{channel} delivery result unknown" : "{channel} delivery failed", { channel: channelName(d.channel) })}</div><div class="sub ell">${esc(errText(d.error))}${unknown ? " · " + T("Resending only repeats the notification, never the Loop") : ""}</div></div><div class="right">${deliveryBadge(d)}<div class="sub mt3">${esc(when(d.updated))}</div></div>${ro ? handled : `<div class="actions">${unknown ? btn("Check", "check-delivery", { attrs: `data-id="${d.id}"` }) : ""}${btn("Resend", "retry", { attrs: `data-id="${d.id}"` })}</div>`}</div>`;
+    return `<div class="row bcard"><span class="idot" data-c="#76767f"></span><div class="grow min0"><div class="nm ell">${T(unknown ? "{channel} delivery result unknown" : "{channel} delivery failed", { channel: channelName(d.channel) })}</div><div class="sub ell">${esc(errText(d.error))}</div><div class="bmeta">${deliveryBadge(d)}<span class="sub">${esc(when(d.updated))}</span></div>${ro ? "" : `<div class="bact">${unknown ? btn("Check", "check-delivery", { cls: "sm", attrs: `data-id="${d.id}"` }) : ""}${btn("Resend", "retry", { cls: "sm", attrs: `data-id="${d.id}"` })}</div>`}</div></div>`;
   }
-  return `<div class="row"><span class="idot" data-c="#d64545"></span><div class="grow min0"><div class="nm">${T("Agent {name} is not available", { name: it.name })}</div><div class="sub">${T("Enabled Loops using it will be blocked until detection passes.")}</div></div>${ro ? "" : `<a class="btn" href="#/settings/agents">${T("Agent settings")}</a>`}</div>`;
+  return `<div class="row bcard"><span class="idot" data-c="#d64545"></span><div class="grow min0"><div class="nm">${T("Agent {name} is not available", { name: agentLabel(it.name) })}</div><div class="sub">${T("Enabled Loops using it will be blocked until detection passes.")}</div>${ro ? "" : `<div class="bact"><a class="btn sm" href="#/settings/agents">${T("Agent settings")}</a></div>`}</div></div>`;
 }
-
-// ---------- Today ----------
+// Today's tokens and reported cost by agent and model.
+function todayUsage(todays) {
+  const by = new Map();
+  for (const r of todays) for (const x of r.trace || []) if (x.usage) {
+    const key = `${x.usage.agent}\u0000${x.usage.model || ""}`;
+    const cur = by.get(key) || { agent: x.usage.agent, model: x.usage.model, runs: new Set(), n: 0, cost: 0 };
+    cur.runs.add(r.id);
+    cur.n += usageTotal(x.usage);
+    cur.cost += x.usage.costUsd || 0;
+    by.set(key, cur);
+  }
+  const rows = [...by.values()].sort((a, b) => b.n - a.n);
+  if (!rows.length) return `<div class="grp" id="today-usage">${empty(T("No usage today"), T("Agent steps record the model and tokens their CLI reports."))}</div>`;
+  return `<div class="grp" id="today-usage">${rows.map((u) => `<div class="row"><span class="idot" data-c="${agentColor(u.agent)}"></span><div class="grow min0"><div class="nm ell">${esc(agentLabel(u.agent))}</div><div class="sub mono ell">${esc(u.model || t("model not reported"))}</div></div><div class="right"><div class="nm mono">${esc(tokens(u.n))}</div><div class="sub">${esc([t("{n} runs", { n: u.runs.size }), money(u.cost)].filter(Boolean).join(" · "))}</div></div></div>`).join("")}</div>`;
+}
 export function today() {
   const s = S();
   const runs = runsSorted();
   const todays = runs.filter((r) => isToday(r.started));
-  const running = runs.filter((r) => r.status === "running");
+  const running = runs.filter((r) => r.status === "running" || r.status === "queued");
   const att = attentionItems();
+  const listed = new Set(att.filter((x) => x.r).map((x) => x.r.id));
+  const needsLook = todays.filter((r) => NEEDS_LOOK.includes(r.status) && !listed.has(r.id)).map((r) => ({ kind: "run", r }));
+  const needs = [...att, ...needsLook];
+  const done = todays.filter((r) => !active(r) && !NEEDS_LOOK.includes(r.status) && r.status !== "interrupted");
   const arts = allArtifacts(todays).sort((a, b) => String(b.at).localeCompare(String(a.at)));
   const bad = todays.filter((r) => ["failed", "interrupted", "timed_out", "blocked"].includes(r.status));
   const count = (st) => todays.filter((r) => r.status === st).length;
@@ -116,39 +140,43 @@ export function today() {
     [count("waiting"), "waiting"], [count("interrupted"), "interrupted"], [count("running") + count("queued"), "running"],
     [count("failed") + count("blocked") + count("timed_out") + count("rejected"), "failed"], [count("cancelled"), "cancelled"],
   ].filter(([n]) => n).map(([n, k]) => t("{n} " + k, { n })).join(" · ");
-  const kpi = (v, label, b, href) =>
-    `<a class="kpi link" href="${href}"><div class="v">${v}</div><div class="l">${esc(label)}</div><div class="b">${esc(b || "—")}</div></a>`;
+  const kpi = (v, label, b, href, id = "") =>
+    `<a class="kpi link" href="${href}" ${id ? `id="${id}"` : ""}><div class="v">${v}</div><div class="l">${esc(label)}</div><div class="b">${esc(b || "—")}</div></a>`;
   const gates = att.filter((x) => x.kind === "gate").length;
   const dels = att.filter((x) => x.kind === "delivery").length;
   const ints = att.filter((x) => x.kind === "interrupted").length;
+  const used = sumUsage(todays);
   const upcoming = s.loops
     .filter((l) => l.enabled && l.cron && toDate(l.next) && toDate(l.next) - ctx.now < 36 * 3600e3)
-    .map((l) => ({ at: l.next, name: l.name, sub: cronText(l.cron) + " · " + l.timezone, href: `#/loop/${l.id}`, id: l.id }));
+    .map((l) => ({ at: l.next, name: l.name, sub: cronText(l.cron) + " · " + agentLabel(l.agent) + (l.model ? " · " + l.model : ""), href: `#/loop/${l.id}`, id: l.id }));
   if (s.settings.digestEnabled) upcoming.push({ at: nextDigest(), name: t("Daily digest"), sub: t("{n} channels", { n: s.settings.channels.filter((c) => c.enabled).length }), href: "#/digest" });
   upcoming.sort((a, b) => String(a.at).localeCompare(String(b.at)));
+  const upcomingCards = upcoming.slice(0, 8).map((u) => `<a class="row link bcard" href="${u.href}">${u.id ? `<span class="bc-dot">${dot(u.id)}</span>` : `<span class="idot" data-c="#76767f"></span>`}<div class="grow min0"><div class="nm ell">${esc(u.name)}</div><div class="sub ell">${esc(u.sub)}</div><div class="bmeta"><span class="chip mut mono">${esc(when(u.at))}</span></div></div></a>`);
   const firstRun = !s.loops.length;
   return `
   <div class="sec top-sec"><h2>${T("Today")}</h2><span class="note">${esc(new Date(ctx.now).toLocaleDateString(ctx.lang, { dateStyle: "full" }))} · ${esc(Intl.DateTimeFormat().resolvedOptions().timeZone)}</span><div class="act"><span class="sx">${icon(ctx.connected ? "ok" : "lost")}${T(ctx.connected ? "Updated {time}" : "Connection lost — retrying", { time: hm(s.updated) })}</span></div></div>
   ${firstRun ? `<div class="card hero"><span class="mark xl" aria-hidden="true"></span><div class="grow"><h1>${T("Create your first Loop")}</h1><p class="sub t2">${T("Schedule local agents, review their work, and keep the evidence.")}</p></div>${viewer() ? `<a class="btn" href="#/settings/team">${T("Team sync")}</a>` : `<a class="btn pri" href="#/new">${T("New Loop")}</a><a class="btn" href="#/loops">${T("From a template")}</a>`}</div>` : ""}
   <div class="kpis">
     ${kpi(running.length, t("Running"), running.map((r) => `${r.definition.name} · ${t("round {r}", { r: r.round })}`).join(" · "), "#/runs?status=running")}
-    ${kpi(att.length, t("Needs you"), [gates && t("{n} gate|{n} gates", { n: gates }), ints && t("{n} interrupted", { n: ints }), dels && t("{n} delivery unknown|{n} deliveries unknown", { n: dels })].filter(Boolean).join(" · "), "#/today?focus=attention")}
+    ${kpi(needs.length, t("Needs you"), [gates && t("{n} gate|{n} gates", { n: gates }), ints && t("{n} interrupted", { n: ints }), dels && t("{n} delivery unknown|{n} deliveries unknown", { n: dels }), needsLook.length && t("{n} to look at", { n: needsLook.length })].filter(Boolean).join(" · "), "#/today?focus=attention")}
     ${kpi(todays.length, t("Today’s runs"), breakdown, "#/runs?range=today")}
-    ${kpi(arts.length, t("Today’s artifacts"), arts.length ? t("{n} text evidence files", { n: arts.length }) : "", "#/artifacts?range=today")}
+    ${kpi(esc(tokens(used.input + used.cacheRead + used.cacheWrite + used.output)), t("Today’s tokens"), [money(used.costUsd) && t("{cost} reported cost", { cost: money(used.costUsd) }), used.runs && t("{n} runs with usage", { n: used.runs })].filter(Boolean).join(" · "), "#/today?focus=usage", "kpi-tokens")}
     ${kpi(bad.length, t("Interrupted / failed"), t("{a} interrupted · {b} failed", { a: bad.filter((r) => r.status === "interrupted").length, b: bad.length - bad.filter((r) => r.status === "interrupted").length }), "#/runs?status=attention")}
+  </div>
+  <div class="board" id="board">
+    ${boardCol("upcoming", t("Coming up"), upcomingCards, T("Nothing scheduled"), s.settings.paused ? T("All schedules are paused.") : T("Enable a Loop with a schedule to see it here."))}
+    ${boardCol("running", t("Running"), running.map((r) => runCard(r)), T("Nothing running"), T("Runs appear here while they execute."))}
+    ${boardCol("needs", t("Needs you"), needs.map(attentionCard), T("Nothing needs you"), T("Gates, interrupted runs and unknown deliveries appear here."))}
+    ${boardCol("done", t("Done today"), done.slice(0, 20).map((r) => runCard(r)), T("No runs today"), runs.length ? T("Earlier runs are in the Runs list.") : T("Run a Loop manually or wait for its schedule."))}
   </div>
   <div class="cols">
     <div class="main">
-      ${sec(T("Needs you"), { note: T("{n} item|{n} items", { n: att.length }), id: "attention" })}
-      <div class="grp">${att.length ? att.map(attentionRow).join("") : empty(T("Nothing needs you"), T("Gates, interrupted runs and unknown deliveries appear here."))}</div>
-      ${sec(T("Today’s runs"), { note: T("{n} runs · {m} running", { n: todays.length, m: running.length }), act: `<a href="#/runs">${T("All runs")} ›</a>` })}
-      <div class="grp">${todays.length ? todays.slice(0, 20).map((r) => runRow(r)).join("") + `<a class="foot" href="#/runs">${T("View all runs")}</a>` : empty(T("No runs today"), runs.length ? T("Earlier runs are in the Runs list.") : T("Run a Loop manually or wait for its schedule."), runs.length ? `<a class="btn sm" href="#/runs">${T("All runs")}</a>` : "")}</div>
+      ${sec(T("Today’s usage"), { note: T("Tokens and cost as each agent CLI reported them; Loopbee does not estimate prices"), id: "usage" })}
+      ${todayUsage(todays)}
     </div>
     <div class="side">
       ${sec(T("Today’s artifacts"), { note: T("{n} item|{n} items", { n: arts.length }) })}
       <div class="grp">${arts.length ? arts.slice(0, 6).map((a) => artifactRow(a)).join("") + `<a class="foot" href="#/artifacts">${T("Open artifact library")}</a>` : empty(T("No artifacts today"), T("Every step stores its output as evidence."))}</div>
-      ${sec(T("Coming up"), { note: T("Next 24 hours") })}
-      <div class="grp">${upcoming.length ? upcoming.slice(0, 6).map((u) => `<a class="row link" href="${u.href}"><span class="mono when">${esc(when(u.at))}</span><div class="grow min0"><div class="nm ell">${esc(u.name)}</div><div class="sub ell">${esc(u.sub)}</div></div></a>`).join("") : empty(T("Nothing scheduled"), s.settings.paused ? T("All schedules are paused.") : T("Enable a Loop with a schedule to see it here."))}</div>
     </div>
   </div>
   ${footer([t("{n} loops · {m} runs stored", { n: s.loops.length, m: s.runs.length })])}`;
@@ -247,7 +275,7 @@ export function loopDetail(id) {
       ${sec(T("Definition summary"), { note: esc(`v${l.version} · ${short(l.id)}`) })}
       <div class="grp">
         ${defRow(t("Target"), esc(l.directory), `${l.requireClean ? T("Requires a clean Git working tree") : T("Runs even with uncommitted changes")}${l.lock ? " · " + T("lock {lock}", { lock: l.lock }) : ""}`)}
-        ${defRow(t("Agent & permission"), `${esc(agentLabel(l.agent))} · ${esc(sandboxLabel(l.sandbox))}`, T("This device allows at most: {max}", { max: sandboxLabel(s.settings.maxSandbox) }))}
+        ${defRow(t("Agent & permission"), `${esc(agentLabel(l.agent))}${l.model ? " · " + esc(l.model) : ""} · ${esc(sandboxLabel(l.sandbox))}${l.agentMcp ? " · " + T("its own MCP tools") : ""}`, T("This device allows at most: {max}", { max: sandboxLabel(s.settings.maxSandbox) }) + (l.agentMcp ? " · " + T("MCP tools run outside the sandbox with your rights and are approved in advance.") : ""))}
         ${defRow(t("Workspace"), l.workspace === "worktree" ? T("Fresh git worktree from {ref} for every run", { ref: l.baseRef || "HEAD" }) + (l.branch ? " → " + l.branch : "") : T("Runs directly in the working directory"), l.workspace === "worktree" ? T("Your own checkout and uncommitted work are never touched.") + (l.branch ? " " + T("Loopbee commits the agent's changes on this branch; it never pushes or merges.") : "") : "")}
         ${l.env?.length ? defRow(t("Environment"), `<div class="chips">${l.env.map((e) => `<span class="chip ${e.secret && !e.value ? "warn" : ""}">${esc(e.name)}${e.secret ? " · " + T(e.value ? "secret" : "secret missing") : ""}</span>`).join("")}</div>`, T("Injected into agent and command steps; secrets come from the system keychain.")) : ""}
         ${defRow(t("Work & delivery"), esc(workSummary(l)), l.intake ? T("Only issues opened by people with write access; others' comments never reach the agent.") : "")}
@@ -261,6 +289,8 @@ export function loopDetail(id) {
       <div class="grp">${runs.length ? runs.slice(0, 5).map((r) => runRow(r, { dateTitle: true })).join("") : empty(T("Not run yet"), T("Run it manually once to check the flow before enabling the schedule."), viewer() ? "" : btn("Run now", "start", { cls: "sm", attrs: `data-id="${l.id}"` }))}</div>
     </div>
     <div class="side">
+      ${sec(T("Usage"), { note: T("As the agent reported it") })}
+      ${usageCard(runs)}
       ${sec(T("Trend"), { note: metricRuns.length ? T("Metric at the end of each run · last {n}", { n: metricRuns.length }) : T("Runs per day · last 7 days") })}
       <div class="card sm">${metricRuns.length ? metricChart(metricRuns) : dailyChart(runs)}</div>
       ${sec(T("Schedule"))}
@@ -274,6 +304,19 @@ export function loopDetail(id) {
     </div>
   </div>
   ${footer([t("Each run keeps its own definition snapshot; edits never change history")])}`;
+}
+// Tokens and reported cost of a Loop's runs over the last 7 and 30 days, by model.
+function usageCard(runs) {
+  const since = (days) => runs.filter((r) => ctx.now - toDate(r.started) < days * 864e5);
+  const rows = [[t("Last 7 days"), sumUsage(since(7))], [t("Last 30 days"), sumUsage(since(30))]];
+  if (!rows[1][1].runs) return `<div class="card sm" id="loop-usage">${empty(T("No usage recorded yet"), T("Agent steps record the model and tokens their CLI reports."))}</div>`;
+  const byModel = new Map();
+  for (const r of since(30)) for (const x of r.trace || []) if (x.usage) {
+    const k = `${agentLabel(x.usage.agent)} · ${x.usage.model || t("model not reported")}`;
+    const cur = byModel.get(k) || { n: 0, cost: 0 };
+    byModel.set(k, { n: cur.n + usageTotal(x.usage), cost: cur.cost + (x.usage.costUsd || 0) });
+  }
+  return `<div class="grp" id="loop-usage">${rows.map(([label, u]) => `<div class="row"><div class="grow"><div class="nm">${esc(label)}</div><div class="sub">${T("{n} runs with usage", { n: u.runs })}</div></div><div class="right"><div class="nm mono">${esc(tokens(u.input + u.cacheRead + u.cacheWrite + u.output))}</div><div class="sub">${esc([money(u.costUsd), t("tokens")].filter(Boolean).join(" · "))}</div></div></div>`).join("")}${[...byModel.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 4).map(([k, v]) => `<div class="row"><div class="grow min0"><div class="sub ell">${esc(k)}</div></div><div class="sub mono">${esc([tokens(v.n), money(v.cost)].filter(Boolean).join(" · "))}</div></div>`).join("")}</div>`;
 }
 export function workSummary(l) {
   const from = l.intake ? t("GitHub issues labelled {label}", { label: l.intake.label || "agent-ready" }) + (l.intake.repo ? ` (${l.intake.repo})` : "") : t("The prompt");
@@ -397,7 +440,7 @@ export function runDetail(id, ui) {
   const timeline = [...rounds.entries()].map(([n, items]) => {
     const start = items[0][0].started, end = items.at(-1)[0].finished;
     const failed = items.some(([x]) => x.status === "failed");
-    return `<div class="round"><div class="rh"><span class="rt">${T("Round {n}", { n })}</span><span class="sub">${esc(hm(start))} – ${esc(end ? hm(end) : "…")}</span>${failed ? `<span class="chip err">${T("Verification failed")}</span>` : items.every(([x]) => x.finished) ? `<span class="chip ok">${T("Round complete")}</span>` : ""}</div>${items.map(([x, i]) => `<button type="button" class="step ${i === sel ? "sel" : ""}" data-action="select-trace" data-index="${i}"><span class="kd">${esc(x.kind)}</span>${icon(stIcon[x.status] || "idle")}<span class="min0"><span class="nm ell">${esc(x.name)}</span><span class="sub ell">${esc([t(stText[x.status] || x.status), x.finished ? duration(toDate(x.finished) - toDate(x.started)) : t("since {time}", { time: hm(x.started) }), x.note].filter(Boolean).join(" · "))}</span></span>${x.artifact ? `<span class="ev mono">${esc(x.artifact)} · ${esc(bytes(x.bytes))}</span>` : "<span></span>"}</button>`).join("")}</div>`;
+    return `<div class="round"><div class="rh"><span class="rt">${T("Round {n}", { n })}</span><span class="sub">${esc(hm(start))} – ${esc(end ? hm(end) : "…")}</span>${failed ? `<span class="chip err">${T("Verification failed")}</span>` : items.every(([x]) => x.finished) ? `<span class="chip ok">${T("Round complete")}</span>` : ""}</div>${items.map(([x, i]) => `<button type="button" class="step ${i === sel ? "sel" : ""}" data-action="select-trace" data-index="${i}"><span class="kd">${esc(x.kind)}</span>${icon(stIcon[x.status] || "idle")}<span class="min0"><span class="nm ell">${esc(x.name)}</span><span class="sub ell">${esc([t(stText[x.status] || x.status), x.finished ? duration(toDate(x.finished) - toDate(x.started)) : t("since {time}", { time: hm(x.started) }), x.usage ? usageLine(x.usage, { model: false }) : "", x.note].filter(Boolean).join(" · "))}</span></span>${x.artifact ? `<span class="ev mono">${esc(x.artifact)} · ${esc(bytes(x.bytes))}</span>` : "<span></span>"}</button>`).join("")}</div>`;
   }).join("");
   const selX = trace[sel];
   const selStep = selX ? l.steps[selX.step] : null;
@@ -405,6 +448,7 @@ export function runDetail(id, ui) {
     ? `<div class="card sm"><div class="hd">${icon(stIcon[selX.status] || "idle")}<span class="nm">${esc(selX.name)} (${esc(selX.kind)})</span><span class="chip ${selX.status === "failed" || selX.status === "rejected" ? "err" : selX.status === "ok" || selX.status === "approved" ? "ok" : "mut"}">${T(stText[selX.status] || selX.status)}</span></div><hr class="hair mt10">
       <div class="kvb"><div class="sub">${T("Input")}</div><div class="mono pre">${esc(selStep?.kind === "verify" ? (selStep.argv || []).join(" ") : selStep?.kind === "gate" ? t("Human decision") : selStep?.prompt || "—")}</div>
       <div class="sub">${T("Result")}</div><div>${esc([t(stText[selX.status] || selX.status), selX.note, selX.finished ? t("took {d}", { d: duration(toDate(selX.finished) - toDate(selX.started)) }) : ""].filter(Boolean).join(" · "))}</div>
+      ${selX.usage ? `<div class="sub">${T("Usage")}</div><div class="step-usage">${esc([agentLabel(selX.usage.agent), selX.usage.model || t("model not reported")].join(" · "))}<div class="sub">${esc(usageLine(selX.usage, { model: false }))} · ${esc(usageDetail(selX.usage))}</div></div>` : ""}
       ${selX.artifact ? `<div class="sub">${T("Evidence")}</div><pre class="ev-pre" id="ev-preview" data-run="${r.id}" data-name="${esc(selX.artifact)}">${T("Loading…")}</pre><a class="btn sm" href="#/artifact/${r.id}/${encodeURIComponent(selX.artifact)}">${T("Open {name}", { name: selX.artifact })}</a>` : ""}</div></div>`
     : `<div class="card sm">${empty(T("Nothing selected"), T(trace.length ? "Pick a step in the timeline." : "Steps appear here once the run starts."))}</div>`;
   const nextLoop = loopById(r.loopId);
@@ -413,7 +457,7 @@ export function runDetail(id, ui) {
   ${crumbs([[t("Runs"), "#/runs"], [l.name, `#/loop/${r.loopId}`], [short(r.id)]])}
   <div class="card">
     <div class="hd">${dot(r.loopId, "lg")}<h1 class="ell">${esc(l.name)}</h1><span class="mono muted">${esc(short(r.id))}</span>${badge(r)}${life === "ended" ? `<span class="chip ${outcome(r) === "done" ? "ok" : outcome(r) === "agent_error" ? "err" : outcome(r) === "canceled" ? "mut" : "warn"}">${T("Outcome: {o}", { o: outcomeLabel(r) })}</span>` : chip(r)}<div class="hd-r actions">${actions}</div></div>
-    <div class="kv mt10"><span><b>${T("Started")}</b>${esc(hms(r.started))}</span><span><b>${T("Ended")}</b>${esc(r.finished ? `${hms(r.finished)} (${duration(toDate(r.finished) - toDate(r.started))})` : "—")}</span><span><b>${T("Trigger")}</b>${esc(sourceLabel(r) || t("Manual"))}${r.rerunOf ? ` · <a href="#/run/${r.rerunOf}">${esc(short(r.rerunOf))}</a>` : ""}</span><span><b>${T("Definition")}</b>v${l.version} · ${T("snapshot")}</span><span><b>${T("Agent")}</b>${esc(l.agent === "codex" ? "Codex CLI" : "Claude Code")} · ${esc(l.sandbox)}</span>${metricsText(r.metrics) ? `<span><b>${T("Metrics")}</b>${esc(metricsText(r.metrics))}</span>` : ""}</div>
+    <div class="kv mt10"><span><b>${T("Started")}</b>${esc(hms(r.started))}</span><span><b>${T("Ended")}</b>${esc(r.finished ? `${hms(r.finished)} (${duration(toDate(r.finished) - toDate(r.started))})` : "—")}</span><span><b>${T("Trigger")}</b>${esc(sourceLabel(r) || t("Manual"))}${r.rerunOf ? ` · <a href="#/run/${r.rerunOf}">${esc(short(r.rerunOf))}</a>` : ""}</span><span><b>${T("Definition")}</b>v${l.version} · ${T("snapshot")}</span><span><b>${T("Agent")}</b>${esc(agentLabel(l.agent))} · ${esc(l.sandbox)}</span>${r.usage ? `<span class="run-usage"><b>${T("Usage")}</b>${esc(usageLine(r.usage))}</span>` : ""}${metricsText(r.metrics) ? `<span><b>${T("Metrics")}</b>${esc(metricsText(r.metrics))}</span>` : ""}</div>
     ${ro ? "" : `<div class="sub mt6">${T("“Run again” creates a new run from the current definition. Cancelling stops the process tree but does not revert file changes.")}</div>`}
   </div>
   ${sec(T("Flow"), { note: T(active(r) ? "Click a node to inspect it · the bee shows where data is going" : "Click a node to inspect it · finished runs are static") })}
@@ -425,6 +469,7 @@ export function runDetail(id, ui) {
       ${r.issue ? `<div class="bn mt10">${icon("run")}<span>${T("Issue")} <span class="mono">#${esc(r.issue.number)}</span> ${esc(r.issue.title)} · <span class="mono">${esc(r.issue.url)}</span></span></div>` : ""}
       ${r.prUrl ? `<div class="bn mt10">${icon("ok")}<span>${T(r.merged ? "Pull request (merged)" : "Pull request")} <span class="mono">${esc(r.prUrl)}</span></span>${btn("Copy links", "copy-links", { cls: "sm", attrs: `data-id="${r.id}"` })}</div>` : ""}
       ${r.branch ? `<div class="bn mt10">${icon("ok")}<span>${T("Branch {branch}", { branch: "" })}<span class="mono">${esc(r.branch)}</span>${(r.commits || []).length ? " · " + T("commits {list}", { list: "" }) + `<span class="mono">${esc(r.commits.join(", "))}</span>` : " · " + T((r.artifacts || []).some((n) => n.endsWith(".diff")) ? "work from an earlier Run" : "no changes committed")}</span></div>` : ""}
+      ${missingBanner(r, ro)}
       ${r.report ? `${sec(T("Agent report"), { note: T("Written by the agent; not translated") })}<div class="card sm report">${r.result ? `<div class="hd">${resultChip(r.result)}<span class="nm">${esc(r.result.summary || "")}</span></div>${(r.result.links || []).length ? `<div class="links">${r.result.links.map((u) => `<span class="mono">${esc(u)}</span>`).join("")}${btn("Copy links", "copy-links", { cls: "sm", attrs: `data-id="${r.id}"` })}</div>` : ""}<hr class="hair mt10">` : ""}<pre class="report-text">${esc(stripMarker(r.report))}</pre></div>` : ""}
       ${sec(T("Outcome and next steps"))}
       <div class="grp">${stop}<div class="row top">${icon("idle")}<div class="grow"><div class="nm">${T("Artifacts: {n}", { n: r.artifacts?.length || 0 })}</div><div class="sub">${T("Each executed step stores its combined output as text evidence.")}</div></div></div>${nextLoop ? `<div class="row top">${icon("idle")}<div class="grow"><div class="nm">${nextLoop.enabled && nextLoop.cron ? T("Next scheduled run: {when}", { when: when(nextLoop.next) }) : T("No upcoming scheduled run")}</div><div class="sub">${esc(cronText(nextLoop.cron))}</div></div></div>` : ""}</div>
@@ -438,6 +483,12 @@ export function runDetail(id, ui) {
   </div>
   ${footer([`run ${r.id}`, t("{n} trace records", { n: trace.length })])}`;
 }
+
+// What the agent needed and could not get (from its result line), with the ways to give a Loop access.
+const missingBanner = (r, ro) =>
+  r.result?.missing?.length
+    ? `<div class="bn warn mt10" id="run-missing">${icon("warn")}<span class="grow"><b>${T("The agent could not get")}</b>${r.result.missing.map((m) => `<span class="mono missing-item">${esc(m)}</span>`).join("")}<span class="sub">${T("Give the Loop access: a higher permission for commands or network, “Use the agent's own MCP tools” for a browser, database or console, read paths for files outside the project, copied files for Git-ignored project files in a worktree, or environment variables. Then run it again.")}</span></span>${ro ? "" : `<a class="btn sm" href="#/loop/${r.loopId}/edit">${T("Edit definition")}</a>`}</div>`
+    : "";
 
 // Why an ended Run stopped: the error, else what the Run itself reported (e.g. intake finding no issue), else the
 // generic sentence for a completed Run.

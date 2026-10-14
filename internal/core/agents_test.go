@@ -18,10 +18,6 @@ import (
 // TestFakeAgent is not a test: it is the fake Codex / Claude Code CLI used by the tests below.
 // It is selected by LOOPBEE_FAKE_AGENT and behaves according to LOOPBEE_FAKE_MODE.
 func TestFakeAgent(t *testing.T) {
-	name := os.Getenv("LOOPBEE_FAKE_AGENT")
-	if name == "" {
-		return
-	}
 	args := os.Args
 	for i, a := range args {
 		if a == "--" {
@@ -29,17 +25,30 @@ func TestFakeAgent(t *testing.T) {
 			break
 		}
 	}
+	name := ""
+	if len(args) > 0 && strings.HasPrefix(args[0], "@fake=") {
+		name, args = strings.TrimPrefix(args[0], "@fake="), args[1:]
+	}
+	if name == "" {
+		name = os.Getenv("LOOPBEE_FAKE_AGENT")
+	}
+	if name == "" {
+		return
+	}
 	has := func(s string) bool { return slices.Contains(args, s) }
+	if os.Getenv("LOOPBEE_FAKE_BROKEN") == name {
+		os.Exit(137) // like a binary macOS kills at start
+	}
 	if has("--version") {
 		fmt.Println(name + " fake 1.0")
 		os.Exit(0)
 	}
 	if has("--help") {
-		if name == "codex" {
-			fmt.Println("--json --sandbox --output-last-message --output-schema --add-dir --skip-git-repo-check")
-		} else {
-			fmt.Println("--print --output-format stream-json --json-schema --add-dir --tools --settings --permission-mode")
-		}
+		fmt.Println(fakeHelp[name])
+		os.Exit(0)
+	}
+	if name == "codex" && has("mcp") && has("list") { // `codex mcp list --json`
+		fmt.Println(orDefault(os.Getenv("LOOPBEE_FAKE_MCP_LIST"), "[]"))
 		os.Exit(0)
 	}
 	prompt, _ := io.ReadAll(os.Stdin)
@@ -61,12 +70,7 @@ func TestFakeAgent(t *testing.T) {
 	case "plain":
 		text = "Done, no structured result."
 	case "fail":
-		if name == "codex" {
-			fmt.Println(`{"type":"turn.failed","error":{"message":"boom"}}`)
-			os.Exit(1)
-		} else {
-			fmt.Println(`{"type":"result","subtype":"error_during_execution","is_error":true,"result":"boom"}`)
-		}
+		fmt.Println(fakeFailure[name])
 		os.Exit(1)
 	case "author":
 		proposal := map[string]any{
@@ -112,31 +116,122 @@ func TestFakeAgent(t *testing.T) {
 	case "ci":
 		os.MkdirAll(filepath.Join(cwd, ".github", "workflows"), 0700)
 		os.WriteFile(filepath.Join(cwd, ".github", "workflows", "x.yml"), []byte("on: push\n"), 0600)
+	case "missing":
+		text = "Could not load the credentials.\n" + resultMarker + ` {"status":"blocked","summary":"nexscope credentials unreadable","missing":["~/.pi/agent/private/nexscope.json (EPERM)","network access to api.example.com"]}`
+	case "nosandbox": // real Claude Code output when its sandbox cannot start
+		fmt.Println(`{"type":"result","subtype":"error_during_execution","is_error":true,"errors":["Sandbox required but unavailable: sandbox is enabled but the Windows sandbox is not active on this session (feature gate off). Set sandbox.failIfUnavailable=false to allow unsandboxed execution."]}`)
+		os.Exit(1)
+	case "unignore": // edits a copied, ignored file and un-ignores it, hoping Loopbee commits it
+		env, err := os.ReadFile(filepath.Join(cwd, ".env"))
+		local, err2 := os.ReadFile(filepath.Join(cwd, "CLAUDE.local.md"))
+		if err != nil || err2 != nil {
+			text = resultMarker + ` {"status":"blocked","summary":"copied files missing","missing":[".env"]}`
+			break
+		}
+		os.WriteFile(filepath.Join(cwd, "seen.txt"), append(env, local...), 0600)
+		os.WriteFile(filepath.Join(cwd, ".env"), []byte("API_KEY=changed\n"), 0600)
+		os.WriteFile(filepath.Join(cwd, ".gitignore"), []byte("# nothing ignored\n"), 0600)
 	case "secret":
 		os.WriteFile(filepath.Join(cwd, "config.txt"), []byte("token = ghp_"+strings.Repeat("a1B2", 9)+"\n"), 0600)
+	case "mcp": // the task needs the user's browser MCP server "chrome"; each CLI refuses it unless approved in advance
+		all := strings.Join(args, " ")
+		approved := map[string]bool{
+			"codex":  strings.Contains(all, `mcp_servers.chrome.default_tools_approval_mode="approve"`),
+			"claude": strings.Contains(all, `"allow":["mcp__*"`),
+		}[name]
+		if approved {
+			text = "Updated the ConfigMap in the console.\n" + resultMarker + ` {"status":"done","summary":"ConfigMap updated through chrome"}`
+			break
+		}
+		switch name {
+		case "codex": // real Codex exec refusal (approval_policy is always "never" in exec)
+			fmt.Println(`{"type":"item.completed","item":{"id":"i0","type":"mcp_tool_call","server":"chrome","tool":"navigate","arguments":{},"result":null,"error":{"message":"rejected: MCP tool call requires approval, but approval policy is never"},"status":"failed"}}`)
+		case "claude":
+			fmt.Println(`{"type":"user","message":{"content":[{"type":"tool_result","is_error":true,"content":"Claude requested permissions to use mcp__chrome__navigate, but you haven't granted it yet."}]}}`)
+		}
+		text = resultMarker + ` {"status":"blocked","summary":"The console could not be opened"}`
 	}
-	if name == "codex" {
-		fmt.Println(`{"type":"thread.started","thread_id":"t1"}`)
-		b, _ := json.Marshal(map[string]any{"type": "item.completed", "item": map[string]any{"id": "i1", "type": "agent_message", "text": text}})
-		fmt.Println(string(b))
-		fmt.Println(`{"type":"turn.completed","usage":{}}`)
+	fakeOutput(name, args, text, structured)
+	os.Exit(0)
+}
+
+// Help text of each fake CLI: the flags Loopbee looks for.
+var fakeHelp = map[string]string{
+	"codex":    "--json --sandbox --output-last-message --output-schema --add-dir --skip-git-repo-check --model",
+	"claude":   "--print --output-format stream-json --json-schema --add-dir --tools --settings --permission-mode --model",
+	"gemini":   "--output-format [choices: text, json, stream-json] --approval-mode --sandbox --policy --include-directories --skip-trust --model",
+	"pi":       "--mode json --tools --exclude-tools --no-session --model",
+	"opencode": "--format json --model --auto",
+}
+
+// Each CLI's real way of reporting a failed turn.
+var fakeFailure = map[string]string{
+	"codex":    `{"type":"turn.failed","error":{"message":"boom"}}`,
+	"claude":   `{"type":"result","subtype":"error_during_execution","is_error":true,"result":"boom"}`,
+	"gemini":   `{"type":"result","timestamp":"t","status":"error","error":{"type":"FatalError","message":"boom"}}`,
+	"pi":       `{"type":"message_end","message":{"role":"assistant","content":[],"stopReason":"error","errorMessage":"boom"}}` + "\n" + `{"type":"agent_end","willRetry":false,"messages":[{"role":"assistant","content":[],"stopReason":"error","errorMessage":"boom"}]}`,
+	"opencode": `{"type":"error","timestamp":1,"sessionID":"s","error":{"name":"UnknownError","data":{"message":"boom"}}}`,
+}
+
+// fakeOutput prints text the way each CLI streams it, with the usage each reports. Every CLI reports the same
+// turn: 1,000 fresh input tokens, 200 cached, 300 output (OpenCode: 250 output + 50 reasoning).
+func fakeOutput(name string, args []string, text string, structured any) {
+	emit := func(v any) { b, _ := json.Marshal(v); fmt.Println(string(b)) }
+	model := ""
+	for i, a := range args {
+		if (a == "--model" || a == "-m") && i+1 < len(args) {
+			model = args[i+1]
+		}
+	}
+	switch name {
+	case "codex":
+		emit(map[string]any{"type": "thread.started", "thread_id": "t1"})
+		emit(map[string]any{"type": "item.completed", "item": map[string]any{"id": "i1", "type": "agent_message", "text": text}})
+		emit(map[string]any{"type": "turn.completed", "usage": map[string]any{"input_tokens": 1200, "cached_input_tokens": 200, "output_tokens": 300}})
 		for i, a := range args {
 			if a == "--output-last-message" && i+1 < len(args) {
 				os.WriteFile(args[i+1], []byte(text), 0600)
 			}
 		}
-	} else {
-		fmt.Println(`{"type":"system","subtype":"init"}`)
-		b, _ := json.Marshal(map[string]any{"type": "assistant", "message": map[string]any{"content": []map[string]any{{"type": "text", "text": text}}}})
-		fmt.Println(string(b))
-		res := map[string]any{"type": "result", "subtype": "success", "is_error": false, "result": text}
+	case "claude":
+		emit(map[string]any{"type": "system", "subtype": "init", "model": orDefault(model, "claude-fake")})
+		emit(map[string]any{"type": "assistant", "message": map[string]any{"content": []map[string]any{{"type": "text", "text": text}}}})
+		res := map[string]any{"type": "result", "subtype": "success", "is_error": false, "result": text, "total_cost_usd": 0.0123,
+			"usage": map[string]any{"input_tokens": 1000, "cache_read_input_tokens": 200, "cache_creation_input_tokens": 0, "output_tokens": 300}}
 		if structured != nil {
 			res["structured_output"] = structured
 		}
-		b, _ = json.Marshal(res)
-		fmt.Println(string(b))
+		emit(res)
+	case "gemini":
+		m := orDefault(model, "gemini-fake")
+		emit(map[string]any{"type": "init", "timestamp": "t", "session_id": "s", "model": m})
+		emit(map[string]any{"type": "message", "timestamp": "t", "role": "user", "content": "prompt"})
+		emit(map[string]any{"type": "tool_use", "timestamp": "t", "tool_name": "read_file", "tool_id": "1", "parameters": map[string]any{}})
+		emit(map[string]any{"type": "message", "timestamp": "t", "role": "assistant", "content": "ignored before the tool call", "delta": true})
+		emit(map[string]any{"type": "tool_result", "timestamp": "t", "tool_id": "1", "status": "success"})
+		half := len(text) / 2
+		emit(map[string]any{"type": "message", "timestamp": "t", "role": "assistant", "content": text[:half], "delta": true})
+		emit(map[string]any{"type": "message", "timestamp": "t", "role": "assistant", "content": text[half:], "delta": true})
+		emit(map[string]any{"type": "result", "timestamp": "t", "status": "success", "stats": map[string]any{
+			"total_tokens": 1500, "input_tokens": 1200, "output_tokens": 300, "cached": 200, "input": 1000, "duration_ms": 10, "tool_calls": 1,
+			"models": map[string]any{m: map[string]any{"total_tokens": 1500, "input_tokens": 1200, "output_tokens": 300, "cached": 200, "input": 1000}}}})
+	case "pi":
+		m := orDefault(model, "fake-model")
+		emit(map[string]any{"type": "session", "version": 3, "id": "s", "cwd": "/"})
+		emit(map[string]any{"type": "agent_start"})
+		msg := map[string]any{"role": "assistant", "content": []map[string]any{{"type": "text", "text": text}}, "provider": "anthropic", "model": m,
+			"usage": map[string]any{"input": 1000, "output": 300, "cacheRead": 200, "cacheWrite": 0, "totalTokens": 1500, "cost": map[string]any{"total": 0.01}}, "stopReason": "stop"}
+		emit(map[string]any{"type": "message_end", "message": msg})
+		emit(map[string]any{"type": "agent_end", "willRetry": false, "messages": []any{msg}})
+		emit(map[string]any{"type": "agent_settled", "aborted": false})
+	case "opencode":
+		emit(map[string]any{"type": "step_start", "timestamp": 1, "sessionID": "s", "part": map[string]any{"type": "step-start"}})
+		emit(map[string]any{"type": "text", "timestamp": 1, "sessionID": "s", "part": map[string]any{"type": "text", "text": "before the tool"}})
+		emit(map[string]any{"type": "tool_use", "timestamp": 1, "sessionID": "s", "part": map[string]any{"type": "tool", "tool": "read"}})
+		emit(map[string]any{"type": "text", "timestamp": 1, "sessionID": "s", "part": map[string]any{"type": "text", "text": text}})
+		emit(map[string]any{"type": "step_finish", "timestamp": 1, "sessionID": "s", "part": map[string]any{"type": "step-finish", "cost": 0.01,
+			"tokens": map[string]any{"input": 1000, "output": 250, "reasoning": 50, "cache": map[string]any{"read": 200, "write": 0}}}})
 	}
-	os.Exit(0)
 }
 
 // useFakeAgents installs both fake CLIs and returns the path of the invocation log.
@@ -145,10 +240,14 @@ func useFakeAgents(t *testing.T, a *App, mode string) string {
 	log := filepath.Join(t.TempDir(), "calls.jsonl")
 	t.Setenv("LOOPBEE_FAKE_MODE", mode)
 	t.Setenv("LOOPBEE_FAKE_LOG", log)
-	for _, n := range []string{"codex", "claude"} {
-		agentOverride[n] = []string{os.Args[0], "-test.run=^TestFakeAgent$", "--"}
+	for _, n := range AgentNames() {
+		agentOverride[n] = []string{os.Args[0], "-test.run=^TestFakeAgent$", "--", "@fake=" + n}
 	}
-	t.Cleanup(func() { delete(agentOverride, "codex"); delete(agentOverride, "claude") })
+	t.Cleanup(func() {
+		for _, n := range AgentNames() {
+			delete(agentOverride, n)
+		}
+	})
 	return log
 }
 
@@ -561,7 +660,7 @@ func TestCommandOutputReachesTheAgentStep(t *testing.T) {
 func TestAuthorPromptKnowsTheAgentAndTimezone(t *testing.T) {
 	req := AuthorRequest{Messages: []ChatMessage{{Role: "user", Text: "daily"}}}
 	p := authorPrompt(req, "/x", "zh-TW", "Asia/Taipei", "claude", "workspace-write", Loop{})
-	if !strings.Contains(p, "Claude Code can only read and search files") || !strings.Contains(p, "timezone Asia/Taipei") || !strings.Contains(p, "continueOnError") || !strings.Contains(p, `allows at most "workspace-write"`) || !strings.Contains(p, "requires network permission") || !strings.Contains(p, "commits the agent's changes") {
+	if !strings.Contains(p, "cannot run any shell") || !strings.Contains(p, "timezone Asia/Taipei") || !strings.Contains(p, "continueOnError") || !strings.Contains(p, `allows at most "workspace-write"`) || !strings.Contains(p, "requires network permission") || !strings.Contains(p, "commits the agent's changes") {
 		t.Fatal(p)
 	}
 	if p := authorPrompt(req, "/x", "en", "UTC", "codex", "read-only", Loop{}); !strings.Contains(p, "Codex can run shell commands inside a read-only sandbox") {
@@ -823,6 +922,22 @@ func TestHostileAgentCannotEscapeThroughLoopbee(t *testing.T) {
 		if r, _ = a.Run(r.ID); !strings.Contains(r.Error, "would run tool.txt, which the agent changed") {
 			t.Fatal(r.Error)
 		}
+	})
+	// After a person approved the change at a gate, later commands may run it (a merged migration, a deploy script):
+	// the sync Loop “merge → review → migrate → deploy” needs that. Before the gate it stays refused (above).
+	t.Run("a reviewed change may run after the gate", func(t *testing.T) {
+		a, l, _ := setup(t, "tamper")
+		l.Steps = []Step{l.Steps[0], {Kind: "gate", Name: "Review"}, l.Steps[1]}
+		l, err := a.SaveLoop(l)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r, _ := a.Start(l.ID)
+		waitStatus(t, a, r.ID, "waiting")
+		if err := a.Decide(r.ID, true, "checked tool.txt"); err != nil {
+			t.Fatal(err)
+		}
+		waitStatus(t, a, r.ID, "completed")
 	})
 	t.Run("hooks written by the agent never run", func(t *testing.T) {
 		if runtime.GOOS == "windows" {

@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -279,6 +280,20 @@ func (a *App) execute(ctx context.Context, r Run) {
 		finish("blocked", err)
 		return
 	}
+	// What the agent uses on the developer's machine: its own skills, plugins and memory, and the Loop's read paths.
+	home, _ := os.UserHomeDir()
+	readPaths, err := resolveReadPaths(l, home)
+	if err != nil {
+		finish("blocked", err)
+		return
+	}
+	agentReads := append(agentContextPaths(l.Agent, home, l.Directory), readPaths...)
+	memory := "" // in a worktree the agent would not find the project's memory under its own folder name
+	if m := agentMemoryDir(l.Agent, home, l.Directory); m != "" && l.Workspace == "worktree" {
+		if _, err := os.Stat(m); err == nil {
+			memory = m
+		}
+	}
 	// Steps can hand data to later steps through files in LOOPBEE_RUN_DIR (never committed: it is outside
 	// the worktree), e.g. the issue a polling script picked for a later "open a pull request" step.
 	env = append(env, "LOOPBEE_RUN_ID="+r.ID, "LOOPBEE_RUN_DIR="+dir, "LOOPBEE_BRANCH="+r.Branch, "LOOPBEE_ISSUE="+strconv.Itoa(issueNumber))
@@ -353,6 +368,9 @@ func (a *App) execute(ctx context.Context, r Run) {
 					}
 					mark("approved", decision.note)
 					reviewerNote = decision.note
+					// A person reviewed what the agent changed: later commands may run those files (a migration,
+					// a deploy script). A later agent step makes the rule apply again.
+					agentRan = false
 					// Save the decision now: the page must stop offering the gate while later steps or the
 					// delivery run, and a crash must not lose the approval.
 					r.Status = "running"
@@ -377,7 +395,7 @@ func (a *App) execute(ctx context.Context, r Run) {
 				r.Status = "running"
 				continue
 			}
-			var argv []string
+			var argv, agentEnv []string
 			var input io.Reader
 			agentStep := s.Kind != "verify" && s.Kind != "run"
 			lastFile := ""
@@ -412,9 +430,13 @@ func (a *App) execute(ctx context.Context, r Run) {
 				if l.Agent == "codex" && hasCap(ag.Caps, "last-message") {
 					lastFile = filepath.Join(dir, fmt.Sprintf("round-%02d-step-%02d.report.md", round, i+1))
 				}
-				argv = buildAgentArgs(base, ag.Caps, agentInvocation{Name: l.Agent, Dir: workdir, Sandbox: l.Sandbox, LastFile: lastFile})
+				inv := agentInvocation{Name: l.Agent, Dir: workdir, Sandbox: l.Sandbox, Model: l.Model, LastFile: lastFile, ReadPaths: agentReads, Scratch: dir, MCP: l.AgentMCP, Home: home, Project: l.Directory}
+				if l.AgentMCP || l.Sandbox != "agent-config" {
+					inv.MCPList, inv.MCPListed = listAgentMCP(ctx, l.Agent, base, workdir, env)
+				}
+				argv, agentEnv = buildAgentInvocation(base, ag.Caps, inv)
 				issueWorked = true
-				prompt := s.Prompt
+				prompt := s.Prompt + readablePrompt(readPaths, memory)
 				if r.Branch != "" {
 					prompt += "\n\nYou are on branch " + r.Branch + " in a fresh worktree that Loopbee created from " + orDefault(l.BaseRef, "HEAD") + ". Do not create or switch branches and do not commit: Loopbee commits your changes on this branch after this step."
 				}
@@ -441,13 +463,13 @@ func (a *App) execute(ctx context.Context, r Run) {
 				kind := "command.output"
 				if agentStep {
 					var failed bool
-					kind, failed = classifyAgentEvent(line)
+					kind, failed = classifyFor(l.Agent, line)
 					agentFailed = agentFailed || failed
 				}
 				if e := a.event(r.ID, kind, line); e != nil {
 					eventErr = e
 				}
-			}, input, env)
+			}, input, append(append([]string{}, env...), agentEnv...))
 			stepErr := stepCtx.Err()
 			stepCancel()
 			used += time.Since(started)
@@ -474,8 +496,15 @@ func (a *App) execute(ctx context.Context, r Run) {
 			}
 			if agentStep {
 				res := a.captureReport(&r, dir, lastFile, round, i, out)
+				if u := usageFor(l.Agent, out, l.Model, home); u != nil {
+					r.Trace[len(r.Trace)-1].Usage = u
+					if r.Usage == nil {
+						r.Usage = &Usage{}
+					}
+					r.Usage.add(*u)
+				}
 				if agentFailed {
-					if reason := agentFailure(out); reason != "" {
+					if reason := failureFor(l.Agent, out, runtime.GOOS); reason != "" {
 						finish("failed", errors.New("agent failed: "+reason))
 					} else {
 						finish("failed", errors.New("agent reported turn.failed; inspect the captured evidence"))
@@ -732,6 +761,11 @@ func (a *App) captureReport(r *Run, dir, lastFile string, round, step int, out [
 	}
 	r.Report = text
 	res := parseResult(text)
+	if res != nil {
+		// What the CLI refused for want of an approval, or the sandbox stopped, even when the agent did not say so.
+		mergeMissing(res, mcpRefused(r.Definition.Agent, out, r.Definition.AgentMCP))
+		mergeMissing(res, sandboxBlocked(out))
+	}
 	r.Result = res
 	return res
 }

@@ -42,5 +42,8 @@ Rules that have proven themselves; promoted lessons are added here with a link b
   cover only Loopbee's side (decided 2026-10-12 after four real-only defects, see LESSONS “Real agent CLIs”).
 - **Report what was not verified.** Every hand-off lists the checks that were not run (platform builds, real CLIs,
   CI-only steps) instead of implying them.
+- **One source for every list.** A list that more than one place needs (step kinds, agent CLIs, permission levels)
+  has one definition the others read: the Go core owns it and the UI reads it from State. Adding an item is one change
+  plus its test (promoted 2026-10-13 after three sightings, see LESSONS “Moved to the standards”).
 - **Text is LF.** `.gitattributes` keeps text LF in every checkout; code that parses checked-in or embedded text still
   tolerates CRLF.

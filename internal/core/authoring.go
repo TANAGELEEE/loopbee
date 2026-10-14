@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -67,7 +68,8 @@ func authorSchema() map[string]any {
 		// Strict schemas have no optional objects: an empty kind / mode means "not used".
 		"intake":      obj(map[string]any{"kind": map[string]any{"type": "string", "enum": []string{"", "github-issues"}}, "repo": str, "label": str, "trustedUsers": strs}),
 		"pullRequest": obj(map[string]any{"mode": map[string]any{"type": "string", "enum": []string{"", "after-review", "draft"}}, "base": str, "merge": map[string]any{"type": "string", "enum": []string{"", "after-checks"}}}),
-		"env":         map[string]any{"type": "array", "items": obj(map[string]any{"name": str, "secret": map[string]any{"type": "boolean"}})},
+		"env":         map[string]any{"type": "array", "items": obj(map[string]any{"name": str, "secret": map[string]any{"type": "boolean"}, "value": str})},
+		"readPaths":   strs, "copyFiles": strs, "model": str, "agentMcp": map[string]any{"type": "boolean"},
 	})
 	return obj(map[string]any{
 		"reply":     str,
@@ -76,21 +78,14 @@ func authorSchema() map[string]any {
 	})
 }
 
-func agentName(agent string) string {
-	if agent == "claude" {
-		return "Claude Code"
-	}
-	return "Codex CLI"
-}
-
-// agentToolNote tells the designer what the agent can do at the lowest permission.
+// agentToolNote tells the designer what the agent can do, and which permission levels it enforces.
 func agentToolNote(agent string) string {
-	if agent == "claude" {
-		return `At read-only, Claude Code can only read and search files: it cannot run any shell
-  command. If a read-only Loop needs command output (tests, logs, git status, a query), add a run step
-  before the agent step, or choose workspace-write, where commands run inside Claude Code's sandbox.`
+	a, ok := adapterFor(agent)
+	if !ok {
+		return ""
 	}
-	return `At read-only, Codex can run shell commands inside a read-only sandbox (no writes, no network).`
+	return a.ToolNote + "\n  " + a.Label + " enforces these permission levels: " + strings.Join(a.Levels, ", ") +
+		". Never choose another level for it: Loopbee refuses to run it there."
 }
 
 func authorPrompt(req AuthorRequest, dir, lang, tz, agent, maxSandbox string, draft Loop) string {
@@ -100,7 +95,7 @@ func authorPrompt(req AuthorRequest, dir, lang, tz, agent, maxSandbox string, dr
 		fmt.Fprintf(&conv, "[%s] %s\n", m.Role, m.Text)
 	}
 	return `You are helping a developer configure Loopbee, a local desktop scheduler that runs coding agents
-(Codex CLI or Claude Code) headlessly on a schedule, records evidence, pauses at human gates and sends
+(` + agentLabels() + `) headlessly on a schedule, records evidence, pauses at human gates and sends
 notifications. You are NOT running the workflow now: you only design the Loop definition.
 
 Working directory: ` + dir + `
@@ -136,10 +131,31 @@ Design rules:
 - Loopbee hands the output of earlier run/verify steps to later agent steps of the same round. Set
   continueOnError=true on a run step when a non-zero exit is information, not a failure (e.g. failing tests
   that the agent should report on).
-- This Loop will run with ` + agentName(agent) + `. ` + agentToolNote(agent) + `
+- This Loop will run with ` + agentLabel(agent) + `. ` + agentToolNote(agent) + `
+- This computer runs ` + platformName() + `.
+- The agent keeps its own context in every run: the user's skills, plugins, subagents, slash commands,
+  CLAUDE.md / AGENTS.md and the project's memory. Name the skills to use. A skill that runs scripts or commands
+  needs at least workspace-write; one that calls services (APIs, databases, deployments, git push, e-mail) needs
+  workspace-network. Choose the level the workflow really needs: a run that cannot reach what it needs fails.
+- readPaths: folders or files outside the project that the workflow reads, e.g. a skill's credentials or config
+  folder (“~/.pi/agent/private”). Read-only for the agent. Never ~/.ssh, ~/.aws or similar credential stores.
+- copyFiles (worktree only): Git-ignored files of the project the work needs from the developer's checkout
+  (.env, CLAUDE.local.md, local config). A fresh worktree has no ignored files and no installed dependencies:
+  install those with a run step before the agent step (e.g. ["npm","ci"]).
+- env: variables the workflow needs. value "env:NAME" passes the variable NAME from the user's shell
+  (Loopbee also looks in the login shell); otherwise leave value empty and the user fills it in Loopbee.
+- model: leave empty (the agent's own default) unless the user names a model for this Loop.
+- agentMcp: true when the work uses the agent's own MCP tools: a browser (to operate a web console, test a site,
+  fill a form), a database, a ticket system, a design tool or anything the user does through their agent's
+  connected tools. Nobody can approve a tool in an unattended run, so without agentMcp every MCP tool is
+  disabled (except at agent-config, where the agent's own settings decide). MCP tools run outside the sandbox
+  with the user's rights: when they change something (a console, a database), put a gate before that step or
+  split the work into a read step, a gate and an apply step. A browser started from a shell command does not
+  start inside the macOS sandbox; the agent's browser MCP tool does.
 - Permission ("sandbox"): the lowest that works. read-only; workspace-write (edit files, no network);
   workspace-network (git push, deployments, databases, HTTP APIs, e-mail); agent-config only if the user
-  explicitly wants the agent's own configuration to decide.
+  explicitly wants the agent's own configuration to decide. For ` + agentLabel(agent) + ` ONLY these are possible: ` +
+		strings.Join(agentLevelsOf(agent), ", ") + `. run steps execute outside the agent, so they never need a higher level.
 - When the Loop changes code, use workspace "worktree" with baseRef (e.g. "origin/master") and branch (e.g.
   "loopbee/fix-{date}"; {date}, {time}, {run} and {issue} are filled per run). Loopbee fetches baseRef itself (this
   never requires network permission), creates the branch in a fresh worktree and commits the agent's changes after
@@ -184,7 +200,11 @@ func definitionForAgent(l Loop) map[string]any {
 	}
 	env := []map[string]any{}
 	for _, e := range l.Env {
-		env = append(env, map[string]any{"name": e.Name, "secret": e.Secret})
+		value := "" // never show stored values to the agent; references to the user's shell are not secret
+		if isEnvReference(e.Value) {
+			value = e.Value
+		}
+		env = append(env, map[string]any{"name": e.Name, "secret": e.Secret, "value": value})
 	}
 	return map[string]any{
 		"name": l.Name, "description": l.Description, "cron": l.Cron, "timezone": l.Timezone, "sandbox": l.Sandbox,
@@ -192,7 +212,7 @@ func definitionForAgent(l Loop) map[string]any {
 		"wallMinutes": l.WallMinutes, "stallRounds": l.StallRounds, "gateHours": l.GateHours, "doneWhen": l.DoneWhen,
 		"allowedTools": nonNil(l.AllowedTools), "steps": steps,
 		"notify": map[string]any{"events": nonNil(l.Notify.Events), "includeReport": l.Notify.IncludeReport, "channels": nonNil(l.Notify.Channels)}, "env": env,
-		"intake": intake, "pullRequest": pr,
+		"intake": intake, "pullRequest": pr, "readPaths": nonNil(l.ReadPaths), "copyFiles": nonNil(l.CopyFiles), "model": l.Model, "agentMcp": l.AgentMCP,
 	}
 }
 func nonNil(s []string) []string {
@@ -252,7 +272,10 @@ func (a *App) Author(ctx context.Context, req AuthorRequest) (AuthorReply, error
 		draft.Directory = req.Directory
 	}
 	schema, _ := json.Marshal(authorSchema())
-	inv := agentInvocation{Name: name, Dir: dir, Sandbox: "read-only"}
+	// The designer may read the user's own skills, plugins and memory too, so it refers to them by their real names.
+	home, _ := os.UserHomeDir()
+	agentCtx := agentContextPaths(name, home, draft.Directory)
+	inv := agentInvocation{Name: name, Dir: dir, Sandbox: "read-only", ReadPaths: agentCtx, Scratch: scratch, Home: home, Project: draft.Directory}
 	if name == "codex" {
 		schemaFile := filepath.Join(scratch, "schema.json")
 		if err := os.WriteFile(schemaFile, schema, 0600); err != nil {
@@ -263,15 +286,16 @@ func (a *App) Author(ctx context.Context, req AuthorRequest) (AuthorReply, error
 	} else {
 		inv.Schema = string(schema)
 	}
-	argv := buildAgentArgs(base, ag.Caps, inv)
+	inv.MCPList, inv.MCPListed = listAgentMCP(ctx, name, base, dir, nil) // the designer gets no MCP tools
+	argv, agentEnv := buildAgentInvocation(base, ag.Caps, inv)
 	tz := draft.Timezone
 	if tz == "" {
 		tz = c.DigestTimezone
 	}
-	prompt := authorPrompt(req, dir, c.Language, tz, name, c.MaxSandbox, draft)
+	prompt := authorPrompt(req, dir, c.Language, tz, name, c.MaxSandbox, draft) + designerContext(agentCtx) + designerMCP(name, home, draft.Directory)
 	ctx, cancel := context.WithTimeout(ctx, 4*time.Minute)
 	defer cancel()
-	out, runErr := runCommandInput(ctx, dir, argv, nil, strings.NewReader(prompt))
+	out, runErr := runCommandEnv(ctx, dir, argv, nil, strings.NewReader(prompt), agentEnv)
 	text := ""
 	if inv.LastFile != "" {
 		if b, err := os.ReadFile(inv.LastFile); err == nil {
@@ -293,7 +317,7 @@ func (a *App) Author(ctx context.Context, req AuthorRequest) (AuthorReply, error
 		if ctx.Err() != nil {
 			return AuthorReply{}, errors.New("the agent did not answer within 4 minutes")
 		}
-		if reason := agentFailure(out); reason != "" {
+		if reason := failureFor(name, out, runtime.GOOS); reason != "" {
 			return AuthorReply{}, errors.New("agent failed: " + reason)
 		}
 		if runErr != nil {
@@ -303,6 +327,12 @@ func (a *App) Author(ctx context.Context, req AuthorRequest) (AuthorReply, error
 	}
 	reply.Agent = name
 	reply.Loop = normalizeDraft(reply.Loop, draft, name)
+	// A designer sometimes asks for a level its own CLI cannot enforce (seen with pi). Lower it, never raise it,
+	// and say so: commands can still run as run steps before the agent step.
+	if from := reply.Loop.Sandbox; validSandbox(from) && !supportsLevel(name, from) {
+		reply.Loop.Sandbox = fallbackLevel(name, from)
+		reply.Reply = strings.TrimSpace(reply.Reply + "\n\n" + levelNote(c.Language, agentLabel(name), from, reply.Loop.Sandbox))
+	}
 	if err := Validate(reply.Loop); err != nil {
 		reply.Problem = err.Error()
 	}
@@ -386,7 +416,9 @@ func normalizeDraft(p, base Loop, agent string) Loop {
 		if p.Steps[i].Kind != "run" && p.Steps[i].Kind != "verify" {
 			p.Steps[i].Argv = nil
 		}
-		if p.Steps[i].Kind != "verify" {
+		// A metric is optional and needs both its name and its JSON path; real Codex proposed a verify step with
+		// only one of them, and the draft could not be saved.
+		if p.Steps[i].Kind != "verify" || p.Steps[i].Metric == "" || p.Steps[i].MetricPath == "" {
 			p.Steps[i].Metric, p.Steps[i].MetricPath = "", ""
 		}
 		if p.Steps[i].Kind != "run" {
@@ -408,16 +440,24 @@ func normalizeDraft(p, base Loop, agent string) Loop {
 			p.Intake.Label = "" // the default
 		}
 	}
-	// Keep secret values already stored for this Loop; never accept values from the agent.
+	// Keep values already stored for this Loop; from the agent accept only references to the user's shell
+	// ("env:NAME"), never a value.
 	old := map[string]EnvVar{}
 	for _, e := range base.Env {
 		old[e.Name] = e
 	}
 	for i, e := range p.Env {
+		proposed := e.Value
 		p.Env[i].Value = ""
 		if o, ok := old[e.Name]; ok {
 			p.Env[i].Value = o.Value
 		}
+		if isEnvReference(proposed) && (p.Env[i].Value == "" || isEnvReference(p.Env[i].Value)) {
+			p.Env[i].Value = proposed
+		}
+	}
+	if p.Workspace != "worktree" {
+		p.CopyFiles = nil
 	}
 	return p
 }
@@ -428,4 +468,76 @@ func contains(list []string, s string) bool {
 		}
 	}
 	return false
+}
+
+// isEnvReference reports whether v is "env:NAME", a reference to a variable of the user's environment.
+func isEnvReference(v string) bool {
+	name, ok := strings.CutPrefix(v, "env:")
+	return ok && envName.MatchString(name)
+}
+
+func platformName() string {
+	switch runtime.GOOS {
+	case "darwin":
+		return "macOS"
+	case "windows":
+		return "Windows"
+	}
+	return runtime.GOOS
+}
+
+// designerContext tells the designer where the user's own skills, plugins and memory are.
+func designerContext(paths []string) string {
+	if len(paths) == 0 {
+		return ""
+	}
+	return "\n\nYou may also read the user's own agent context, which every run of this Loop has: " + strings.Join(paths, ", ") +
+		". Look there for the skills, plugins, commands and memory the workflow relies on and refer to them by name."
+}
+
+// designerMCP names the MCP servers of the agent's own setup, so the designer knows what agentMcp would give.
+func designerMCP(agent, home, project string) string {
+	names := agentMCPServers(agent, home, project)
+	if len(names) == 0 {
+		return ""
+	}
+	return "\n\nThe user's " + agentLabel(agent) + " has these MCP servers: " + strings.Join(names, ", ") +
+		". If the workflow needs one of them, set agentMcp true and say in \"reply\" which one it will use."
+}
+
+// agentLabels lists the supported agent CLIs for prompts ("Codex CLI, Claude Code, …").
+func agentLabels() string {
+	labels := []string{}
+	for _, n := range adapterOrder {
+		labels = append(labels, adapters[n].Label)
+	}
+	return strings.Join(labels, ", ")
+}
+
+func agentLevelsOf(agent string) []string {
+	if a, ok := adapterFor(agent); ok {
+		return a.Levels
+	}
+	return nil
+}
+
+// fallbackLevel is the highest level below from that the agent enforces (never agent-config, never higher).
+func fallbackLevel(agent, from string) string {
+	best := "read-only"
+	for _, l := range agentLevelsOf(agent) {
+		if l != "agent-config" && sandboxRank[l] < sandboxRank[from] && sandboxRank[l] > sandboxRank[best] {
+			best = l
+		}
+	}
+	return best
+}
+
+func levelNote(lang, label, from, to string) string {
+	switch lang {
+	case "zh-TW":
+		return fmt.Sprintf("（Loopbee：%s 無法強制執行「%s」，草稿已改為「%s」。需要的指令請放在代理步驟之前的指令步驟。）", label, from, to)
+	case "zh-CN":
+		return fmt.Sprintf("（Loopbee：%s 无法强制执行“%s”，草稿已改为“%s”。需要的命令请放在代理步骤之前的命令步骤。）", label, from, to)
+	}
+	return fmt.Sprintf("(Loopbee: %s cannot enforce %q, so the draft now uses %q. Put the commands it needs in run steps before the agent step.)", label, from, to)
 }

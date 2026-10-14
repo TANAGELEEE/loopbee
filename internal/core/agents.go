@@ -1,7 +1,6 @@
 package core
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 )
@@ -16,13 +16,23 @@ import (
 // Agent is a locally installed agent CLI that Loopbee can drive headlessly.
 type Agent struct {
 	Name    string   `json:"name"`
+	Label   string   `json:"label"`
 	Path    string   `json:"path"`
 	Version string   `json:"version"`
-	Status  string   `json:"status"` // available, unverified, unavailable
+	Status  string   `json:"status"`            // available, unverified, unavailable
+	Problem string   `json:"problem,omitempty"` // why it is not available, when Loopbee found it but could not use it
 	Caps    []string `json:"caps,omitempty"`
+	// Levels are the permission levels this CLI enforces; Enforcement and Flags say how, per level.
+	Levels      []string          `json:"levels"`
+	Enforcement map[string]string `json:"enforcement,omitempty"`
+	Flags       map[string]string `json:"flags,omitempty"`
+	// MCP lists the MCP servers configured for this agent (user level); MCPFlags how a Loop allows or disables them.
+	MCP      []string          `json:"mcp,omitempty"`
+	MCPFlags map[string]string `json:"mcpFlags,omitempty"`
 }
 
-// Permission levels, lowest to highest. A Loop may not exceed the device ceiling (Settings.MaxSandbox).
+// Permission levels, lowest to highest. A Loop may not exceed the device ceiling (Settings.MaxSandbox), and the
+// agent must enforce the level itself (adapter.Levels).
 //
 //	read-only          agent may read the working directory only
 //	workspace-write    agent may edit files and run commands inside the working directory, no network
@@ -42,9 +52,16 @@ func agentCommand(name string) ([]string, error) {
 	if argv, ok := agentOverride[name]; ok {
 		return append([]string{}, argv...), nil
 	}
-	// LOOPBEE_CODEX_BIN / LOOPBEE_CLAUDE_BIN point at a specific executable (or a .js/.mjs entry point).
+	a, ok := adapterFor(name)
+	if !ok {
+		return nil, errors.New("unknown agent " + name)
+	}
+	// LOOPBEE_<NAME>_BIN points at a specific executable (or a .js/.mjs/.cjs entry point).
 	if custom := os.Getenv("LOOPBEE_" + strings.ToUpper(name) + "_BIN"); custom != "" {
-		if strings.HasSuffix(custom, ".js") || strings.HasSuffix(custom, ".mjs") {
+		if _, err := os.Stat(custom); err != nil {
+			return nil, err
+		}
+		if strings.HasSuffix(custom, ".js") || strings.HasSuffix(custom, ".mjs") || strings.HasSuffix(custom, ".cjs") {
 			node, err := exec.LookPath("node")
 			if err != nil {
 				return nil, err
@@ -53,27 +70,23 @@ func agentCommand(name string) ([]string, error) {
 		}
 		return []string{custom}, nil
 	}
-	p, err := exec.LookPath(name)
+	p, err := exec.LookPath(a.Binary)
 	if err != nil {
 		return nil, err
 	}
 	if runtime.GOOS == "windows" && (strings.HasSuffix(p, ".cmd") || strings.HasSuffix(p, ".ps1")) {
-		scripts := map[string]string{
-			"codex":  filepath.Join(filepath.Dir(p), "node_modules", "@openai", "codex", "bin", "codex.js"),
-			"claude": filepath.Join(filepath.Dir(p), "node_modules", "@anthropic-ai", "claude-code", "cli.js"),
+		for _, entry := range a.NpmEntries {
+			script := filepath.Join(filepath.Dir(p), "node_modules", filepath.FromSlash(entry))
+			if _, err := os.Stat(script); err != nil {
+				continue
+			}
+			node, err := exec.LookPath("node")
+			if err != nil {
+				return nil, err
+			}
+			return []string{node, script}, nil
 		}
-		script, ok := scripts[name]
-		if !ok {
-			return nil, errors.New("agent requires a native executable")
-		}
-		if _, err := os.Stat(script); err != nil {
-			return nil, err
-		}
-		node, err := exec.LookPath("node")
-		if err != nil {
-			return nil, err
-		}
-		return []string{node, script}, nil
+		return nil, errors.New(a.Label + " was found only as a script wrapper; install its native executable or set LOOPBEE_" + strings.ToUpper(name) + "_BIN")
 	}
 	return []string{p}, nil
 }
@@ -81,8 +94,12 @@ func agentCommand(name string) ([]string, error) {
 // DetectAgents probes each supported CLI for its version and headless capabilities.
 func (a *App) DetectAgents() {
 	out := []Agent{}
-	for _, name := range []string{"codex", "claude"} {
-		ag := Agent{Name: name, Status: "unavailable"}
+	for _, name := range adapterOrder {
+		ad := adapters[name]
+		ag := Agent{Name: name, Label: ad.Label, Status: "unavailable", Levels: ad.Levels, Enforcement: ad.Enforcement, Flags: ad.Flags, MCPFlags: ad.MCPFlags}
+		if home, _ := os.UserHomeDir(); home != "" {
+			ag.MCP = agentMCPServers(name, home, "")
+		}
 		argv, err := agentCommand(name)
 		if err == nil {
 			ag.Path = argv[len(argv)-1]
@@ -92,20 +109,34 @@ func (a *App) DetectAgents() {
 			ctx, cancel := context.WithTimeout(a.ctx, 8*time.Second)
 			b, e := runCommand(ctx, "", append(argv, "--version"), nil)
 			cancel()
+			if e != nil {
+				ag.Problem = detectProblem(ad.Binary+" --version", e, b)
+			}
 			if e == nil {
 				ag.Version = strings.TrimSpace(string(b))
 				ag.Status = "unverified"
-				helpArgs := []string{"--help"}
-				if name == "codex" {
-					helpArgs = []string{"exec", "--help"}
-				}
 				ctx, cancel = context.WithTimeout(a.ctx, 8*time.Second)
-				help, e := runCommand(ctx, "", append(argv, helpArgs...), nil)
+				help, e := runCommand(ctx, "", append(argv, ad.HelpArgs...), nil)
 				cancel()
-				if e == nil {
-					ag.Caps = capabilities(name, help)
+				if e != nil {
+					ag.Problem = detectProblem(ad.Binary+" "+strings.Join(ad.HelpArgs, " "), e, help)
+				} else {
+					ag.Caps = ad.Caps(help)
 					if hasCap(ag.Caps, "headless") {
 						ag.Status = "available"
+						// The CLI's own list is complete (every layer and plugin); the files are the fallback.
+						if home, _ := os.UserHomeDir(); home != "" {
+							if list, ok := listAgentMCP(a.ctx, name, argv, home, nil); ok {
+								ag.MCP = nil
+								for _, s := range list {
+									if s.Enabled {
+										ag.MCP = append(ag.MCP, s.Name)
+									}
+								}
+							}
+						}
+					} else {
+						ag.Problem = "this version's help lists none of the headless flags Loopbee needs; update " + ad.Label
 					}
 				}
 			}
@@ -130,40 +161,35 @@ func (a *App) DetectAgents() {
 	a.mu.Unlock()
 }
 
-// capabilities reads the CLI help text; flags Loopbee relies on are only used when present.
-func capabilities(name string, help []byte) []string {
-	has := func(s string) bool { return bytes.Contains(help, []byte(s)) }
-	caps := []string{}
-	add := func(c string, ok bool) {
-		if ok {
-			caps = append(caps, c)
-		}
+// detectProblem explains why a detection command failed. A process killed at once (exit 137, "signal: killed")
+// is usually macOS refusing to run a damaged or unsigned binary.
+func detectProblem(cmd string, err error, out []byte) string {
+	msg := err.Error()
+	if errors.Is(err, context.DeadlineExceeded) {
+		return cmd + " did not answer within 8 seconds"
 	}
-	switch name {
-	case "codex":
-		add("headless", has("--json") && has("--sandbox"))
-		add("last-message", has("--output-last-message"))
-		add("schema", has("--output-schema"))
-		add("add-dir", has("--add-dir"))
-		add("skip-git-check", has("--skip-git-repo-check"))
-	case "claude":
-		add("headless", has("--print") && has("--output-format") && has("stream-json"))
-		add("schema", has("--json-schema"))
-		add("add-dir", has("--add-dir"))
-		add("tools", has("--tools"))
-		add("settings", has("--settings"))
-		add("permission-mode", has("--permission-mode"))
+	if strings.Contains(msg, "signal: killed") || strings.Contains(msg, "exit status 137") {
+		return cmd + " was killed as soon as it started (" + msg + "); the installation is probably damaged or blocked by macOS — reinstall it and check that it runs in a terminal"
 	}
-	return caps
+	if first := firstLine(string(out), 160); first != "" {
+		return cmd + " failed (" + msg + "): " + first
+	}
+	return cmd + " failed (" + msg + ")"
 }
-func hasCap(caps []string, c string) bool {
-	for _, x := range caps {
-		if x == c {
-			return true
+
+// helpHas returns a capability helper over a CLI's help text.
+func helpHas(help []byte) func(...string) bool {
+	return func(words ...string) bool {
+		for _, w := range words {
+			if !strings.Contains(string(help), w) {
+				return false
+			}
 		}
+		return true
 	}
-	return false
 }
+
+func hasCap(caps []string, c string) bool { return slices.Contains(caps, c) }
 func (a *App) agentInfo(name string) (Agent, bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -180,145 +206,29 @@ type agentInvocation struct {
 	Name     string
 	Dir      string   // working directory
 	Sandbox  string   // permission level
+	Model    string   // model to use; "" = the CLI's own default
 	AddDirs  []string // extra writable directories (e.g. the git dir of a worktree)
 	LastFile string   // codex: file for the final message
 	Schema   string   // optional JSON schema (file path for codex, inline JSON for claude)
+	Scratch  string   // a private folder for files an adapter passes to the CLI (e.g. a policy file)
+	// ReadPaths are files and folders outside Dir the agent may read but not change: its own skills, plugins and
+	// memory, and the Loop's read paths.
+	ReadPaths []string
+	// MCP: the Loop lets the agent use (and pre-approves) every MCP tool of its own setup (Loop.AgentMCP).
+	MCP bool
+	// Home is the user's home folder; Project is the developer's checkout (Dir differs in a worktree).
+	Home, Project string
+	// MCPList is what the CLI reported with ListMCP (MCPListed: it answered).
+	MCPList   []mcpServerState
+	MCPListed bool
 }
 
-// claudeSandboxSettings maps Loopbee permission levels to Claude Code's OS sandbox for Bash.
-func claudeSandboxSettings(network bool) string {
-	domains := []string{}
-	if network {
-		domains = []string{"*"}
-	}
-	b, _ := json.Marshal(map[string]any{"sandbox": map[string]any{
-		"enabled": true, "autoAllowBashIfSandboxed": true, "allowUnsandboxedCommands": false, "failIfUnavailable": true,
-		"network": map[string]any{"allowedDomains": domains},
-	}})
-	return string(b)
-}
-
-// buildAgentArgs returns the argv for one turn. The prompt is always passed on stdin.
-func buildAgentArgs(base []string, caps []string, inv agentInvocation) []string {
-	argv := append([]string{}, base...)
-	switch inv.Name {
-	case "codex":
-		argv = append(argv, "exec", "--json", "--color", "never")
-		switch inv.Sandbox {
-		case "read-only", "workspace-write":
-			argv = append(argv, "--sandbox", inv.Sandbox)
-		case "workspace-network":
-			argv = append(argv, "--sandbox", "workspace-write", "-c", "sandbox_workspace_write.network_access=true")
-		}
-		if hasCap(caps, "add-dir") {
-			for _, d := range inv.AddDirs {
-				argv = append(argv, "--add-dir", d)
-			}
-		}
-		if inv.LastFile != "" && hasCap(caps, "last-message") {
-			argv = append(argv, "--output-last-message", inv.LastFile)
-		}
-		if inv.Schema != "" && hasCap(caps, "schema") {
-			argv = append(argv, "--output-schema", inv.Schema)
-		}
-		if hasCap(caps, "skip-git-check") {
-			argv = append(argv, "--skip-git-repo-check")
-		}
-		argv = append(argv, "-C", inv.Dir, "-")
-	case "claude":
-		argv = append(argv, "-p", "--output-format", "stream-json", "--verbose")
-		switch inv.Sandbox {
-		case "read-only":
-			argv = append(argv, "--permission-mode", "dontAsk", "--tools", "Read,Grep,Glob")
-		case "workspace-write":
-			argv = append(argv, "--permission-mode", "acceptEdits", "--settings", claudeSandboxSettings(false))
-		case "workspace-network":
-			argv = append(argv, "--permission-mode", "acceptEdits", "--settings", claudeSandboxSettings(true))
-		}
-		if hasCap(caps, "add-dir") {
-			for _, d := range inv.AddDirs {
-				argv = append(argv, "--add-dir", d)
-			}
-		}
-		if inv.Schema != "" && hasCap(caps, "schema") {
-			argv = append(argv, "--json-schema", inv.Schema)
-		}
-	}
-	return argv
-}
-
-// classifyAgentEvent labels one stdout line. Unknown or non-JSON lines are kept as agent.raw.
+// classifyAgentEvent labels one stdout line of Codex or Claude Code. Unknown or non-JSON lines are kept as agent.raw.
 func classifyAgentEvent(line string) (string, bool) {
-	var event struct {
-		Type    string `json:"type"`
-		Subtype string `json:"subtype"`
-		IsError bool   `json:"is_error"`
+	if kind, failed := codexClassify(line); kind != "agent.raw" {
+		return kind, failed
 	}
-	if json.Unmarshal([]byte(line), &event) == nil {
-		switch event.Type {
-		// Codex exec --json
-		case "thread.started", "turn.started", "turn.completed", "turn.failed", "item.started", "item.updated", "item.completed", "error":
-			return "agent." + event.Type, event.Type == "turn.failed"
-		// Claude Code -p --output-format stream-json
-		case "system", "assistant", "user", "stream_event":
-			return "agent." + event.Type, false
-		case "result":
-			return "agent.result", event.IsError || (event.Subtype != "" && event.Subtype != "success")
-		}
-	}
-	return "agent.raw", false
-}
-
-// finalMessage extracts the agent's last assistant message from its event stream.
-func finalMessage(name string, output []byte) (string, map[string]any) {
-	last := ""
-	var structured map[string]any
-	for _, line := range strings.Split(string(output), "\n") {
-		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, "{") {
-			continue
-		}
-		var ev struct {
-			Type       string         `json:"type"`
-			Result     string         `json:"result"`
-			Structured map[string]any `json:"structured_output"`
-			Item       struct {
-				Type string `json:"type"`
-				Text string `json:"text"`
-			} `json:"item"`
-			Message struct {
-				Content []struct {
-					Type string `json:"type"`
-					Text string `json:"text"`
-				} `json:"content"`
-			} `json:"message"`
-		}
-		if json.Unmarshal([]byte(line), &ev) != nil {
-			continue
-		}
-		switch {
-		case name == "codex" && ev.Type == "item.completed" && ev.Item.Type == "agent_message":
-			last = ev.Item.Text
-		case name == "claude" && ev.Type == "assistant":
-			var parts []string
-			for _, c := range ev.Message.Content {
-				if c.Type == "text" && c.Text != "" {
-					parts = append(parts, c.Text)
-				}
-			}
-			if len(parts) > 0 {
-				last = strings.Join(parts, "\n")
-			}
-		case name == "claude" && ev.Type == "result":
-			if ev.Result != "" {
-				last = ev.Result
-			}
-			if ev.Structured != nil {
-				structured = ev.Structured
-			}
-		}
-	}
-	return last, structured
+	return claudeClassify(line)
 }
 
 // Result contract appended to every agent step so Loopbee can tell done from no-op or blocked.
@@ -328,7 +238,8 @@ func resultInstructions(lang string) string {
 	return "\n\n---\nLoopbee runs this step unattended. Report in " + languageName(lang) + ". " +
 		"When you finish, end your final message with exactly one line:\n" + resultMarker +
 		` {"status":"done|no_action|blocked|needs_approval","summary":"one or two sentences","links":["URLs of PRs, deployments or reports"]}` +
-		"\nUse no_action when there was nothing to do, blocked when you could not proceed (missing access, failing preconditions), and needs_approval when a person must decide before anything else happens. Never include secrets in the summary."
+		"\nUse no_action when there was nothing to do, blocked when you could not proceed (missing access, failing preconditions), and needs_approval when a person must decide before anything else happens. Never include secrets in the summary." +
+		"\nIf something you needed was unavailable (a file or folder, a host or service, an environment variable or credential, a command, skill, plugin or MCP tool, a permission), add \"missing\": [\"one short item per thing, naming it exactly\"] to that line, also when you could work around it."
 }
 func languageName(l string) string {
 	switch l {
@@ -345,6 +256,8 @@ type AgentResult struct {
 	Status  string   `json:"status"`
 	Summary string   `json:"summary"`
 	Links   []string `json:"links,omitempty"`
+	// Missing lists what the agent needed and could not get, so the person can give the Loop access to it.
+	Missing []string `json:"missing,omitempty"`
 }
 
 func parseResult(text string) *AgentResult {
@@ -376,39 +289,24 @@ func parseResult(text string) *AgentResult {
 		}
 	}
 	r.Links = links
+	missing := []string{}
+	for _, m := range r.Missing {
+		m = firstLine(m, 200)
+		if m != "" && len(missing) < 10 && !slices.Contains(missing, m) {
+			missing = append(missing, m)
+		}
+	}
+	r.Missing = missing
+	if len(r.Missing) == 0 {
+		r.Missing = nil
+	}
 	return &r
 }
 
-// agentFailure extracts a readable reason from a failed agent turn (Claude result errors, Codex turn.failed).
+// agentFailure extracts a readable reason from a failed Codex or Claude Code turn.
 func agentFailure(output []byte) string {
-	reason := ""
-	for _, line := range strings.Split(string(output), "\n") {
-		var ev struct {
-			Type    string   `json:"type"`
-			Errors  []string `json:"errors"`
-			Result  string   `json:"result"`
-			IsError bool     `json:"is_error"`
-			Error   struct {
-				Message string `json:"message"`
-			} `json:"error"`
-			Message string `json:"message"`
-		}
-		if json.Unmarshal([]byte(strings.TrimSpace(line)), &ev) != nil {
-			continue
-		}
-		switch {
-		case len(ev.Errors) > 0:
-			reason = ev.Errors[0]
-		case ev.Type == "result" && ev.IsError && ev.Result != "":
-			reason = ev.Result // e.g. Claude Code "You've hit your session limit · resets 10:20pm"
-		case ev.Type == "turn.failed" && ev.Error.Message != "":
-			reason = ev.Error.Message
-		case ev.Type == "error" && ev.Message != "":
-			reason = ev.Message
-		}
+	if r := claudeFailure(output); r != "" {
+		return r
 	}
-	if len(reason) > 500 {
-		reason = reason[:500] + "…"
-	}
-	return reason
+	return codexFailure(output)
 }

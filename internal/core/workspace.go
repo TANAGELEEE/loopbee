@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -25,6 +26,9 @@ type workspace struct {
 	Base     string // commit the worktree started from
 	gitFile  []byte // <Dir>/.git right after creation; a changed file means the agent tampered with it
 	hooks    string // empty hooks directory for Loopbee's own Git commands
+	// copied are the Git-ignored files Loopbee copied into the worktree (slash paths); they are never committed,
+	// even if the agent changes .gitignore.
+	copied []string
 }
 
 // prepareWorkspace creates the Run's workspace. Agents get no write access to Git metadata: with l.Branch set,
@@ -98,6 +102,14 @@ func (a *App) prepareWorkspace(ctx context.Context, l Loop, runID string, issue 
 	}
 	a.event(runID, "workspace.worktree", path+" @ "+base+map[bool]string{true: " → " + branch, false: ""}[branch != ""])
 	w := &workspace{Dir: path, Branch: branch, hooks: hooks}
+	copied, err := copyIgnored(ctx, l.Directory, path, l.CopyFiles)
+	if err != nil {
+		return nil, err
+	}
+	if len(copied) > 0 {
+		w.copied = copied
+		a.event(runID, "workspace.copied", strings.Join(copied, ", "))
+	}
 	w.gitFile, _ = os.ReadFile(filepath.Join(path, ".git"))
 	out, err := w.git(ctx, "rev-parse", "HEAD")
 	if err != nil {
@@ -217,6 +229,15 @@ func (w *workspace) commit(ctx context.Context, message string) (string, error) 
 	if out, err := w.git(ctx, "add", "-A"); err != nil {
 		return "", fmt.Errorf("git add: %s", strings.TrimSpace(string(out)))
 	}
+	if len(w.copied) > 0 {
+		// Files copied from the developer's checkout (.env, local settings) stay out of every commit.
+		if out, err := w.git(ctx, append([]string{"rm", "-r", "--cached", "--ignore-unmatch", "-q", "--"}, w.copied...)...); err != nil {
+			return "", fmt.Errorf("git rm --cached: %s", strings.TrimSpace(string(out)))
+		}
+		if _, err := w.git(ctx, "diff", "--cached", "--quiet"); err == nil {
+			return "", nil
+		}
+	}
 	identity := []string{}
 	if out, _ := w.git(ctx, "config", "user.email"); strings.TrimSpace(string(out)) == "" {
 		identity = []string{"-c", "user.name=Loopbee", "-c", "user.email=loopbee@localhost"}
@@ -290,16 +311,9 @@ func adoptLoginPath() {
 	if runtime.GOOS == "windows" {
 		return
 	}
-	shell := os.Getenv("SHELL")
-	if shell == "" {
-		shell = "/bin/zsh"
-		if _, err := os.Stat(shell); err != nil {
-			shell = "/bin/sh"
-		}
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 	defer cancel()
-	out, err := runCommand(ctx, "", []string{shell, "-ilc", `printf '\n__LOOPBEE_PATH__%s\n' "$PATH"`}, nil)
+	out, err := runCommand(ctx, "", []string{loginShell(), "-ilc", `printf '\n__LOOPBEE_PATH__%s\n' "$PATH"`}, nil)
 	if err != nil && len(out) == 0 {
 		return
 	}
@@ -316,6 +330,18 @@ func adoptLoginPath() {
 	os.Setenv("PATH", mergePath(os.Getenv("PATH"), login))
 }
 
+// loginShell is the user's shell ($SHELL), else zsh or sh.
+func loginShell() string {
+	shell := os.Getenv("SHELL")
+	if shell == "" {
+		shell = "/bin/zsh"
+		if _, err := os.Stat(shell); err != nil {
+			shell = "/bin/sh"
+		}
+	}
+	return shell
+}
+
 func mergePath(current, login string) string {
 	seen := map[string]bool{}
 	out := []string{}
@@ -328,4 +354,114 @@ func mergePath(current, login string) string {
 		}
 	}
 	return strings.Join(out, string(os.PathListSeparator))
+}
+
+// localAgentFiles are the agents' personal, usually Git-ignored, project files. A worktree copies them when they
+// exist and are ignored, so a Loop sees the same project instructions and settings as the developer's sessions.
+var localAgentFiles = []string{"CLAUDE.local.md", ".claude/settings.local.json", "AGENTS.override.md"}
+
+// maxCopyBytes limits what copyIgnored copies per Run; dependencies belong in a run step (npm ci), not a copy.
+var maxCopyBytes int64 = 200 << 20
+
+// copyIgnored copies Git-ignored files from the developer's checkout (repo) into a fresh worktree (dst): every entry
+// of required (an error when missing, a symbolic link, or not ignored, since Loopbee would then commit it) and the
+// agents' local files when they exist and are ignored. Tracked files are already in the worktree and skipped.
+func copyIgnored(ctx context.Context, repo, dst string, required []string) ([]string, error) {
+	git := func(args ...string) error {
+		_, err := runCommand(ctx, repo, append([]string{"git"}, args...), nil)
+		return err
+	}
+	var copied []string
+	var total int64
+	seen := map[string]bool{}
+	entries := append(append([]string{}, required...), localAgentFiles...)
+	for i, p := range entries {
+		must := i < len(required)
+		rel := filepath.ToSlash(filepath.Clean(filepath.FromSlash(p)))
+		if seen[rel] {
+			continue
+		}
+		seen[rel] = true
+		if must {
+			if err := validateCopyFile(p); err != nil {
+				return nil, err
+			}
+		}
+		src := filepath.Join(repo, filepath.FromSlash(rel))
+		info, err := os.Lstat(src)
+		switch {
+		case err != nil && must:
+			return nil, fmt.Errorf("copied file %s does not exist in %s; create it or remove it from the Loop's copied files", p, repo)
+		case err != nil:
+			continue
+		case info.Mode()&os.ModeSymlink != 0:
+			if must {
+				return nil, fmt.Errorf("copied file %s is a symbolic link; list the file it points to instead", p)
+			}
+			continue
+		}
+		if git("ls-files", "--error-unmatch", "--", ":(literal)"+rel) == nil {
+			continue // tracked: the worktree already has it
+		}
+		if git("check-ignore", "-q", "--", rel) != nil {
+			if must {
+				return nil, fmt.Errorf("copied file %s is not ignored by Git, so Loopbee would commit it; add it to .gitignore first", p)
+			}
+			continue
+		}
+		n, err := copyTree(src, filepath.Join(dst, filepath.FromSlash(rel)), maxCopyBytes-total)
+		if err != nil {
+			return nil, fmt.Errorf("copying %s into the worktree: %w", p, err)
+		}
+		total += n
+		copied = append(copied, rel)
+	}
+	return copied, nil
+}
+
+// copyTree copies a file or folder without following symbolic links and returns the bytes copied.
+func copyTree(src, dst string, budget int64) (int64, error) {
+	var total int64
+	err := filepath.WalkDir(src, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(src, path)
+		target := filepath.Join(dst, rel)
+		if d.Type()&os.ModeSymlink != 0 {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return os.MkdirAll(target, info.Mode().Perm()|0700)
+		}
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+		total += info.Size()
+		if total > budget {
+			return fmt.Errorf("more than %d MB; install dependencies with a run step (e.g. npm ci) instead of copying them", maxCopyBytes>>20)
+		}
+		if err := os.MkdirAll(filepath.Dir(target), 0700); err != nil {
+			return err
+		}
+		in, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer in.Close()
+		out, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode().Perm()|0600)
+		if err != nil {
+			return err
+		}
+		if _, err := io.Copy(out, in); err != nil {
+			out.Close()
+			return err
+		}
+		return out.Close()
+	})
+	return total, err
 }

@@ -5,7 +5,7 @@ description: Turn a workflow into a scheduled Loopbee loop, or inspect and run e
 
 # Loopbee loops
 
-Loopbee is a desktop app on this computer that owns scheduling. It runs Codex CLI or Claude Code headlessly
+Loopbee is a desktop app on this computer that owns scheduling. It runs agent CLIs (Codex CLI, Claude Code, Gemini CLI, OpenCode, pi) headlessly
 on a cron schedule, records every step as evidence, pauses at human gates, and sends notifications.
 You talk to it with `beectl` (installed next to the Loopbee app). Loopbee must be running.
 
@@ -17,8 +17,15 @@ beectl loops                       # list loops (id, name, schedule, last result
 beectl runs --loop <id|name>       # recent runs of a loop
 beectl schema                      # JSON schema of a loop definition, with an example
 beectl create -f loop.json         # create a DISABLED draft (use -f - to read stdin; --dir DIR sets the project, default: current folder)
-beectl run <id|name>               # start a run now
+beectl run <id|name>               # start a run now (-q prints only the run ID)
+beectl runs --status failed,blocked  # filter recent runs by status
+beectl cancel <run-id> [--wait]    # cancel an active run (a unique ID prefix of 4+ characters works)
+beectl cancel --loop <id|name>     # cancel the loop's active run
+beectl delete <id|name> --yes      # delete a loop definition; its runs stay in history
 ```
+
+Cancel or delete only what the user asked you to, naming the loop; never as clean-up on your own initiative.
+When several loops share a name, beectl refuses and lists their IDs: ask the user which one.
 
 `create` never enables a schedule. Tell the user to open Loopbee, review the draft, run it once and then
 switch the schedule on. Never try to enable it yourself.
@@ -57,6 +64,9 @@ Rules:
   SQL on shared databases). A gate as the last step means a person takes over.
 - `run` steps execute a script without a shell (`argv` array). `verify` steps decide whether another round is
   needed by exit code. For both, `argv[0]` must be listed in `allowedTools`.
+- `agent`: `codex`, `claude`, `gemini`, `opencode` or `pi` (see `beectl status` for what is installed). OpenCode and
+  pi have no sandbox: Loopbee runs them only at `read-only` or `agent-config`. `model` is optional (empty = the
+  agent's own default).
 - `sandbox`: the lowest that works — `read-only`, `workspace-write` (no network), `workspace-network` (git push,
   deploys, databases, APIs), `agent-config` (the agent's own configuration decides; only when asked). The device has
   a ceiling set in Loopbee; drafts above it are rejected.
@@ -68,6 +78,18 @@ Rules:
   `{"mode": "draft"}` without one. Loopbee pushes and opens it; never script that yourself. Add
   `"merge": "after-checks"` (after-review only) when the user wants it merged once CI is green. Use
   `"notify": {"channels": ["telegram"]}` to receive the link on the user's phone.
+- Every run has the agent's own context: the user's skills, plugins, subagents, commands, CLAUDE.md / AGENTS.md and
+  the project's memory. A skill that runs scripts needs at least `workspace-write`; one that calls services
+  (APIs, databases, deployments, git push) needs `workspace-network`. A run without what it needs fails.
+- `readPaths`: folders or files outside the project the workflow reads, e.g. a skill's credentials folder
+  (`"readPaths": ["~/.pi/agent/private"]`). Read-only for the agent; credential stores such as ~/.ssh are refused.
+- `copyFiles` (worktree only): Git-ignored project files the work needs, e.g. `[".env"]`. A fresh worktree has none;
+  Loopbee copies them from the checkout and never commits them. Install dependencies with a `run` step (`npm ci`).
+- `agentMcp: true` when the work uses the agent's own MCP tools (a browser for a web console or an end-to-end
+  test, a database, a ticket system). Nobody can approve a tool in an unattended run, so without it they are
+  disabled. They act with the user's rights: put a gate before the step that changes something through them.
+- `env` values may reference the user's shell: `{"name": "AWS_PROFILE", "value": "env:AWS_PROFILE"}`. Loopbee
+  looks in its own environment, then the login shell (Windows: the saved user variables).
 - Never put secrets in the definition. Declare `"env": [{"name": "DB_PASSWORD", "secret": true}]` and tell the user to
   fill the value in Loopbee (stored in the system keychain).
 - `cron` is five fields in `timezone`; empty means manual only.

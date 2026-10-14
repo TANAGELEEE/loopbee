@@ -9,10 +9,12 @@ import { startCore, waitFor } from "./demo.mjs";
 const EVIDENCE = process.env.LOOPBEE_EVIDENCE_DIR || "docs/evidence";
 
 const fake = (n) => resolve(`tests/fake-agent/${n}.mjs`);
-const core = await startCore(undefined, { LOOPBEE_CODEX_BIN: fake("codex"), LOOPBEE_CLAUDE_BIN: fake("claude"), LOOPBEE_GH_BIN: fake("gh") });
+const core = await startCore(undefined, { LOOPBEE_CODEX_BIN: fake("codex"), LOOPBEE_CLAUDE_BIN: fake("claude"), LOOPBEE_GEMINI_BIN: fake("gemini"), LOOPBEE_OPENCODE_BIN: fake("opencode"), LOOPBEE_PI_BIN: fake("pi"), LOOPBEE_GH_BIN: fake("gh") });
 let browser;
 try {
-  const s0 = await waitFor(core.api, (s) => s.agents.length === 2 && s.agents.every((a) => a.status === "available") && s);
+  const s0 = await waitFor(core.api, (s) => s.agents.length === 5 && s.agents.every((a) => a.status === "available") && s);
+  assert.deepEqual(s0.agents.map((a) => a.name), ["codex", "claude", "gemini", "opencode", "pi"]);
+  assert.deepEqual(s0.agents.find((a) => a.name === "pi").levels, ["read-only", "agent-config"], "pi has no sandbox: only read-only and its own config");
   assert.equal(s0.settings.defaultAgent, "codex", "first available agent becomes the default");
   await core.api("/settings", { ...s0.settings, language: "en" });
   await core.api("/onboarding/done", {});
@@ -33,9 +35,16 @@ try {
 
   // Settings › Agents: both CLIs connected; switch the default to Claude Code.
   await page.goto(core.base + "/#/settings/agents");
-  await page.getByRole("button", { name: "Set as default" }).click();
+  await page.locator('[data-agent="claude"]').getByRole("button", { name: "Set as default" }).click();
   await waitFor(core.api, (s) => s.settings.defaultAgent === "claude");
   assert.ok(await page.getByText("--sandbox workspace-write -c sandbox_workspace_write.network_access=true").isVisible());
+  // Every adapter is listed with what it enforces; a level an agent cannot enforce is not offered.
+  for (const name of ["Gemini CLI", "OpenCode", "pi"]) await page.locator(`[data-agent] .nm`, { hasText: name }).first().waitFor();
+  assert.ok(await page.getByText("Gemini CLI: --approval-mode auto_edit --sandbox (edits, no shell)").isVisible());
+  assert.ok((await page.getByText("pi: not offered: this agent cannot enforce it").count()) >= 2);
+  // How each CLI's own MCP tools are approved in advance (an unattended run cannot answer a prompt) or disabled.
+  await page.getByText("MCP tools allowed", { exact: true }).waitFor();
+  assert.ok(await page.getByText("Codex CLI: -c mcp_servers.<server>.enabled=false (and the same for plugin servers)").isVisible());
 
   // New Loop opens the chat. Describe it, answer the agent's question, watch the preview update.
   await page.goto(core.base + "/#/loops");
@@ -68,6 +77,11 @@ try {
   await page.getByRole("link", { name: "Go to review" }).waitFor();
   await page.locator(".report").getByText("Fixed 1 error, deployed to test").waitFor();
   assert.ok(await page.locator(".report").getByText("https://example.com/pr/7").isVisible());
+  // The run shows the model and tokens the agent reported, in total and for the step.
+  await page.locator(".run-usage", { hasText: "1.5k tokens · $0.01 · claude-fake" }).waitFor();
+  await page.locator('[data-action="select-trace"][data-index="0"]').click();
+  await page.locator(".step-usage", { hasText: "claude-fake" }).waitFor();
+  assert.ok(await page.locator(".step-usage").getByText("input 1.0k · cached 200 · output 300").isVisible());
   await page.screenshot({ path: `${EVIDENCE}/screens/run-report.en.light.png`, fullPage: true });
   await page.getByRole("link", { name: "Go to review" }).click();
   await page.locator('#gate-form [name="note"]').fill("Checked on test, looks good");
@@ -88,6 +102,31 @@ try {
   await page.goto(core.base + "/#/run/" + s.runs.find((r) => r.loopId === quietLoop.id).id);
   await page.locator(".row.top", { hasText: "Stop reason" }).locator(".sub", { hasText: "No actionable errors" }).waitFor();
   assert.equal(await page.getByText("All steps succeeded and the completion condition was met.").count(), 0);
+
+  // A blocked agent lists what it could not get, and the run page says how to give the Loop access.
+  const needy = await core.api("/loops", { ...loop, id: "", version: 0, name: "Needs access", conversation: [], steps: [{ kind: "act", name: "Use the infra skill", prompt: "MISSING_ACCESS" }] });
+  const needyLoop = needy.loops.find((l) => l.name === "Needs access");
+  await core.api(`/loops/${needyLoop.id}/run`, {});
+  s = await waitFor(core.api, (st) => st.runs.find((r) => r.loopId === needyLoop.id && r.status === "blocked") && st);
+  await page.goto(core.base + "/#/run/" + s.runs.find((r) => r.loopId === needyLoop.id).id);
+  const missing = page.locator("#run-missing");
+  await missing.getByText("The agent could not get").waitFor();
+  assert.ok(await missing.getByText("~/.pi/agent/private/nexscope-infra-access.json (EPERM)").isVisible());
+  assert.ok(await missing.getByText("network access to infra.example.com").isVisible());
+  assert.equal(await missing.getByRole("link", { name: "Edit definition" }).getAttribute("href"), `#/loop/${needyLoop.id}/edit`);
+
+  // Today is a board: coming up → running → needs you → done today, with today's tokens by agent and model.
+  await page.goto(core.base + "/#/today");
+  await page.reload();
+  assert.deepEqual(await page.locator("#board .bcol").evaluateAll((cols) => cols.map((c) => c.dataset.col)), ["upcoming", "running", "needs", "done"]);
+  await page.locator('#board [data-col="needs"]').getByText("Needs access").waitFor();
+  await page.locator('#board [data-col="done"]').getByText("Quiet sweep").waitFor();
+  await page.locator('#board [data-col="done"]').getByText("Fix production errors").first().waitFor();
+  await page.locator("#kpi-tokens .v", { hasText: "4.5k" }).waitFor();
+  await page.locator("#today-usage", { hasText: "Claude Code" }).getByText("claude-fake").waitFor();
+  await page.screenshot({ path: `${EVIDENCE}/screens/today-board.en.light.png`, fullPage: true });
+  await page.goto(core.base + "/#/loop/" + loop.id);
+  await page.locator("#loop-usage", { hasText: "Last 7 days" }).getByText("1.5k").first().waitFor();
 
   // The gate shows what Loopbee committed first, and approving closes it at once.
   const edit = await core.api("/loops", { ...loop, id: "", version: 0, name: "Branch fix", conversation: [], workspace: "worktree", baseRef: "", branch: "loopbee/e2e-{run}", requireClean: false, steps: [{ kind: "act", name: "Fix", prompt: "EDIT_FILE" }, { kind: "gate", name: "Review the diff" }] });
@@ -145,6 +184,11 @@ try {
   // Agents never write Git metadata: the editor asks for a branch that Loopbee commits to.
   await page.locator("#f-agent").selectOption("codex");
   await page.getByRole("radio", { name: "Workspace write", exact: true }).click();
+  // An agent without a sandbox is not offered write levels.
+  await page.locator("#f-agent").selectOption("pi");
+  await page.getByText("pi cannot enforce “Workspace write” on its own").waitFor();
+  await page.locator("#f-agent").selectOption("codex");
+  await page.locator("#f-model").fill("gpt-fake");
   const codexGit = page.getByText("Agents cannot commit in a worktree; set a branch so Loopbee commits the changes");
   await codexGit.waitFor();
   await page.locator("#f-branch").fill("loopbee/fix-{date}");
@@ -169,14 +213,31 @@ try {
   await page.getByRole("radio", { name: "When all checks pass" }).click();
   await page.getByText("After your approval Loopbee waits for the pull request's checks").waitFor();
   await page.locator("#ed-work").locator("..").getByText("gh version 2.99.0 (fake) · signed in").waitFor();
+  // Read paths: the agent may read a skill's folder outside the project, never the computer's credential stores.
+  await page.locator("#f-readPaths").fill("~/.ssh");
+  const credentials = page.getByText("Read path “~/.ssh” holds this computer's credentials");
+  await credentials.waitFor();
+  await page.locator("#f-readPaths").fill("~/.pi/agent/private");
+  await credentials.waitFor({ state: "detached" });
+  await page.getByText("This Loop works on issues others write and lets the agent read ~/.pi/agent/private").waitFor();
+  // Git-ignored project files a fresh worktree lacks are copied from the checkout.
+  await page.locator("#f-copyFiles").fill(".env\nconfig/local.yml\n");
+  // The agent's own MCP tools (a browser for a web console): approved in advance, flagged for issue work.
+  await page.getByRole("switch", { name: "Use the agent's own MCP tools" }).click();
+  await page.getByText("This Loop works on issues others write and lets the agent use its MCP tools").waitFor();
   await page.getByRole("button", { name: "Save as v2" }).click();
   await page.locator(".hd .chip", { hasText: "Version v2" }).waitFor();
   const v2 = (await core.api("/state")).loops.find((l) => l.id === loop.id);
   assert.equal(v2.branch, "loopbee/issue-{issue}");
   assert.deepEqual(v2.intake, { kind: "github-issues", label: "bug" });
   assert.deepEqual(v2.pullRequest, { mode: "after-review", merge: "after-checks" });
+  assert.deepEqual(v2.readPaths, ["~/.pi/agent/private"]);
+  assert.deepEqual(v2.copyFiles, [".env", "config/local.yml"]);
+  assert.equal(v2.agentMcp, true);
+  await page.getByText("MCP tools run outside the sandbox with your rights and are approved in advance.").waitFor();
   await page.getByText("GitHub issues labelled bug → pull request after your review, merged when checks pass").waitFor();
   assert.equal(v2.agent, "codex");
+  assert.equal(v2.model, "gpt-fake");
   const cmd = v2.steps.find((st) => st.kind === "run");
   assert.ok(cmd && cmd.name === "Command" && cmd.continueOnError === true && cmd.argv.join(" ") === "node -v", JSON.stringify(cmd));
   await page.goto(core.base + "/#/loop/" + loop.id + "/edit");
@@ -199,7 +260,7 @@ try {
     await page.screenshot({ path: `${EVIDENCE}/screens/${name}.png`, fullPage: true });
   }
   assert.deepEqual(errors, [], "browser errors");
-  console.log("PASS: agent detection and default, chat authoring with follow-up, draft save with conversation, Claude-run agent step with report and gate, no_action outcome, form fields for permissions, worktree, branch, command steps and secrets, device-limit and usage-limit messages");
+  console.log("PASS: agent detection and default, chat authoring with follow-up, draft save with conversation, Claude-run agent step with report and gate, no_action outcome, what a blocked agent could not get, five agent adapters, model and token usage, Today board, form fields for permissions, read paths, copied files, worktree, branch, command steps and secrets, device-limit and usage-limit messages");
 } finally {
   await browser?.close();
   await core.stop();

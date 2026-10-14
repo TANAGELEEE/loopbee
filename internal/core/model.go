@@ -40,6 +40,7 @@ type Loop struct {
 	Description  string    `json:"description"`
 	Directory    string    `json:"directory"`
 	Agent        string    `json:"agent"`
+	Model        string    `json:"model,omitempty"` // model the agent CLI uses; "" = the CLI's own default
 	Sandbox      string    `json:"sandbox"`
 	Cron         string    `json:"cron"`
 	Timezone     string    `json:"timezone"`
@@ -67,6 +68,17 @@ type Loop struct {
 	// an agent can never change how work is picked or delivered.
 	Intake      *Intake      `json:"intake,omitempty"`
 	PullRequest *PullRequest `json:"pullRequest,omitempty"`
+	// ReadPaths are folders or files outside the project the agent may read but not change, e.g. a skill's
+	// credentials folder ("~/" = the user's home). The agent's own skills, plugins and memory are always readable.
+	ReadPaths []string `json:"readPaths,omitempty"`
+	// CopyFiles (worktree only) are Git-ignored files or folders of the project, such as .env or CLAUDE.local.md,
+	// that Loopbee copies from the developer's checkout into each fresh worktree. They are never committed.
+	CopyFiles []string `json:"copyFiles,omitempty"`
+	// AgentMCP lets the agent use every MCP tool of its own setup (a browser, a database, a console …) and approves
+	// them in advance, since nobody can answer an approval prompt in an unattended Run. MCP tools run outside the
+	// agent's sandbox with the user's rights. Off: Loopbee disables them, except at agent-config, where the agent's
+	// own configuration decides.
+	AgentMCP bool `json:"agentMcp,omitempty"`
 	// GateHours is how long a gate may wait for a decision; waiting does not consume WallMinutes.
 	GateHours    int           `json:"gateHours,omitempty"`
 	Env          []EnvVar      `json:"env,omitempty"`
@@ -143,6 +155,7 @@ type StepRecord struct {
 	Artifact string     `json:"artifact,omitempty"`
 	Bytes    int        `json:"bytes,omitempty"`
 	Note     string     `json:"note,omitempty"`
+	Usage    *Usage     `json:"usage,omitempty"` // model and tokens of an agent step, as the CLI reported them
 }
 type Run struct {
 	Metrics    map[string]float64 `json:"metrics,omitempty"`
@@ -169,6 +182,7 @@ type Run struct {
 	PRURL      string             `json:"prUrl,omitempty"`   // pull request opened by the Loop's delivery
 	Merged     bool               `json:"merged,omitempty"`  // the pull request was merged by the Loop's delivery
 	Phase      string             `json:"phase,omitempty"`   // what a running Run does between steps: "delivering", "merging"
+	Usage      *Usage             `json:"usage,omitempty"`   // models and tokens of all agent steps of this Run
 }
 type Event struct {
 	ID    int64     `json:"id"`
@@ -205,6 +219,8 @@ type Settings struct {
 	Onboarded      bool      `json:"onboarded"`
 	DefaultAgent   string    `json:"defaultAgent"`
 	Paused         bool      `json:"paused"`
+	// NoAutoUpdate turns off the automatic update checks and downloads (Settings › General); “Check now” still works.
+	NoAutoUpdate bool `json:"noAutoUpdate"`
 }
 type Delivery struct {
 	ID       string    `json:"id"`
@@ -225,6 +241,7 @@ type State struct {
 	Deliveries []Delivery          `json:"deliveries"`
 	Agents     []Agent             `json:"agents"`
 	GitHub     GitHubStatus        `json:"github"` // GitHub CLI for issue intake and pull requests
+	Update     UpdateStatus        `json:"update"` // Loopbee's own version and updates
 	Updated    time.Time           `json:"updated"`
 	Info       Info                `json:"info"`
 }
@@ -266,11 +283,17 @@ func Validate(l Loop) error {
 	if err != nil || !info.IsDir() {
 		return errors.New("working directory does not exist")
 	}
-	if l.Agent != "codex" && l.Agent != "claude" {
-		return errors.New("unknown agent")
+	if _, ok := adapterFor(l.Agent); !ok {
+		return levelError(l.Agent, l.Sandbox)
 	}
 	if !validSandbox(l.Sandbox) {
 		return errors.New("permission must be read-only, workspace-write, workspace-network or agent-config")
+	}
+	if !supportsLevel(l.Agent, l.Sandbox) {
+		return levelError(l.Agent, l.Sandbox)
+	}
+	if l.Model != "" && (len(l.Model) > 120 || strings.HasPrefix(l.Model, "-") || strings.ContainsAny(l.Model, " \t\r\n")) {
+		return errors.New("model must be a model name without spaces, e.g. gpt-5.5 or claude-sonnet-4-5")
 	}
 	if l.Workspace != "" && l.Workspace != "direct" && l.Workspace != "worktree" {
 		return errors.New("workspace must be direct or worktree")
@@ -288,6 +311,26 @@ func Validate(l Loop) error {
 		switch strings.ToLower(l.Branch) {
 		case "master", "main", "head", "develop", "production", "release":
 			return errors.New("Loopbee never commits to a shared branch; use a name such as loopbee/fix-{date}")
+		}
+	}
+	home, _ := os.UserHomeDir()
+	if len(l.ReadPaths) > 20 {
+		return errors.New("a Loop can list at most 20 read paths")
+	}
+	for _, p := range l.ReadPaths {
+		if err := validateReadPath(p, home); err != nil {
+			return err
+		}
+	}
+	if len(l.CopyFiles) > 0 && l.Workspace != "worktree" {
+		return errors.New("copied files are for the fresh git worktree workspace; in the project folder they are already there")
+	}
+	if len(l.CopyFiles) > 50 {
+		return errors.New("a Loop can copy at most 50 files or folders")
+	}
+	for _, p := range l.CopyFiles {
+		if err := validateCopyFile(p); err != nil {
+			return err
 		}
 	}
 	if err := validateIntakeAndDelivery(l); err != nil {

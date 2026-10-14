@@ -1,6 +1,6 @@
 // Flow strip and execution topology (spec §8). flowState is a pure function of the Run so the
 // animation never depends on event volume; render functions only consume its output.
-import { T, t, esc, bee, icon, cronText, sandboxLabel } from "./ui.js";
+import { T, t, esc, bee, icon, cronText, sandboxLabel, agentLabel, agentCmd, agentColor } from "./ui.js";
 
 // steps: definition steps; run: the Run to visualise or null for an idle Loop.
 export function flowState(steps, run) {
@@ -87,11 +87,13 @@ export function renderFlow(steps, state, { run, maxRounds, selected = -1 } = {})
 export function renderTopology({ loop, run, state, agents, activeCount, host }) {
   const topo = state.topo;
   const using = loop.agent;
+  // The Loop's own agent, then one row for every other agent the core knows.
+  const others = agents.filter((a) => a.name !== using);
   const list = [
-    { id: "codex", name: "Codex CLI", cmd: "codex exec", color: "#5b8def" },
-    { id: "claude", name: "Claude Code", cmd: "claude -p", color: "#c95b9a" },
+    { id: using, name: agentLabel(using), cmd: agentCmd(using), color: agentColor(using) },
+    { id: "", name: others.length ? t("{n} other agents", { n: others.length }) : t("No other agents"), cmd: "", color: "#76767f", others },
   ];
-  const idx = Math.max(0, list.findIndex((a) => a.id === using));
+  const idx = 0;
   const paths = ["M0 69 C34 69 34 32 76 32", "M0 69 C34 69 34 106 76 106"];
   const running = topo === "running";
   const coreChip = {
@@ -104,6 +106,7 @@ export function renderTopology({ loop, run, state, agents, activeCount, host }) 
     ended: `<span class="chip mut">${T("Ended {n} / {max}", { n: activeCount, max: 2 })}</span>`,
   }[topo];
   const agentStatus = (a) => {
+    if (a.others) return `<span class="sx muted">${T("{n} detected", { n: a.others.filter((x) => x.status === "available").length })}</span>`;
     const det = agents.find((x) => x.name === a.id);
     if (a.id !== using) return `<span class="sx muted">${T(det?.status === "available" ? "Standby" : det ? "Unverified" : "Not detected")}</span>`;
     if (topo === "running") return `<span class="sx">${icon("run")}${T("Running · round {r}", { r: run.round })}</span>`;
@@ -122,8 +125,7 @@ export function renderTopology({ loop, run, state, agents, activeCount, host }) 
   };
   const ags = list
     .map((a, i) => {
-      const det = agents.find((x) => x.name === a.id);
-      const sub = i === idx ? `${a.cmd} · ${sandboxLabel(loop.sandbox)}${loop.workspace === "worktree" ? " · worktree" : ""}` : det ? t("Detected · not used by this Loop") : t("Not detected · not used by this Loop");
+      const sub = i === idx ? `${a.cmd} · ${sandboxLabel(loop.sandbox)}${loop.model ? " · " + loop.model : ""}${loop.workspace === "worktree" ? " · worktree" : ""}` : (a.others || []).map((x) => x.label || agentLabel(x.name)).join(" · ") || t("Not used by this Loop");
       return `<div class="ag ${i === idx ? (topo === "running" ? "on" : topo === "failed" ? "err" : "") : "off"}"><span class="idot" data-c="${a.color}"></span><div class="grow"><div class="nm">${esc(a.name)}</div><div class="sub mono">${esc(sub)}</div></div>${agentStatus(a)}${pb(a)}</div>`;
     })
     .join("");
