@@ -120,6 +120,13 @@ func (a *App) SyncTeam() error {
 		}
 		return out, nil
 	}
+	// The checkout is loopbee's own. A different repository starts a fresh one, so the old repository's history and
+	// other publishers' files never reach the new one.
+	if remote, err := git("remote", "get-url", "origin"); err == nil && strings.TrimSpace(string(remote)) != c.TeamRemote {
+		if err = os.RemoveAll(dir); err != nil {
+			return err
+		}
+	}
 	if _, err := os.Stat(filepath.Join(dir, ".git")); os.IsNotExist(err) {
 		if err = os.MkdirAll(dir, 0700); err != nil {
 			return err
@@ -130,13 +137,6 @@ func (a *App) SyncTeam() error {
 		if _, err = git("remote", "add", "origin", c.TeamRemote); err != nil {
 			return err
 		}
-	}
-	remote, err := git("remote", "get-url", "origin")
-	if err != nil {
-		return err
-	}
-	if strings.TrimSpace(string(remote)) != c.TeamRemote {
-		return errors.New("team remote differs from existing checkout; use a separate data directory")
 	}
 	refs, err := git("ls-remote", "--heads", "origin", c.TeamBranch)
 	if err != nil {
