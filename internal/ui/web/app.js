@@ -35,7 +35,10 @@ async function mutate(path, body = {}, method) {
   setState(await api(path, body, method));
   render();
 }
+// Counts state replacements, so a poll that was already under way when a change was saved does not undo it.
+let stateGen = 0;
 function setState(s) {
+  stateGen++;
   ctx.state = s;
   ctx.lang = s.settings.language;
   ctx.now = Date.now();
@@ -1241,7 +1244,9 @@ function busy() {
 async function poll() {
   if (document.hidden) return;
   try {
+    const gen = stateGen;
     const s = await api("/state");
+    if (gen !== stateGen) return;
     const was = ctx.connected;
     ctx.connected = true;
     if (!was) toast(t("Reconnected"));
