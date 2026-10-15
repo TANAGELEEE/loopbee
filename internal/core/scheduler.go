@@ -13,6 +13,7 @@ func (a *App) ServeBackground() {
 		}
 	}
 	a.mu.Unlock()
+	a.serveTeam()
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()

@@ -30,6 +30,8 @@ A nonzero verify exit or unmet condition starts another round from the first ste
 
 ## Persistence and archives
 
+Team sync uses its own Git checkout in the data directory, never the developer's repositories; a different repository setting replaces that checkout. It runs Git without prompts (no terminal, askpass or credential-manager dialogs; SSH in batch mode; GitHub over HTTPS through the gh login), so a remote that needs a password fails with an error in Settings › Team and a banner instead of waiting.
+
 A Loop's `project` groups it on the boards and travels with the team snapshot, unlike `directory`. When empty on save (and, for Loops saved by earlier versions, at start) it becomes the owner/repo of the directory's `origin` remote, without user, token or host, or else the folder name.
 
 SQLite `objects(kind,id,data)` stores versioned JSON entities under primary key `(kind,id)`; `events` is append-only. Local and `shared_*` namespaces are isolated, so role changes do not delete local data. Retention removes only terminal Runs older than the configured number of days, together with their events and files. Running and waiting Runs are retained.

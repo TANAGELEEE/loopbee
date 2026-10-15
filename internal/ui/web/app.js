@@ -1,5 +1,5 @@
 // loopbee UI shell: routing, header, polling, dialogs, menus, toasts and actions.
-import { ctx, t, T, esc, $, $$, applyVars, btn, icon, icons, navIcons, active, hm, cronText, sandboxLabel } from "./ui.js";
+import { ctx, t, T, esc, $, $$, applyVars, btn, icon, icons, navIcons, active, hm, cronText, sandboxLabel, errText } from "./ui.js";
 import * as V from "./views.js";
 import { editorPage, gapsPanel, gaps, newDraft, definitionOnly, settingsPage, settingsTabs, onboardingPage, STEP_KINDS, kindLabel } from "./forms.js";
 import { chatPage, newChat, EXAMPLES } from "./chat.js";
@@ -275,6 +275,7 @@ function banners() {
   const list = [];
   if (!ctx.connected) list.push(`<div class="bn err">${icon("err")}<span class="grow">${T("loopbee core is not responding. Showing data from {time}; reconnecting every 3 seconds.", { time: hm(s.updated) })}</span>${btn("Retry", "refresh", { cls: "sm" })}</div>`);
   if (s.settings.paused) list.push(`<div class="bn warn">${icon("warn")}<span class="grow">${T("All schedules are paused. Active runs continue; paused triggers are not recorded as missed.")}</span>${V.viewer() ? "" : btn("Resume", "pause-all", { cls: "sm" })}</div>`);
+  if (s.settings.teamRemote && s.team?.error) list.push(`<div class="bn warn" id="team-banner">${icon("warn")}<span class="grow">${T("Team sync failed: {error}", { error: errText(s.team.error) })}</span><a class="btn sm" href="#/settings/team">${T("Team sync")}</a></div>`);
   if (V.viewer()) list.push(`<div class="bn">${icon("idle")}<span class="grow">${T("Viewer mode: this board shows the team snapshot. Running, approving and editing happen on the executor’s computer.")}</span>${btn("Pull now", "sync", { cls: "sm" })}</div>`);
   const shown = list.slice(0, 2);
   if (list.length > 2) shown.push(`<div class="sub">${T("{n} more notices", { n: list.length - 2 })}</div>`);

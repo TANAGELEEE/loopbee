@@ -5,7 +5,7 @@ The server listens only on numeric loopback addresses. Every `/api/*` route exce
 | Method | Path | Input / response |
 |---|---|---|
 | POST | `/api/session` | `{token}` → HttpOnly cookie |
-| GET | `/api/state` | brand, settings (secrets masked), loops, runs, agents, deliveries, activity, updated |
+| GET | `/api/state` | brand, settings (secrets masked), loops, runs, agents, deliveries, activity, updated, team `{last, error, pending}` (the last team sync) |
 | GET | `/api/digest` | `{text}` for the configured digest language/timezone |
 | POST | `/api/loops` | Complete Loop; empty id creates one, updates require version |
 | DELETE | `/api/loops/{id}` | Delete the definition and retain history; rejected while a Run is active. Also removes the Loop's worktree and the secret values it stored in the system keychain; branches stay |
@@ -18,7 +18,7 @@ The server listens only on numeric loopback addresses. Every `/api/*` route exce
 | POST | `/api/agents/detect` | `{}`; detect versions and capabilities |
 | POST | `/api/notify/{kind}/test` | `{}`; independently test an enabled channel |
 | POST | `/api/deliveries/{id}/retry` | `{}`; only failed/unknown deliveries, creates a new delivery |
-| POST | `/api/sync` | `{}`; executors publish, viewers pull |
+| POST | `/api/sync` | `{}`; executors publish, viewers pull. Both also happen by themselves once a team repository is set: an executor publishes when it is set and about 30 s after a Run ends or waits at a gate or a Loop changes; a viewer pulls when it is set, at start and every 5 minutes |
 | POST | `/api/prune` | `{}`; remove expired terminal Runs |
 | GET | `/api/export` | ZIP after sensitive-content checks |
 | POST | `/api/archive/import` | ZIP bytes, maximum 32 MiB |

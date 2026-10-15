@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -99,7 +100,7 @@ func (a *App) Prune() (int, error) {
 	return count, nil
 }
 
-func (a *App) SyncTeam() error {
+func (a *App) syncTeam() error {
 	a.syncMu.Lock()
 	defer a.syncMu.Unlock()
 	c := a.Settings()
@@ -113,8 +114,15 @@ func (a *App) SyncTeam() error {
 	ctx, cancel := context.WithTimeout(a.ctx, 60*time.Second)
 	defer cancel()
 	dir := filepath.Join(a.Dir, "team")
+	// Syncs run in the background, so Git must never wait for a password or passphrase nobody sees.
+	credentials, env := pushCredentials(c.TeamRemote)
+	env = append(env, "GIT_TERMINAL_PROMPT=0")
 	git := func(args ...string) ([]byte, error) {
-		out, err := runCommand(ctx, dir, append([]string{"git", "-c", "core.hooksPath=", "-c", "protocol.ext.allow=never"}, args...), nil)
+		argv := append([]string{"git", "-c", "core.hooksPath=", "-c", "protocol.ext.allow=never"}, credentials...)
+		out, err := runCommandEnv(ctx, dir, append(argv, args...), nil, nil, env)
+		if err != nil && args[0] == "push" && bytes.Contains(out, []byte("[rejected]")) {
+			return nil, errPushRejected
+		}
 		if err != nil {
 			return nil, fmt.Errorf("Git %s failed; check remote access and branch", args[0])
 		}
@@ -245,6 +253,9 @@ func (a *App) SyncTeam() error {
 	}
 	if _, err = git("-c", "user.name=loopbee", "-c", "user.email=loopbee@localhost", "commit", "-m", "Update loopbee dashboard"); err != nil {
 		return err
+	}
+	if beforeTeamPush != nil {
+		beforeTeamPush()
 	}
 	_, err = git("push", "origin", "HEAD:refs/heads/"+c.TeamBranch)
 	return err

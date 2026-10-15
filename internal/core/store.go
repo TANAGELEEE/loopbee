@@ -33,6 +33,10 @@ type App struct {
 	agents      []Agent
 	github      GitHubStatus
 	syncMu      sync.Mutex
+	teamMu      sync.Mutex // guards team, teamTimer and teamClosed; never held while taking mu or syncMu
+	team        TeamStatus
+	teamTimer   *time.Timer
+	teamClosed  bool
 	awakeCancel context.CancelFunc
 	upd         *updater
 }
@@ -139,6 +143,7 @@ func Open(dir string) (*App, error) {
 }
 func (a *App) Close() {
 	a.installOnQuit()
+	a.stopTeam()
 	a.cancel()
 	a.mu.Lock()
 	for _, cancel := range a.active {
@@ -194,7 +199,15 @@ func list[T any](a *App, kind string) ([]T, error) {
 func (a *App) Loops() ([]Loop, error)     { return list[Loop](a, "loop") }
 func (a *App) Runs() ([]Run, error)       { return list[Run](a, "run") }
 func (a *App) Run(id string) (Run, error) { var r Run; err := a.get("run", id, &r); return r, err }
-func (a *App) saveRun(r Run) error        { return a.put("run", r.ID, r) }
+func (a *App) saveRun(r Run) error {
+	if err := a.put("run", r.ID, r); err != nil {
+		return err
+	}
+	if terminal(r.Status) || r.Status == "waiting" {
+		a.teamChanged(false)
+	}
+	return nil
+}
 func (a *App) Settings() Settings {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -297,7 +310,12 @@ func (a *App) SaveSettings(c Settings) error {
 			return errors.Join(err, a.put("settings", "general", a.config))
 		}
 	}
+	// A newly set team repository (or role) is synced at once instead of waiting for the next change.
+	teamSet := c.TeamRemote != "" && (c.TeamRemote != a.config.TeamRemote || c.TeamBranch != a.config.TeamBranch || c.Role != a.config.Role)
 	a.config = c
+	if teamSet {
+		a.teamChanged(true)
+	}
 	return nil
 }
 func (a *App) SaveLoop(l Loop) (Loop, error) {
@@ -338,7 +356,11 @@ func (a *App) SaveLoop(l Loop) (Loop, error) {
 		s, _ := schedule(l)
 		l.Next = s.Next(l.Updated)
 	}
-	return l, a.put("loop", l.ID, l)
+	if err := a.put("loop", l.ID, l); err != nil {
+		return l, err
+	}
+	a.teamChanged(false)
+	return l, nil
 }
 func (a *App) DeleteLoop(id string) error {
 	a.mu.Lock()
@@ -363,6 +385,7 @@ func (a *App) DeleteLoop(id string) error {
 	if found {
 		a.cleanupLoop(l)
 	}
+	a.teamChanged(false)
 	return nil
 }
 
@@ -475,5 +498,6 @@ func (a *App) State() (State, error) {
 	s.Info = Info{Version: Version, OS: runtime.GOOS, Arch: runtime.GOARCH, DataDir: a.Dir, Active: len(a.active)}
 	a.mu.Unlock()
 	s.Update = a.UpdateState()
+	s.Team = a.teamStatus()
 	return s, nil
 }

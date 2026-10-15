@@ -1,5 +1,5 @@
 // Editor, settings and onboarding views (form-heavy pages).
-import { ctx, t, T, esc, when, cronText, icon, btn, sec, empty, toggle, seg, fld, short, bytes, deliveryBadge, channelName, toDate, hm, SANDBOXES, sandboxRank, sandboxLabel, sandboxHelp, agentLabel, agentColor, agentLevels } from "./ui.js";
+import { ctx, t, T, esc, when, errText, cronText, icon, btn, sec, empty, toggle, seg, fld, short, bytes, deliveryBadge, channelName, toDate, hm, SANDBOXES, sandboxRank, sandboxLabel, sandboxHelp, agentLabel, agentColor, agentLevels } from "./ui.js";
 import { flowState, renderFlow } from "./flow.js";
 import { viewer, runsSorted } from "./views.js";
 
@@ -168,6 +168,17 @@ export function definitionOnly(d) {
 
 // ---------- Settings ----------
 export const settingsTabs = [["general", "General"], ["agents", "Agents"], ["notifications", "Notifications"], ["team", "Team sync"], ["data", "Data & archive"], ["about", "About"]];
+
+// What the automatic team sync did last: the executor publishes after changes, a viewer pulls every five minutes.
+function teamStatus(c) {
+  const st = ctx.state.team || {};
+  if (!c.teamRemote) return `<span class="sub" id="team-status">${T("Set a repository and loopbee keeps the team board up to date by itself.")}</span>`;
+  const viewer = c.role === "viewer";
+  const parts = [T(viewer ? "Pulls by itself when loopbee starts and every 5 minutes" : "Publishes by itself after a Run ends or waits for review, and after Loops change")];
+  if (st.pending && !viewer) parts.push(T("changes waiting to be published"));
+  if (st.last) parts.push(T(viewer ? "last pulled {time}" : "last published {time}", { time: when(st.last) }));
+  return `<span class="sub" id="team-status">${parts.join(" · ")}</span>${st.error ? `<div class="sub err" id="team-error">${T("Last sync failed: {error}", { error: errText(st.error) })}</div>` : ""}`;
+}
 export function settingsPage(tab, ui) {
   const c = S().settings;
   const body = { general, agents, notifications, team, data, about }[tab] || general;
@@ -290,7 +301,7 @@ function notifications(c, ui) {
 function team(c) {
   return `
   ${sec(T("Team sync"), { note: T("Share one board through a Git repository: executors publish, viewers read") })}
-  <form class="grp" id="team-form">${fld(T("Role on this device"), seg("role", c.role, [["executor", t("Executor")], ["viewer", t("Viewer (read only)")]], { action: "team-role", label: t("Role") }), T("Viewers cannot run, approve, cancel or edit Loops; the core enforces this, not just the UI."))}<input type="hidden" name="role" value="${esc(c.role)}">${fld(T("Repository"), `<input class="inp mono" name="teamRemote" value="${esc(c.teamRemote)}" placeholder="git@github.com:team/all-docs.git">`, T("Uses your local Git credentials."))}${fld(T("Branch"), `<input class="inp mono" name="teamBranch" value="${esc(c.teamBranch)}">`, T("loopbee uses its own checkout and never changes your project branches."))}${fld(T("Publisher ID"), `<span class="mono">${esc(c.publisher)}</span>`)}<div class="fld fact"><div class="sub">${T("Public metadata only. Private loops and credentials are excluded.")}</div><div class="actions">${btn(c.role === "viewer" ? "Pull now" : "Publish now", "sync", { attrs: c.teamRemote ? "" : "disabled" })}<button class="btn pri">${T("Save")}</button></div></div></form>
+  <form class="grp" id="team-form">${fld(T("Role on this device"), seg("role", c.role, [["executor", t("Executor")], ["viewer", t("Viewer (read only)")]], { action: "team-role", label: t("Role") }), T("Viewers cannot run, approve, cancel or edit Loops; the core enforces this, not just the UI."))}<input type="hidden" name="role" value="${esc(c.role)}">${fld(T("Repository"), `<input class="inp mono" name="teamRemote" value="${esc(c.teamRemote)}" placeholder="git@github.com:team/all-docs.git">`, T("Uses your local Git credentials."))}${fld(T("Branch"), `<input class="inp mono" name="teamBranch" value="${esc(c.teamBranch)}">`, T("loopbee uses its own checkout and never changes your project branches."))}${fld(T("Publisher ID"), `<span class="mono">${esc(c.publisher)}</span>`)}${fld(T("Sync"), teamStatus(c))}<div class="fld fact"><div class="sub">${T("Public metadata only. Private loops and credentials are excluded.")}</div><div class="actions">${btn(c.role === "viewer" ? "Pull now" : "Publish now", "sync", { attrs: c.teamRemote ? "" : "disabled" })}<button class="btn pri">${T("Save")}</button></div></div></form>
   ${sec(T("Before publishing"))}
   <div class="grp">${fld(T("Sensitive content scan"), `<span class="chip ok">${icon("ok")}${T("Always on")}</span>`, T("Common secrets and e-mail addresses block publishing. This is pattern matching, not complete DLP — only make Loops public if their content can be shared."))}${fld(T("Private Loops"), `<span class="nm">${T("Never published")}</span>`)}${fld(T("What is shared"), `<span class="nm">${T("Public definitions, runs, the latest 1,000 events and text evidence")}</span>`)}</div>`;
 }

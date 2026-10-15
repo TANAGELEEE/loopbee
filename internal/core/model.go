@@ -249,6 +249,7 @@ type State struct {
 	Agents     []Agent             `json:"agents"`
 	GitHub     GitHubStatus        `json:"github"` // GitHub CLI for issue intake and pull requests
 	Update     UpdateStatus        `json:"update"` // loopbee's own version and updates
+	Team       TeamStatus          `json:"team"`   // the last team sync, automatic or not
 	Updated    time.Time           `json:"updated"`
 	Info       Info                `json:"info"`
 }

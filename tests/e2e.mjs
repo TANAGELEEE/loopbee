@@ -6,6 +6,7 @@ import { startCore, waitFor } from "./demo.mjs";
 import { uiFlow } from "./ui-flow.mjs";
 import { sidebarFlow } from "./sidebar-flow.mjs";
 import { projectFlow } from "./project-flow.mjs";
+import { teamSyncFlow } from "./team-sync-flow.mjs";
 // CI sets LOOPBEE_EVIDENCE_DIR to a fresh directory so uploaded screenshots always come from this run.
 const EVIDENCE = process.env.LOOPBEE_EVIDENCE_DIR || "docs/evidence";
 
@@ -32,6 +33,7 @@ try {
   const { gateLoop } = await uiFlow(page, { data: core.data, node: process.execPath });
   await sidebarFlow(page, core.base, core.api);
   projects = await projectFlow(page, core, agentEnv);
+  await teamSyncFlow(page, core, agentEnv);
 
   // An agent that is installed but cannot start says why, instead of “Not detected”.
   await page.goto(core.base + "/#/settings/agents");
