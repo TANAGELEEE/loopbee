@@ -28,7 +28,7 @@ export async function uiFlow(page, { data, node, name = "Smoke <safe>" }) {
   await page.locator(".ob-head").waitFor();
   await page.locator('[data-action="lang-menu"]').click();
   await page.locator("#menu [role=menuitem]", { hasText: "English" }).click();
-  await page.getByRole("heading", { name: "Welcome to Loopbee" }).waitFor();
+  await page.getByRole("heading", { name: "Welcome to loopbee" }).waitFor();
   await page.getByRole("button", { name: "Skip setup" }).click();
   await page.getByRole("heading", { name: "Create your first Loop" }).waitFor();
 

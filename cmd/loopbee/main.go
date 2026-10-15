@@ -42,7 +42,7 @@ func run() error {
 	listen := flag.String("listen", "127.0.0.1:0", "loopback HTTP address")
 	headless := flag.Bool("nogui", false, "run the scheduler and API without a desktop window")
 	flag.Parse()
-	// Started by an update: the old Loopbee may still hold the data folder for a moment.
+	// Started by an update: the old loopbee may still hold the data folder for a moment.
 	update.AwaitPredecessor()
 	a, err := core.Open(*dir)
 	if err != nil {

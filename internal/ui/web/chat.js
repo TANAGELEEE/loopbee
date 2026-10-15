@@ -1,4 +1,4 @@
-// "Describe your Loop": the bound local agent CLI drafts the definition; Loopbee previews and checks it.
+// "Describe your Loop": the bound local agent CLI drafts the definition; loopbee previews and checks it.
 import { ctx, t, T, esc, icon, btn, sec, empty, seg, cronText, sandboxLabel, agentLabel, hm, errText } from "./ui.js";
 import { flowState, renderFlow } from "./flow.js";
 import { gapsPanel, gaps, kindLabel } from "./forms.js";
@@ -45,7 +45,7 @@ export function chatPage(c) {
     ? `<div class="card sm">${empty(T("No agent CLI detected"), T("Install Codex CLI or Claude Code, then detect again. You can still build the Loop with the form."), `${btn("Detect again", "detect", { cls: "sm" })}<a class="btn sm" href="#/new?form=1">${T("Use the form")}</a>`)}</div>`
     : "";
   return `
-  <div class="sec top-sec crumbs"><h2><a href="#/loops">Loops</a> › ${editing ? `<a href="#/loop/${c.loop.id}">${esc(c.loop.name)}</a> › ${T("Change by chat")}` : T("New Loop")}</h2><span class="note">${T("Your default agent drafts the Loop; Loopbee checks it before anything runs")}</span><div class="act">${c.draft ? "" : `<a href="${editing ? `#/loop/${c.loop.id}/edit` : "#/new?form=1"}">${T("Use the form instead")} ›</a>`}</div></div>
+  <div class="sec top-sec crumbs"><h2><a href="#/loops">Loops</a> › ${editing ? `<a href="#/loop/${c.loop.id}">${esc(c.loop.name)}</a> › ${T("Change by chat")}` : T("New Loop")}</h2><span class="note">${T("Your default agent drafts the Loop; loopbee checks it before anything runs")}</span><div class="act">${c.draft ? "" : `<a href="${editing ? `#/loop/${c.loop.id}/edit` : "#/new?form=1"}">${T("Use the form instead")} ›</a>`}</div></div>
   ${noAgent || `<div class="chat">
     <div class="chat-main card">
       ${cfg}
@@ -71,7 +71,7 @@ function preview(c) {
   ];
   if (d.workspace !== "worktree" && d.requireClean) facts.push([t("Before running"), t("The folder must be a Git repository without uncommitted changes")]);
   if (d.intake || d.pullRequest) facts.push([t("Work & delivery"), workSummary(d)]);
-  if (d.branch) facts.push([t("Commits"), t("Loopbee commits the agent's changes on {branch}; nothing is pushed or merged by Loopbee", { branch: d.branch })]);
+  if (d.branch) facts.push([t("Commits"), t("loopbee commits the agent's changes on {branch}; nothing is pushed or merged by loopbee", { branch: d.branch })]);
   if (d.env?.length) facts.push([t("Environment"), d.env.map((e) => e.name + (e.secret ? "*" : "") + (e.value?.startsWith("env:") ? " ← " + t("your shell") : "")).join(", ")]);
   if (d.readPaths?.length) facts.push([t("Read paths"), d.readPaths.join(", ")]);
   if (d.agentMcp) facts.push([t("MCP tools"), t("The agent's own MCP tools, approved in advance; they run outside the sandbox with your rights")]);

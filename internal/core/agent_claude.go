@@ -134,7 +134,7 @@ func claudeArgs(inv agentInvocation, caps []string) ([]string, []string) {
 	return argv, nil
 }
 
-// claudeSettings maps a Loopbee permission level to Claude Code settings: the OS sandbox for Bash (write levels)
+// claudeSettings maps a loopbee permission level to Claude Code settings: the OS sandbox for Bash (write levels)
 // and read rules for ReadPaths. "" means no settings are needed.
 func claudeSettings(sandbox string, readPaths []string, mcp bool) string {
 	settings := map[string]any{}
@@ -272,13 +272,13 @@ func claudeUsage(output []byte) Usage {
 	return u
 }
 
-// claudeExplain: Claude Code suggests changing sandbox.failIfUnavailable, which Loopbee's flags override.
+// claudeExplain: Claude Code suggests changing sandbox.failIfUnavailable, which loopbee's flags override.
 func claudeExplain(reason, goos string) string {
 	if !strings.Contains(reason, "Sandbox required but unavailable") {
 		return reason
 	}
 	if goos == "windows" {
-		return reason + " — Claude Code cannot sandbox commands on native Windows yet, so it cannot run at workspace-write or workspace-network here. Switch this Loop to Codex, run Loopbee in WSL2, or choose the agent-config permission (Claude Code's own settings decide; raise the device limit in Settings › General first). Changing failIfUnavailable in Claude Code has no effect: Loopbee sets it."
+		return reason + " — Claude Code cannot sandbox commands on native Windows yet, so it cannot run at workspace-write or workspace-network here. Switch this Loop to Codex, run loopbee in WSL2, or choose the agent-config permission (Claude Code's own settings decide; raise the device limit in Settings › General first). Changing failIfUnavailable in Claude Code has no effect: loopbee sets it."
 	}
-	return reason + " — Claude Code's sandbox needs bubblewrap and socat on Linux (install them, e.g. apt install bubblewrap socat), or switch this Loop to Codex, or choose the agent-config permission. Changing failIfUnavailable in Claude Code has no effect: Loopbee sets it."
+	return reason + " — Claude Code's sandbox needs bubblewrap and socat on Linux (install them, e.g. apt install bubblewrap socat), or switch this Loop to Codex, or choose the agent-config permission. Changing failIfUnavailable in Claude Code has no effect: loopbee sets it."
 }

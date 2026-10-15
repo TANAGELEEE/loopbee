@@ -1,4 +1,4 @@
-/* Loopbee 看板 · 共用 token 與元件（依 quiet-dashboard-ui：中性底色、分組列表、細分隔線、強調色只用於選取/焦點/主要動作） */
+/* loopbee 看板 · 共用 token 與元件（依 quiet-dashboard-ui：中性底色、分組列表、細分隔線、強調色只用於選取/焦點/主要動作） */
 .lp{
   --bg:#f4f4f6;--card:#ffffff;--card2:#f9f9fb;--line:#e3e3e8;
   --fg:#1c1c21;--fg2:#4b4b53;--muted:#76767f;--ctl:#63636b;
@@ -188,7 +188,7 @@ textarea.inp{resize:none;line-height:1.55}
 }
 
 
-/* ===== Loopbee：品牌標誌與蜜蜂動效 ===== */
+/* ===== loopbee：品牌標誌與蜜蜂動效 ===== */
 .lp{--bee:#e9a81c;--bee-ink:#2b2208}
 .lp.dark{--bee:#f2c25b;--bee-ink:#1a1405}
 .mark{width:20px;height:20px;flex:none;background:var(--fg);border:0;border-radius:0;position:relative;

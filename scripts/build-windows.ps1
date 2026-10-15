@@ -78,7 +78,7 @@ try {
 Assert-Executable 'bin/loopbee.exe' 2 $true
 if ($DesktopTest) { Assert-Executable '.test-data/loopbee-desktop-test.exe' 2 $true }
 
-$loopbeeZip = Join-Path (Get-Location) 'bin/Loopbee-windows-amd64.zip'
+$loopbeeZip = Join-Path (Get-Location) 'bin/loopbee-windows-amd64.zip'
 Compress-Archive -LiteralPath @('bin/loopbee.exe', 'bin/loopbee-nogui.exe', 'bin/beectl.exe', 'scripts/windows/README.txt') -DestinationPath $loopbeeZip -Force
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $archive = [IO.Compression.ZipFile]::OpenRead($loopbeeZip)
@@ -90,7 +90,7 @@ try {
 } finally { $archive.Dispose() }
 # Release downloads: the portable ZIP (desktop, headless and beectl) and the desktop program itself as a
 # directly runnable .exe (not an installer). Each gets a .sha256 file; the release adds a combined SHA256SUMS.
-$loopbeeExe = Join-Path (Get-Location) 'bin/Loopbee-windows-amd64.exe'
+$loopbeeExe = Join-Path (Get-Location) 'bin/loopbee-windows-amd64.exe'
 Copy-Item -LiteralPath 'bin/loopbee.exe' -Destination $loopbeeExe -Force
 Assert-Executable $loopbeeExe 2 $true
 foreach ($file in @($loopbeeZip, $loopbeeExe)) {
@@ -98,4 +98,4 @@ foreach ($file in @($loopbeeZip, $loopbeeExe)) {
     $name = Split-Path $file -Leaf
     [IO.File]::WriteAllText("$file.sha256", "$hash  $name`n", [Text.Encoding]::ASCII)
 }
-Write-Output 'Built and validated bin/loopbee.exe, bin/loopbee-nogui.exe, bin/beectl.exe, bin/Loopbee-windows-amd64.exe and bin/Loopbee-windows-amd64.zip (unsigned).'
+Write-Output 'Built and validated bin/loopbee.exe, bin/loopbee-nogui.exe, bin/beectl.exe, bin/loopbee-windows-amd64.exe and bin/loopbee-windows-amd64.zip (unsigned).'

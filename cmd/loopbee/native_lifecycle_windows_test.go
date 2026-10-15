@@ -110,7 +110,7 @@ func TestNativeDesktopLifecycle(t *testing.T) {
 	var window w32.HWND
 	windowCallback := windows.NewCallback(func(hwnd uintptr, _ uintptr) uintptr {
 		_, pid := w32.GetWindowThreadProcessId(w32.HWND(hwnd))
-		if pid == cmd.Process.Pid && w32.GetWindowText(w32.HWND(hwnd)) == "Loopbee" && w32.IsWindowVisible(w32.HWND(hwnd)) {
+		if pid == cmd.Process.Pid && w32.GetWindowText(w32.HWND(hwnd)) == "loopbee" && w32.IsWindowVisible(w32.HWND(hwnd)) {
 			window = w32.HWND(hwnd)
 		}
 		return 1

@@ -14,7 +14,11 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
-const Brand = "Loopbee"
+const Brand = "loopbee"
+
+// keyringService names the keychain entries Loopbee stored before it was renamed. macOS compares it case-sensitively,
+// so it stays capitalised: changing it would hide every saved secret.
+const keyringService = "Loopbee"
 
 // Version is overridden at build time with -ldflags "-X loopbee/internal/core.Version=…".
 var Version = "0.1.0-dev"
@@ -59,12 +63,12 @@ type Loop struct {
 	// Workspace is "direct" (run in Directory) or "worktree" (a fresh git worktree per Run).
 	Workspace string `json:"workspace,omitempty"`
 	BaseRef   string `json:"baseRef,omitempty"` // worktree base, e.g. origin/master; empty = HEAD
-	// Branch (worktree only): Loopbee creates this branch for the Run and commits the agent's changes on it
+	// Branch (worktree only): loopbee creates this branch for the Run and commits the agent's changes on it
 	// after each agent step, so agents never write Git metadata (Codex's sandbox forbids it).
 	// {date}, {time}, {run} and {issue} are replaced per Run.
 	Branch string `json:"branch,omitempty"`
-	// Intake: where a Run's work item comes from (nil = the prompt alone). PullRequest: what Loopbee does with the
-	// branch when the Run succeeds. Both are Loopbee's job, not the project's, so any repository can use them and
+	// Intake: where a Run's work item comes from (nil = the prompt alone). PullRequest: what loopbee does with the
+	// branch when the Run succeeds. Both are loopbee's job, not the project's, so any repository can use them and
 	// an agent can never change how work is picked or delivered.
 	Intake      *Intake      `json:"intake,omitempty"`
 	PullRequest *PullRequest `json:"pullRequest,omitempty"`
@@ -72,11 +76,11 @@ type Loop struct {
 	// credentials folder ("~/" = the user's home). The agent's own skills, plugins and memory are always readable.
 	ReadPaths []string `json:"readPaths,omitempty"`
 	// CopyFiles (worktree only) are Git-ignored files or folders of the project, such as .env or CLAUDE.local.md,
-	// that Loopbee copies from the developer's checkout into each fresh worktree. They are never committed.
+	// that loopbee copies from the developer's checkout into each fresh worktree. They are never committed.
 	CopyFiles []string `json:"copyFiles,omitempty"`
 	// AgentMCP lets the agent use every MCP tool of its own setup (a browser, a database, a console …) and approves
 	// them in advance, since nobody can answer an approval prompt in an unattended Run. MCP tools run outside the
-	// agent's sandbox with the user's rights. Off: Loopbee disables them, except at agent-config, where the agent's
+	// agent's sandbox with the user's rights. Off: loopbee disables them, except at agent-config, where the agent's
 	// own configuration decides.
 	AgentMCP bool `json:"agentMcp,omitempty"`
 	// GateHours is how long a gate may wait for a decision; waiting does not consume WallMinutes.
@@ -88,7 +92,7 @@ type Loop struct {
 }
 
 // Intake picks one work item per Run. Kind "github-issues": the oldest open issue with Label, opened by a trusted
-// person (repository OWNER/MEMBER/COLLABORATOR or a listed login), that nobody is working on. Loopbee labels it
+// person (repository OWNER/MEMBER/COLLABORATOR or a listed login), that nobody is working on. loopbee labels it
 // WorkingLabel and gives it to the agent as untrusted text; no issue ends the Run as "nothing to do".
 type Intake struct {
 	Kind         string   `json:"kind"`
@@ -99,7 +103,7 @@ type Intake struct {
 }
 
 // PullRequest delivers the Run's branch: Mode "after-review" opens a pull request when the Run completes, which
-// requires a gate after the agent; "draft" opens a draft pull request without a gate in Loopbee (the draft is the
+// requires a gate after the agent; "draft" opens a draft pull request without a gate in loopbee (the draft is the
 // review). Changes to .github/ are never pushed automatically.
 // Merge "after-checks" (only with after-review) then waits for the pull request's checks and squash-merges it when
 // all of them pass; with failing, missing or unfinished checks, or a conflict, it leaves the pull request open.
@@ -176,8 +180,8 @@ type Run struct {
 	Report     string             `json:"report,omitempty"` // the agent's last final message (truncated)
 	Result     *AgentResult       `json:"result,omitempty"` // parsed result contract of the last agent step
 	Workdir    string             `json:"workdir,omitempty"`
-	Branch     string             `json:"branch,omitempty"`  // branch Loopbee created for this Run
-	Commits    []string           `json:"commits,omitempty"` // commits Loopbee made on it (short hashes)
+	Branch     string             `json:"branch,omitempty"`  // branch loopbee created for this Run
+	Commits    []string           `json:"commits,omitempty"` // commits loopbee made on it (short hashes)
 	Issue      *IssueRef          `json:"issue,omitempty"`   // the work item taken by the Loop's intake
 	PRURL      string             `json:"prUrl,omitempty"`   // pull request opened by the Loop's delivery
 	Merged     bool               `json:"merged,omitempty"`  // the pull request was merged by the Loop's delivery
@@ -241,7 +245,7 @@ type State struct {
 	Deliveries []Delivery          `json:"deliveries"`
 	Agents     []Agent             `json:"agents"`
 	GitHub     GitHubStatus        `json:"github"` // GitHub CLI for issue intake and pull requests
-	Update     UpdateStatus        `json:"update"` // Loopbee's own version and updates
+	Update     UpdateStatus        `json:"update"` // loopbee's own version and updates
 	Updated    time.Time           `json:"updated"`
 	Info       Info                `json:"info"`
 }
@@ -310,7 +314,7 @@ func Validate(l Loop) error {
 		}
 		switch strings.ToLower(l.Branch) {
 		case "master", "main", "head", "develop", "production", "release":
-			return errors.New("Loopbee never commits to a shared branch; use a name such as loopbee/fix-{date}")
+			return errors.New("loopbee never commits to a shared branch; use a name such as loopbee/fix-{date}")
 		}
 	}
 	home, _ := os.UserHomeDir()

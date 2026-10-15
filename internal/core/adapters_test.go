@@ -88,7 +88,7 @@ func TestEveryAdapterMeetsTheContract(t *testing.T) {
 	}
 }
 
-// What each level passes to each CLI: the enforcement Loopbee promises in the editor and settings.
+// What each level passes to each CLI: the enforcement loopbee promises in the editor and settings.
 func TestAdapterPermissionFlags(t *testing.T) {
 	dir := t.TempDir()
 	reads := []string{filepath.Join(dir, "skills")}
@@ -150,7 +150,7 @@ func TestAdapterPermissionFlags(t *testing.T) {
 	}
 }
 
-// Codex does not report its model in events; Loopbee reads the default from config.toml.
+// Codex does not report its model in events; loopbee reads the default from config.toml.
 func TestCodexModelFromConfig(t *testing.T) {
 	home := t.TempDir()
 	os.MkdirAll(filepath.Join(home, ".codex"), 0700)
@@ -174,7 +174,7 @@ func TestCodexModelFromConfig(t *testing.T) {
 func sleepMs(n int) { time.Sleep(time.Duration(n) * time.Millisecond) }
 
 // Real pi drafted a report Loop at workspace-write, which pi cannot enforce, and the draft could not be saved.
-// Loopbee lowers such a level (never raises it) and says so in the reply.
+// loopbee lowers such a level (never raises it) and says so in the reply.
 func TestAuthorLowersALevelTheAgentCannotEnforce(t *testing.T) {
 	a := testApp(t)
 	useFakeAgents(t, a, "author") // the fake designer proposes workspace-network
@@ -195,7 +195,7 @@ func TestAuthorLowersALevelTheAgentCannotEnforce(t *testing.T) {
 	}
 }
 
-// Output of the real pi 1.1.0 (2026-10-13, one read-only turn with a read tool call), trimmed to the events Loopbee
+// Output of the real pi 1.1.0 (2026-10-13, one read-only turn with a read tool call), trimmed to the events loopbee
 // reads: the final text, the result line, every turn's usage and the model must come through.
 func TestRealPiOutput(t *testing.T) {
 	out, err := os.ReadFile(filepath.Join("testdata", "pi-real.jsonl"))
@@ -220,7 +220,7 @@ func TestRealPiOutput(t *testing.T) {
 	}
 }
 
-// The real OpenCode on the developer's Mac was killed at start (exit 137); Loopbee only said "not detected".
+// The real OpenCode on the developer's Mac was killed at start (exit 137); loopbee only said "not detected".
 func TestDetectionSaysWhyAnAgentIsUnavailable(t *testing.T) {
 	a := testApp(t)
 	useFakeAgents(t, a, "done")

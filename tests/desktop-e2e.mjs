@@ -14,7 +14,7 @@ assert.equal(
   "win32",
   "desktop E2E requires Windows and WebView2",
 );
-const data = await mkdtemp(join(tmpdir(), "Loopbee desktop 中文 "));
+const data = await mkdtemp(join(tmpdir(), "loopbee desktop 中文 "));
 const executable = resolve(
   process.env.LOOPBEE_DESKTOP_EXE || ".test-data/loopbee-desktop-test.exe",
 );
@@ -72,7 +72,7 @@ async function startDesktop() {
     if (page) break;
     await delay(100);
   }
-  assert.ok(page, "actual desktop WebView2 did not load the Loopbee UI");
+  assert.ok(page, "actual desktop WebView2 did not load the loopbee UI");
   page.on("pageerror", (error) => errors.push(error.message));
   page.setDefaultTimeout(10000);
   await page.locator("#language").waitFor();

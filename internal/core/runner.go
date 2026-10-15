@@ -438,7 +438,7 @@ func (a *App) execute(ctx context.Context, r Run) {
 				issueWorked = true
 				prompt := s.Prompt + readablePrompt(readPaths, memory)
 				if r.Branch != "" {
-					prompt += "\n\nYou are on branch " + r.Branch + " in a fresh worktree that Loopbee created from " + orDefault(l.BaseRef, "HEAD") + ". Do not create or switch branches and do not commit: Loopbee commits your changes on this branch after this step."
+					prompt += "\n\nYou are on branch " + r.Branch + " in a fresh worktree that loopbee created from " + orDefault(l.BaseRef, "HEAD") + ". Do not create or switch branches and do not commit: loopbee commits your changes on this branch after this step."
 				}
 				if issue != nil {
 					prompt += issuePrompt(issue)
@@ -447,7 +447,7 @@ func (a *App) execute(ctx context.Context, r Run) {
 					prompt += "\n\nThe previous round's verification failed. Fix this first:\n" + lastFailure
 				}
 				if earlier.Len() > 0 {
-					prompt += "\n\nOutput of the earlier steps of this run (captured by Loopbee; use it instead of re-running the commands):\n" + earlier.String()
+					prompt += "\n\nOutput of the earlier steps of this run (captured by loopbee; use it instead of re-running the commands):\n" + earlier.String()
 				}
 				if reviewerNote != "" {
 					prompt += "\n\nNote from the human reviewer at the previous gate: " + reviewerNote
@@ -528,7 +528,7 @@ func (a *App) execute(ctx context.Context, r Run) {
 						subject = l.Name + " (unfinished): " + firstLine(res.Summary, 120)
 					}
 					cctx, ccancel := context.WithTimeout(ctx, 2*time.Minute)
-					sha, err := ws.commit(cctx, subject+"\n\nCommitted by Loopbee for run "+r.ID+".")
+					sha, err := ws.commit(cctx, subject+"\n\nCommitted by loopbee for run "+r.ID+".")
 					var patch []byte
 					if err == nil {
 						// The reviewer at the gate sees everything on the branch since the last review point: this

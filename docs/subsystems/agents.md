@@ -1,10 +1,10 @@
 # Local agents
 
-Loopbee drives local agent CLIs headlessly through **adapters**, one Go file per CLI (`internal/core/agent_*.go`,
+loopbee drives local agent CLIs headlessly through **adapters**, one Go file per CLI (`internal/core/agent_*.go`,
 registry in `adapter.go`): **Codex CLI**, **Claude Code**, **Gemini CLI**, **OpenCode** and **pi**. Adapters are
 compiled in; there is no plugin host. Each is detected at start-up and on demand (Settings › Agents › Detect again)
 through PATH, `LOOPBEE_<NAME>_BIN` (an executable or a `.js`/`.mjs`/`.cjs` entry point) or, on Windows, the npm `.cmd`
-wrapper's `node_modules` entry point. Before detection Loopbee merges the PATH of the user's login shell
+wrapper's `node_modules` entry point. Before detection loopbee merges the PATH of the user's login shell
 (`$SHELL -ilc`), so agents installed through nvm or Homebrew are found when the app starts from the Dock or Finder.
 
 Detection runs `--version` and the adapter's help command (`codex exec --help`, `claude --help`, `gemini --help`,
@@ -33,7 +33,7 @@ levels it does offer — never run with less protection.
 | pi | read-only, agent-config | the read tools alone (`--tools read,grep,find,ls`); pi has no sandbox or prompts |
 
 Gemini CLI runs the whole CLI inside its sandbox and the CLI itself needs the network for its model, so the sandbox
-cannot cut network off. At workspace-write Loopbee therefore denies the shell (`auto_edit`: edit tools allowed,
+cannot cut network off. At workspace-write loopbee therefore denies the shell (`auto_edit`: edit tools allowed,
 `run_shell_command` denied in headless mode); workspace-network (`yolo`) allows commands and network while writes stay
 inside the project. The designer and the editor say so.
 
@@ -65,15 +65,15 @@ Codex also gets `-C <workdir>`, `--skip-git-repo-check`, `--output-last-message 
 
 MCP tools are a separate switch on top of these flags; see [The agent's own MCP tools](#the-agents-own-mcp-tools).
 
-Claude Code's Bash sandbox runs on macOS, Linux and WSL2 only. With `failIfUnavailable` Claude Code refuses to start on native Windows or when bubblewrap/socat are missing (verified locally: the run fails with “Sandbox required but unavailable … bubblewrap (bwrap) not installed”; on Windows the CLI says the Windows sandbox is “not active on this session (feature gate off)”). On native Windows use Codex, WSL2, or the agent-config level for Claude Code. The failed Run says so: Claude Code's own advice to set `sandbox.failIfUnavailable=false` has no effect because Loopbee passes the setting, so Loopbee appends what does work. The editor warns about Claude Code at a write level on Windows, and the chat designer is told the computer's platform.
+Claude Code's Bash sandbox runs on macOS, Linux and WSL2 only. With `failIfUnavailable` Claude Code refuses to start on native Windows or when bubblewrap/socat are missing (verified locally: the run fails with “Sandbox required but unavailable … bubblewrap (bwrap) not installed”; on Windows the CLI says the Windows sandbox is “not active on this session (feature gate off)”). On native Windows use Codex, WSL2, or the agent-config level for Claude Code. The failed Run says so: Claude Code's own advice to set `sandbox.failIfUnavailable=false` has no effect because loopbee passes the setting, so loopbee appends what does work. The editor warns about Claude Code at a write level on Windows, and the chat designer is told the computer's platform.
 
 ## What a run can reach
 
 A workflow that works in the developer's own session must not fail in a Loop because the Loop cannot see what the
-session used. Loopbee gives every run:
+session used. loopbee gives every run:
 
 - **The agent's own context.** Skills, plugins, subagents, commands and user instructions are loaded by the CLI
-  itself; Loopbee also allows reading them, so the agent can open a skill's scripts and references: for Claude Code
+  itself; loopbee also allows reading them, so the agent can open a skill's scripts and references: for Claude Code
   `~/.claude/{skills,plugins,agents,commands,CLAUDE.md}` (or `CLAUDE_CONFIG_DIR`) and the project's memory
   `~/.claude/projects/<project path with non-alphanumerics as ->/memory`; for Codex `~/.codex/{skills,prompts,memories,AGENTS.md}`
   (or `CODEX_HOME`); for both `~/.agents/skills`. Only paths that exist are passed. Claude Code gets them as
@@ -88,25 +88,25 @@ session used. Loopbee gives every run:
   `~/Library/Keychains`); a path missing on this computer blocks the Run with that reason. The editor warns when a
   Loop that works on other people's issues can read such paths.
 - **Git-ignored project files in a worktree** (`copyFiles`): a fresh worktree has no `.env`, local config or
-  personal agent files. Loopbee copies the listed paths from the developer's checkout (refusing symbolic links,
+  personal agent files. loopbee copies the listed paths from the developer's checkout (refusing symbolic links,
   paths Git does not ignore — they would be committed — and more than 200 MB in total), plus `CLAUDE.local.md`,
-  `.claude/settings.local.json` and `AGENTS.override.md` when they exist and are ignored. Loopbee's commits unstage
+  `.claude/settings.local.json` and `AGENTS.override.md` when they exist and are ignored. loopbee's commits unstage
   every copied path, also when the agent edits `.gitignore`. Dependencies are installed by a `run` step instead.
-- **The user's shell variables.** `env` values `env:NAME` are resolved from Loopbee's environment, else the login
+- **The user's shell variables.** `env` values `env:NAME` are resolved from loopbee's environment, else the login
   shell (`$SHELL -ilc`, only for plain identifiers), else on Windows the saved user and system variables, because an
   app started from the Dock, the tray or at login does not inherit what the shell profile exports.
 
 - **The agent's own MCP tools** (`agentMcp`, see below), when the Loop allows them.
 
 When a run still cannot get something, the result contract asks the agent to list it in `missing`; the run page
-shows the list with the ways to give a Loop access, and notifications include it. Loopbee adds to that list what
+shows the list with the ways to give a Loop access, and notifications include it. loopbee adds to that list what
 the CLI refused for want of an approval (an MCP tool call) and a browser the macOS sandbox stopped
 (`bootstrap_check_in … Permission denied`), also when the agent's own report does not mention them.
 
 ## The agent's own MCP tools
 
 People reach a browser (a web console, an e-commerce back office, an end-to-end test), a database or a ticket
-system through their agent's MCP tools. Loopbee brings no browser or tools of its own: the agent uses what it is set
+system through their agent's MCP tools. loopbee brings no browser or tools of its own: the agent uses what it is set
 up with. What breaks is the approval: in their own session a person answers the CLI's prompt, in an unattended Run
 nobody can. `codex exec` always runs with `approval_policy=never`, which refuses every MCP call that needs approval
 (“MCP tool call requires approval, but approval policy is never”; `-c approval_policy=on-request` does not change
@@ -116,7 +116,7 @@ OpenCode's `run` rejects them.
 One switch per Loop, `agentMcp` (“Use the agent's own MCP tools”), approves every MCP tool of the agent's own setup
 in advance, at any level. These tools run outside the agent's sandbox with the user's rights, so the editor asks for
 a gate when they can change something and warns on Loops that work on other people's issues. Without the switch,
-Loopbee disables them below agent-config, so read-only stays read-only; at agent-config the agent's own settings
+loopbee disables them below agent-config, so read-only stays read-only; at agent-config the agent's own settings
 decide, as for everything else there.
 
 | CLI | allowed (`agentMcp`) | not allowed (below agent-config) |
@@ -133,7 +133,7 @@ defined in `~/.codex/config.toml` (tables or inline) or by a plugin can be named
 another layer, such as a project's `.codex/config.toml`, is an incomplete server entry in the layers Codex loads
 first, and the real Codex refused to start (“invalid transport in mcp_servers.nexscope”). Such servers keep their own
 policy; when one is still refused with the switch on, the missing list says to set `default_tools_approval_mode =
-"approve"` where it is defined. When Codex cannot list its servers, Loopbee names those in `config.toml` and, only to
+"approve"` where it is defined. When Codex cannot list its servers, loopbee names those in `config.toml` and, only to
 disable them, plugin servers. Codex splits `-c` keys at dots, so a server or plugin name containing a dot is skipped. Settings › Agents lists the servers
 found in each agent's user configuration, the editor shows them under the switch, and the chat designer is told
 their names and when to set `agentMcp`.
@@ -145,9 +145,9 @@ a shell-started browser needs agent-config.
 
 ## Git work in worktrees
 
-Codex's workspace-write sandbox makes Git metadata read-only, including a worktree's own gitdir: on the real CLI (0.162.1, macOS) the agent could create a branch ref but failed on `HEAD.lock` and could not switch or commit. Claude Code's sandbox allowed it. So for both CLIs Loopbee does the Git work itself: with `branch` set it creates the branch in the fresh worktree, tells the agent not to branch or commit, and commits all changes after each agent step as `<Loop name>: <result summary>`. The Run records `branch` and `commits`; notifications include them.
+Codex's workspace-write sandbox makes Git metadata read-only, including a worktree's own gitdir: on the real CLI (0.162.1, macOS) the agent could create a branch ref but failed on `HEAD.lock` and could not switch or commit. Claude Code's sandbox allowed it. So for both CLIs loopbee does the Git work itself: with `branch` set it creates the branch in the fresh worktree, tells the agent not to branch or commit, and commits all changes after each agent step as `<Loop name>: <result summary>`. The Run records `branch` and `commits`; notifications include them.
 
-Agents get **no** write access to Git metadata (no `--add-dir` for the common Git directory). Loopbee's own Git commands in a worktree run without hooks (`core.hooksPath` → an empty folder, `commit --no-verify`) and without fsmonitor, and stop if the worktree's `.git` file changed — otherwise an agent could plant a hook (e.g. in `.husky/`) that Loopbee would execute as the user. Each commit is stored as `round-NN-step-NN.diff` for the reviewer and scanned for credentials (private keys, `sk-`, `ghp_`/`github_pat_`, `AKIA`, Slack tokens); a match fails the Run. A command step that would run a file the agent changed in this Run is refused. Pushing and merging stay with the agent (workspace-network, if the user asks) or with a person after the gate.
+Agents get **no** write access to Git metadata (no `--add-dir` for the common Git directory). loopbee's own Git commands in a worktree run without hooks (`core.hooksPath` → an empty folder, `commit --no-verify`) and without fsmonitor, and stop if the worktree's `.git` file changed — otherwise an agent could plant a hook (e.g. in `.husky/`) that loopbee would execute as the user. Each commit is stored as `round-NN-step-NN.diff` for the reviewer and scanned for credentials (private keys, `sk-`, `ghp_`/`github_pat_`, `AKIA`, Slack tokens); a match fails the Run. A command step that would run a file the agent changed in this Run is refused. Pushing and merging stay with the agent (workspace-network, if the user asks) or with a person after the gate.
 
 ## Command output for agent steps
 
@@ -157,16 +157,16 @@ The output of `run` and `verify` steps (last 6 KB each, with the exit status) is
 
 ## Result contract
 
-Loopbee appends: end the final message with `LOOPBEE_RESULT {"status":"done|no_action|blocked|needs_approval","summary":"…","links":["…"]}`. The final message (Codex `--output-last-message`, else the last `agent_message`; Claude's `result` event) is stored as `round-NN-step-NN.report.md`, shown in Run details and optionally sent with notifications. `no_action` ends the Run as “Nothing to do” and skips the remaining steps (including gates); `blocked` ends it as blocked with the agent's summary; `done` and `needs_approval` continue. Without a result line the step counts as done when the CLI exits successfully. Failed turns (`turn.failed`, Claude `is_error`) fail the Run with the CLI's own error text.
+loopbee appends: end the final message with `LOOPBEE_RESULT {"status":"done|no_action|blocked|needs_approval","summary":"…","links":["…"]}`. The final message (Codex `--output-last-message`, else the last `agent_message`; Claude's `result` event) is stored as `round-NN-step-NN.report.md`, shown in Run details and optionally sent with notifications. `no_action` ends the Run as “Nothing to do” and skips the remaining steps (including gates); `blocked` ends it as blocked with the agent's summary; `done` and `needs_approval` continue. Without a result line the step counts as done when the CLI exits successfully. Failed turns (`turn.failed`, Claude `is_error`) fail the Run with the CLI's own error text.
 
 Event types: Codex `thread.*`, `turn.*`, `item.*`, `error`; Claude `system`, `assistant`, `user`, `stream_event`, `result`. Everything else is stored as `agent.raw`.
 
 ## Model and token usage
 
-After every agent step Loopbee reads the model and tokens the CLI reported and stores them on the step
+After every agent step loopbee reads the model and tokens the CLI reported and stores them on the step
 (`trace[].usage`) and summed on the Run (`usage`): `input` (prompt tokens not read from the cache), `cacheRead`,
 `cacheWrite`, `output` (including reasoning; `reasoning` repeats that part when reported) and `costUsd` when the CLI
-reports a cost. Loopbee never estimates prices.
+reports a cost. loopbee never estimates prices.
 
 | CLI | Where it comes from |
 |---|---|
@@ -189,7 +189,7 @@ board shows today's tokens and reported cost by agent and model.
 
 ## Chat authoring
 
-`POST /api/author` runs the chosen agent once, **read-only**, inside the target project directory (or an empty scratch directory) with the conversation, the current draft and a JSON schema (`--output-schema` for Codex, `--json-schema` for Claude Code). The answer is normalised: identity, directory, agent, enabled state and secret values stay under Loopbee's control, a proposal never enables a schedule, and `Validate` plus the device ceiling are checked before the user can save. The designer is told which levels its agent enforces; a proposed level the agent cannot enforce is lowered to the highest one below it that the agent supports (never raised, never to agent-config), and the reply says so. Each message is a real CLI call (typically 10–60 s, 4 min limit) on the user's own subscription.
+`POST /api/author` runs the chosen agent once, **read-only**, inside the target project directory (or an empty scratch directory) with the conversation, the current draft and a JSON schema (`--output-schema` for Codex, `--json-schema` for Claude Code). The answer is normalised: identity, directory, agent, enabled state and secret values stay under loopbee's control, a proposal never enables a schedule, and `Validate` plus the device ceiling are checked before the user can save. The designer is told which levels its agent enforces; a proposed level the agent cannot enforce is lowered to the highest one below it that the agent supports (never raised, never to agent-config), and the reply says so. Each message is a real CLI call (typically 10–60 s, 4 min limit) on the user's own subscription.
 
 ## beectl and the skill
 
@@ -198,7 +198,7 @@ board shows today's tokens and reported cost by agent and model.
 For scripts and CI: `beectl run NAME -q` prints only the run ID; `beectl cancel RUN [--wait]` takes a full ID or a
 unique prefix of at least four characters (what `beectl runs` shows); `beectl cancel --loop NAME` cancels the loop's
 active run (a Loop has at most one); `beectl runs --status S[,S]` filters; `beectl delete NAME --yes` deletes a
-definition (runs stay; Loopbee also removes the Loop's worktree and keychain entries, never branches). A name shared
+definition (runs stay; loopbee also removes the Loop's worktree and keychain entries, never branches). A name shared
 by several loops is refused with their IDs instead of picking one. The skill tells agents to cancel or delete only
 what the user asked for.
 
@@ -208,16 +208,16 @@ what the user asked for.
 
 Results so far (Linux container, Claude Code 2.1.296): chat authoring 10–30 s with schema output; **report** passes end to end. **fix** fails there only because bubblewrap is missing, with the CLI's own error surfaced in the Run. The first real run found two defects that the fakes could not: drafts defaulted to UTC (the chat now sends the browser time zone) and Claude Code at read-only could not run `npm test` (now a `run` step with `continueOnError`).
 
-Results on macOS 27.0 arm64 (packaged `Loopbee.app`, Codex CLI 0.162.1, Claude Code 2.1.296, 2026-10-11): `go test ./...` and packaging pass; **Codex report**, **Claude report** and **Claude fix** pass end to end (branch `loopbee/fix-tests` with the committed fix, checkout untouched, nothing pushed, gate approval completes the Run). **Codex fix** was not run in the first pass: the Codex designer chose workspace-network, above the test's device limit. The designer is now told the device limit and that Loopbee fetches `baseRef` itself, and the chat explains how to raise the limit when a draft exceeds it. In the second pass Codex chose workspace-write correctly but was blocked by its Git sandbox (see “Git work in worktrees”); Loopbee-managed branches were added in response.
+Results on macOS 27.0 arm64 (packaged `loopbee.app`, Codex CLI 0.162.1, Claude Code 2.1.296, 2026-10-11): `go test ./...` and packaging pass; **Codex report**, **Claude report** and **Claude fix** pass end to end (branch `loopbee/fix-tests` with the committed fix, checkout untouched, nothing pushed, gate approval completes the Run). **Codex fix** was not run in the first pass: the Codex designer chose workspace-network, above the test's device limit. The designer is now told the device limit and that loopbee fetches `baseRef` itself, and the chat explains how to raise the limit when a draft exceeds it. In the second pass Codex chose workspace-write correctly but was blocked by its Git sandbox (see “Git work in worktrees”); loopbee-managed branches were added in response.
 
-Results on macOS (packaged `Loopbee.app`, pi 1.1.0, 2026-10-13): the pi **report** turn parses end to end — final message, `LOOPBEE_RESULT`, model (`provider/model`), tokens and the CLI's own cost (trimmed output kept in `internal/core/testdata/pi-real.jsonl`, checked by `TestRealPiOutput`). The pi designer proposed workspace-write, which pi cannot enforce, so the draft could not be saved; the designer is now told its levels and Loopbee lowers the level. OpenCode 1.18.30 from Homebrew was killed at start (exit 137) on that Mac, which Settings showed only as “Not detected”; detection now reports the problem. Gemini CLI was not installed, so Gemini and OpenCode are still verified only against the fakes.
+Results on macOS (packaged `loopbee.app`, pi 1.1.0, 2026-10-13): the pi **report** turn parses end to end — final message, `LOOPBEE_RESULT`, model (`provider/model`), tokens and the CLI's own cost (trimmed output kept in `internal/core/testdata/pi-real.jsonl`, checked by `TestRealPiOutput`). The pi designer proposed workspace-write, which pi cannot enforce, so the draft could not be saved; the designer is now told its levels and loopbee lowers the level. OpenCode 1.18.30 from Homebrew was killed at start (exit 137) on that Mac, which Settings showed only as “Not detected”; detection now reports the problem. Gemini CLI was not installed, so Gemini and OpenCode are still verified only against the fakes.
 
 A second macOS run the same day (packaged app, Codex 0.162.1, Claude Code 2.1.296, OpenCode 2.0.20, pi 1.1.0): **report**
 passes with Codex, OpenCode (the model is not in OpenCode's events, so usage shows tokens without a model) and pi;
 the Codex **fix** draft carried a metric name without a path and could not be saved (half metrics are now dropped);
 Claude Code had reached its session limit, which the chat reported verbatim.
 
-Subscription limits surface as readable errors: Claude Code reports `is_error` with `api_error: usage_limit_reached` and a text such as “You've hit your session limit · resets 10:20pm”, which Loopbee now shows verbatim in the chat and in failed Runs.
+Subscription limits surface as readable errors: Claude Code reports `is_error` with `api_error: usage_limit_reached` and a text such as “You've hit your session limit · resets 10:20pm”, which loopbee now shows verbatim in the chat and in failed Runs.
 
 ## Not verified on real CLIs
 
@@ -240,6 +240,6 @@ on macOS and with Docker; OpenCode's `OPENCODE_CONFIG_CONTENT` precedence and th
 The agent-context changes of 2026-10-13 (read rules in `--settings`, the `Skill` tool at read-only, the memory
 hint in worktrees) are covered by fake CLIs only. Check with the real CLIs before release: that Claude Code accepts
 `Read(//…/**)` rules from `--settings` and the `Skill` tool name in `--tools`, and whether Codex's Windows sandbox
-can read paths outside the workspace (Issue 2 reported EPERM there; Loopbee passes no read flags to Codex).
+can read paths outside the workspace (Issue 2 reported EPERM there; loopbee passes no read flags to Codex).
 
 The adapters are covered by fake CLIs in Go and browser tests and by the real smoke test above. Codex flags follow the official CLI reference but were not executed here. Before relying on them, run one Loop per permission level on each machine type and keep the captured output as fixtures. Whether Codex reads skills from `~/.codex/skills` or `~/.agents/skills` depends on the installed version; `beectl skill install` writes both.

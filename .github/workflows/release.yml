@@ -1,10 +1,10 @@
-name: Release Loopbee
-# Push a tag such as v0.1.1 to build, test and publish Loopbee as a GitHub Release.
+name: Release loopbee
+# Push a tag such as v0.1.1 to build, test and publish loopbee as a GitHub Release.
 #
 # Release notes come from docs/releases/<tag>.md (see docs/releases/README.md). Without that file nothing is built
 # or published. Tags with a suffix (v0.2.0-rc.1) become pre-releases. Packages are unsigned and not notarized.
 #
-# Run it by hand (Actions › Release Loopbee › Run workflow) to rebuild an existing tag, or with "notes only" to
+# Run it by hand (Actions › Release loopbee › Run workflow) to rebuild an existing tag, or with "notes only" to
 # replace the text of an existing release with the current docs/releases/<tag>.md, without rebuilding.
 on:
   push:
@@ -77,10 +77,10 @@ jobs:
           name: release-windows-amd64
           if-no-files-found: error
           path: |
-            bin/Loopbee-windows-amd64.exe
-            bin/Loopbee-windows-amd64.exe.sha256
-            bin/Loopbee-windows-amd64.zip
-            bin/Loopbee-windows-amd64.zip.sha256
+            bin/loopbee-windows-amd64.exe
+            bin/loopbee-windows-amd64.exe.sha256
+            bin/loopbee-windows-amd64.zip
+            bin/loopbee-windows-amd64.zip.sha256
 
   macos:
     name: macOS ${{ matrix.arch }}
@@ -111,7 +111,7 @@ jobs:
         run: |
           set -eu
           data=$(mktemp -d)
-          bin/Loopbee.app/Contents/MacOS/loopbee -nogui -data "$data" &
+          bin/loopbee.app/Contents/MacOS/loopbee -nogui -data "$data" &
           pid=$!
           for i in $(seq 1 50); do [ -s "$data/launch-url.txt" ] && break; sleep 0.2; done
           kill "$pid"
@@ -121,10 +121,10 @@ jobs:
           name: release-macos-${{ matrix.arch }}
           if-no-files-found: error
           path: |
-            bin/Loopbee-macos-${{ matrix.arch }}.dmg
-            bin/Loopbee-macos-${{ matrix.arch }}.dmg.sha256
-            bin/Loopbee-macos-${{ matrix.arch }}.zip
-            bin/Loopbee-macos-${{ matrix.arch }}.zip.sha256
+            bin/loopbee-macos-${{ matrix.arch }}.dmg
+            bin/loopbee-macos-${{ matrix.arch }}.dmg.sha256
+            bin/loopbee-macos-${{ matrix.arch }}.zip
+            bin/loopbee-macos-${{ matrix.arch }}.zip.sha256
 
   publish:
     name: Publish
@@ -152,7 +152,7 @@ jobs:
         run: |
           set -eu
           cd dist
-          expected="Loopbee-windows-amd64.exe Loopbee-windows-amd64.zip Loopbee-macos-arm64.dmg Loopbee-macos-arm64.zip Loopbee-macos-amd64.dmg Loopbee-macos-amd64.zip"
+          expected="loopbee-windows-amd64.exe loopbee-windows-amd64.zip loopbee-macos-arm64.dmg loopbee-macos-arm64.zip loopbee-macos-amd64.dmg loopbee-macos-amd64.zip"
           for f in $expected; do
             test -s "$f" || { echo "::error::$f is missing"; exit 1; }
             tr -d '\r' < "$f.sha256" | sha256sum -c -
@@ -179,10 +179,10 @@ jobs:
           prerelease=false
           case "$TAG" in *-*) prerelease=true ;; esac
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "Loopbee $TAG" --notes-file release-notes.md --prerelease="$prerelease"
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "loopbee $TAG" --notes-file release-notes.md --prerelease="$prerelease"
             if [ -d dist ]; then gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber dist/*; fi
           else
             if [ ! -d dist ]; then echo "::error::Release $TAG does not exist yet; run without notes only."; exit 1; fi
-            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --title "Loopbee $TAG" \
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --title "loopbee $TAG" \
               --notes-file release-notes.md --prerelease="$prerelease" dist/*
           fi

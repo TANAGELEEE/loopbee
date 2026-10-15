@@ -1,6 +1,6 @@
 # Security
 
-Loopbee runs agent CLIs on your computer, keeps credentials in the system keychain and updates itself from this
+loopbee runs agent CLIs on your computer, keeps credentials in the system keychain and updates itself from this
 repository's GitHub releases. Please report vulnerabilities privately, not in a public issue.
 
 ## Reporting
@@ -14,7 +14,7 @@ Only the latest release receives fixes. Released builds update themselves; a bui
 
 ## In scope
 
-- Escaping a Loop's permission level or sandbox through Loopbee (see [contracts](docs/contracts.md)).
+- Escaping a Loop's permission level or sandbox through loopbee (see [contracts](docs/contracts.md)).
 - The loopback API: authentication, Origin/Host checks, DNS rebinding.
 - Updates: anything that installs a file that does not match the release's `SHA256SUMS`
   (see [updates](docs/subsystems/updates.md)).

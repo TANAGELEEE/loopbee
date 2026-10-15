@@ -1,14 +1,14 @@
-# Loopbee
+# loopbee
 
-A desktop app for local agent workflows and scheduling. Implemented from the [Loopbee overview](Loopbee總覽.md) and [prototype](doc/loopbee-design/README.md), using Go + Wails v3 (Windows / macOS) + vanilla JavaScript, with SQLite as the source of truth. [MIT licensed](LICENSE).
+A desktop app for local agent workflows and scheduling. Implemented from the [loopbee overview](loopbee總覽.md) and [prototype](doc/loopbee-design/README.md), using Go + Wails v3 (Windows / macOS) + vanilla JavaScript, with SQLite as the source of truth. [MIT licensed](LICENSE).
 
 ## Download
 
-Download the newest version from [Releases](https://github.com/TANAGELEEE/Loopbee/releases/latest): the `.dmg` for macOS (arm64 for Apple Silicon, amd64 for Intel; drag Loopbee to Applications) or the `.exe` / `.zip` for Windows x64. The packages are unsigned: on macOS right-click `Loopbee.app` › Open the first time; on Windows choose More info › Run anyway if SmartScreen asks. Released builds then update themselves. Each release's notes list the files and how to install them. Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+Download the newest version from [Releases](https://github.com/TANAGELEEE/loopbee/releases/latest): the `.dmg` for macOS (arm64 for Apple Silicon, amd64 for Intel; drag loopbee to Applications) or the `.exe` / `.zip` for Windows x64. The packages are unsigned: on macOS right-click `loopbee.app` › Open the first time; on Windows choose More info › Run anyway if SmartScreen asks. Released builds then update themselves. Each release's notes list the files and how to install them. Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
 ## Getting started
 
-The Windows desktop app has passed local automated tests. Extract `bin/Loopbee-windows-amd64.zip` and launch `loopbee.exe`, or use the commands below. Microsoft Edge WebView2 Runtime is required; the app provides installation guidance if it is missing. The macOS desktop app still requires testing on a physical machine; Linux supports compilation and nogui mode.
+The Windows desktop app has passed local automated tests. Extract `bin/loopbee-windows-amd64.zip` and launch `loopbee.exe`, or use the commands below. Microsoft Edge WebView2 Runtime is required; the app provides installation guidance if it is missing. The macOS desktop app still requires testing on a physical machine; Linux supports compilation and nogui mode.
 
 Building from source requires Go 1.25 or later. Packaged apps do not require Go or Node; Node is used for testing. Install and authenticate agents separately. Git sync requires local Git credentials.
 
@@ -33,24 +33,24 @@ go run ./cmd/loopbee
 sh scripts/build-macos.sh
 ```
 
-On Windows and macOS, closing the window leaves the app running in the system tray. Click the tray icon or Open Loopbee to restore it; choose Quit to stop scheduling. A second instance using the same data directory is rejected. Start at login, Keep awake, and desktop notifications are implemented for both desktop platforms. See [platform acceptance](docs/subsystems/gui-shell.md) for the Windows native test scope. Released builds update themselves from GitHub releases (checked against the release's SHA256SUMS, installed when you restart or quit); see [updates](docs/subsystems/updates.md).
+On Windows and macOS, closing the window leaves the app running in the system tray. Click the tray icon or Open loopbee to restore it; choose Quit to stop scheduling. A second instance using the same data directory is rejected. Start at login, Keep awake, and desktop notifications are implemented for both desktop platforms. See [platform acceptance](docs/subsystems/gui-shell.md) for the Windows native test scope. Released builds update themselves from GitHub releases (checked against the release's SHA256SUMS, installed when you restart or quit); see [updates](docs/subsystems/updates.md).
 
 ## Agents and the chat
 
-Loopbee binds to the agent CLIs on this computer — **Codex CLI** and **Claude Code** — and picks the first available one as the default (Settings › Agents). **New Loop opens a chat**: describe the job in your own words (“every weekday at 9 use our fix-prod-errors skill, merge to test, stop before master”). The default agent reads the project read-only, drafts the Loop with your real skills and scripts, and Loopbee shows the flow chart, schedule, permission and checks next to the conversation. Answer its questions, then save: drafts are saved with the schedule off. “Change by chat” on a Loop continues the same conversation. The form editor remains available.
+loopbee binds to the agent CLIs on this computer — **Codex CLI** and **Claude Code** — and picks the first available one as the default (Settings › Agents). **New Loop opens a chat**: describe the job in your own words (“every weekday at 9 use our fix-prod-errors skill, merge to test, stop before master”). The default agent reads the project read-only, drafts the Loop with your real skills and scripts, and loopbee shows the flow chart, schedule, permission and checks next to the conversation. Answer its questions, then save: drafts are saved with the schedule off. “Change by chat” on a Loop continues the same conversation. The form editor remains available.
 
 Agent steps use your agents' own skills, plugins, AGENTS.md / CLAUDE.md. Each step ends with a small result line, so a Run can finish as **Done**, **Nothing to do** (e.g. clean logs — remaining steps and gates are skipped) or **Blocked**; the agent's final report and links appear in Run details and, if enabled per Loop, in notifications.
 
 Permission levels: read-only → workspace write → workspace write + network (git push, deploys, databases, APIs) → the agent's own config. The device ceiling is set in Settings › General. Use a **git worktree** workspace for Loops that branch or commit, **command** steps for deterministic scripts, and **environment variables** (secrets go to the system keychain) for credentials. Waiting at a gate no longer consumes the time limit; gates expire after 72 hours by default.
 
-From inside Codex or Claude Code: put `beectl` on PATH, run `beectl skill install`, then ask the agent to “make this a nightly Loopbee loop”. It creates a disabled draft for you to review. See [agents](docs/subsystems/agents.md).
+From inside Codex or Claude Code: put `beectl` on PATH, run `beectl skill install`, then ask the agent to “make this a nightly loopbee loop”. It creates a disabled draft for you to review. See [agents](docs/subsystems/agents.md).
 
 ## Working from GitHub issues
 
-Any Loop can take its work from GitHub issues and hand back a pull request — for your own projects and for Loopbee
-itself ([examples/self-improve.json](examples/self-improve.json)). Loopbee picks one issue labelled `agent-ready`
+Any Loop can take its work from GitHub issues and hand back a pull request — for your own projects and for loopbee
+itself ([examples/self-improve.json](examples/self-improve.json)). loopbee picks one issue labelled `agent-ready`
 per run (only from people with write access), the agent fixes it on `loopbee/issue-<n>` following the repository's
-AGENTS.md, you review the diff, and Loopbee pushes and opens the pull request, sending the link to e.g. Telegram.
+AGENTS.md, you review the diff, and loopbee pushes and opens the pull request, sending the link to e.g. Telegram.
 The agent works without network or Git access. See [docs/workflows/issue-loop.md](docs/workflows/issue-loop.md),
 including what a malicious issue could try.
 
@@ -107,9 +107,9 @@ To publish a release, write its notes in `docs/releases/vX.Y.Z.md` ([format](doc
 
 | Platform | Files |
 |---|---|
-| Windows x64 | `Loopbee-windows-amd64.exe` (the desktop app, run directly) · `Loopbee-windows-amd64.zip` (desktop, headless and beectl) |
-| macOS Apple Silicon | `Loopbee-macos-arm64.dmg` (drag to Applications) · `Loopbee-macos-arm64.zip` |
-| macOS Intel | `Loopbee-macos-amd64.dmg` · `Loopbee-macos-amd64.zip` |
+| Windows x64 | `loopbee-windows-amd64.exe` (the desktop app, run directly) · `loopbee-windows-amd64.zip` (desktop, headless and beectl) |
+| macOS Apple Silicon | `loopbee-macos-arm64.dmg` (drag to Applications) · `loopbee-macos-arm64.zip` |
+| macOS Intel | `loopbee-macos-amd64.dmg` · `loopbee-macos-amd64.zip` |
 | All | `SHA256SUMS` |
 
 The release text is the notes file plus a Full Changelog link. To correct the text of a published release, edit the notes on the main branch and run the workflow by hand with the tag and **notes only**. Tags with a suffix such as `v0.2.0-rc.1` become pre-releases. Packages are unsigned and not notarized.

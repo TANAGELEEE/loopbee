@@ -13,7 +13,7 @@ import (
 
 // The real release, end to end except the restart: read the newest release of Repo (with the GitHub CLI's token
 // for a private repository), download this Mac's archive, check it against SHA256SUMS, unpack it and swap it in
-// for a stand-in Loopbee.app in a temporary folder. The installed app is never touched. Run on a Mac with
+// for a stand-in loopbee.app in a temporary folder. The installed app is never touched. Run on a Mac with
 // LOOPBEE_REAL_UPDATE=1 (it downloads about 25 MB).
 func TestRealReleaseStagesAndInstalls(t *testing.T) {
 	if os.Getenv("LOOPBEE_REAL_UPDATE") != "1" || runtime.GOOS != "darwin" {
@@ -34,7 +34,7 @@ func TestRealReleaseStagesAndInstalls(t *testing.T) {
 	}
 	t.Logf("newest release %s, %d files", rel.Version, len(rel.Assets))
 	dir := t.TempDir()
-	bundle := filepath.Join(dir, "Loopbee.app")
+	bundle := filepath.Join(dir, "loopbee.app")
 	os.MkdirAll(filepath.Join(bundle, "Contents", "MacOS"), 0o755)
 	os.WriteFile(filepath.Join(bundle, "Contents", "MacOS", "loopbee"), []byte("old"), 0o755)
 	target := Locate("darwin", filepath.Join(bundle, "Contents", "MacOS", "loopbee"))

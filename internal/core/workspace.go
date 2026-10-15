@@ -22,18 +22,18 @@ type workspace struct {
 	// Reviewed is the commit up to which the reviewer has been shown the change; the next diff starts there.
 	Reviewed string
 	Dir      string
-	Branch   string // branch Loopbee created and commits to ("" = detached or direct mode)
+	Branch   string // branch loopbee created and commits to ("" = detached or direct mode)
 	Base     string // commit the worktree started from
 	gitFile  []byte // <Dir>/.git right after creation; a changed file means the agent tampered with it
-	hooks    string // empty hooks directory for Loopbee's own Git commands
-	// copied are the Git-ignored files Loopbee copied into the worktree (slash paths); they are never committed,
+	hooks    string // empty hooks directory for loopbee's own Git commands
+	// copied are the Git-ignored files loopbee copied into the worktree (slash paths); they are never committed,
 	// even if the agent changes .gitignore.
 	copied []string
 }
 
 // prepareWorkspace creates the Run's workspace. Agents get no write access to Git metadata: with l.Branch set,
-// Loopbee creates the branch and commits for them (Codex's sandbox forbids .git writes, and writable hooks or
-// config would let an agent run code outside its sandbox through Loopbee's own Git commands).
+// loopbee creates the branch and commits for them (Codex's sandbox forbids .git writes, and writable hooks or
+// config would let an agent run code outside its sandbox through loopbee's own Git commands).
 func (a *App) prepareWorkspace(ctx context.Context, l Loop, runID string, issue int) (*workspace, error) {
 	if l.Workspace != "worktree" {
 		return &workspace{Dir: l.Directory}, nil
@@ -147,7 +147,7 @@ func remoteBranches(git func(args ...string) ([]byte, error)) []string {
 	return names
 }
 
-// git runs one of Loopbee's own Git commands in a workspace an agent may have changed: never with hooks, an
+// git runs one of loopbee's own Git commands in a workspace an agent may have changed: never with hooks, an
 // fsmonitor or an external diff, and only while the worktree still points at its real Git directory.
 func (w *workspace) git(ctx context.Context, args ...string) ([]byte, error) {
 	return w.gitEnv(ctx, nil, args...)
@@ -157,7 +157,7 @@ func (w *workspace) git(ctx context.Context, args ...string) ([]byte, error) {
 func (w *workspace) gitEnv(ctx context.Context, env []string, args ...string) ([]byte, error) {
 	if w.gitFile != nil {
 		if b, err := os.ReadFile(filepath.Join(w.Dir, ".git")); err != nil || !bytes.Equal(b, w.gitFile) {
-			msg := "the worktree's .git file was changed during the run; Loopbee will not run Git there"
+			msg := "the worktree's .git file was changed during the run; loopbee will not run Git there"
 			return []byte(msg), errors.New(msg)
 		}
 	}
@@ -217,7 +217,7 @@ func expandBranch(tpl, runID string, now time.Time, issue int) string {
 }
 
 // commit commits every change in the workspace and returns the short hash, or "" when nothing changed. It runs as
-// Loopbee, outside the agent's sandbox, so it never runs hooks: the agent may have written them (e.g. .husky/).
+// loopbee, outside the agent's sandbox, so it never runs hooks: the agent may have written them (e.g. .husky/).
 func (w *workspace) commit(ctx context.Context, message string) (string, error) {
 	out, err := w.git(ctx, "status", "--porcelain")
 	if err != nil {
@@ -240,7 +240,7 @@ func (w *workspace) commit(ctx context.Context, message string) (string, error) 
 	}
 	identity := []string{}
 	if out, _ := w.git(ctx, "config", "user.email"); strings.TrimSpace(string(out)) == "" {
-		identity = []string{"-c", "user.name=Loopbee", "-c", "user.email=loopbee@localhost"}
+		identity = []string{"-c", "user.name=loopbee", "-c", "user.email=loopbee@localhost"}
 	}
 	if out, err := w.git(ctx, append(identity, "commit", "-q", "--no-verify", "-m", message)...); err != nil {
 		return "", fmt.Errorf("git commit: %s", tail(string(out), 600))
@@ -364,7 +364,7 @@ var localAgentFiles = []string{"CLAUDE.local.md", ".claude/settings.local.json",
 var maxCopyBytes int64 = 200 << 20
 
 // copyIgnored copies Git-ignored files from the developer's checkout (repo) into a fresh worktree (dst): every entry
-// of required (an error when missing, a symbolic link, or not ignored, since Loopbee would then commit it) and the
+// of required (an error when missing, a symbolic link, or not ignored, since loopbee would then commit it) and the
 // agents' local files when they exist and are ignored. Tracked files are already in the worktree and skipped.
 func copyIgnored(ctx context.Context, repo, dst string, required []string) ([]string, error) {
 	git := func(args ...string) error {
@@ -405,7 +405,7 @@ func copyIgnored(ctx context.Context, repo, dst string, required []string) ([]st
 		}
 		if git("check-ignore", "-q", "--", rel) != nil {
 			if must {
-				return nil, fmt.Errorf("copied file %s is not ignored by Git, so Loopbee would commit it; add it to .gitignore first", p)
+				return nil, fmt.Errorf("copied file %s is not ignored by Git, so loopbee would commit it; add it to .gitignore first", p)
 			}
 			continue
 		}

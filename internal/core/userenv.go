@@ -7,7 +7,7 @@ import (
 
 // userEnv looks up a variable the way the user's own terminal sees it. An app started from the Dock, Finder, the
 // tray or at login does not inherit what the shell profile exports (tokens, AWS_PROFILE, …), and on Windows it keeps
-// the values from when it started; so when Loopbee's own environment lacks the variable it asks the login shell
+// the values from when it started; so when loopbee's own environment lacks the variable it asks the login shell
 // (macOS, Linux) or the saved user and system variables (Windows).
 func userEnv(name string) (string, bool) {
 	if v, ok := os.LookupEnv(name); ok && v != "" {

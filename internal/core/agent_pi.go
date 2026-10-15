@@ -6,7 +6,7 @@ import (
 )
 
 // pi (pi coding agent): `pi --mode json`. pi has no sandbox and no permission prompts by design: every enabled tool
-// runs with the user's own rights. Loopbee can therefore only promise read-only, by giving it the read tools alone;
+// runs with the user's own rights. loopbee can therefore only promise read-only, by giving it the read tools alone;
 // for anything more the user's own configuration decides (agent-config).
 func init() {
 	registerAdapter(&adapter{
@@ -36,7 +36,7 @@ func init() {
 			return []string{filepath.Join(ph, "skills"), filepath.Join(ph, "prompts"), filepath.Join(ph, "AGENTS.md"),
 				filepath.Join(home, ".agents", "skills")}
 		},
-		ToolNote: `pi has no sandbox: Loopbee runs it only at read-only (read, grep, find, ls; no shell, no edits; MCP tools
+		ToolNote: `pi has no sandbox: loopbee runs it only at read-only (read, grep, find, ls; no shell, no edits; MCP tools
   only when the Loop allows the agent's own MCP tools) or at agent-config, where the user's own pi configuration decides and pi can do anything the user can.
   For a pi Loop that changes code, choose agent-config only if the user asks for it, and keep a gate after it.`,
 		MCPServers: func(home, project string) []string {

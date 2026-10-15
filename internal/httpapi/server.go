@@ -157,7 +157,7 @@ func (s *Server) Handler() http.Handler {
 		}
 		s.state(w)
 	})
-	// Loopbee's own updates: ask GitHub now (and download), or restart into the downloaded version (when: "" waits
+	// loopbee's own updates: ask GitHub now (and download), or restart into the downloaded version (when: "" waits
 	// for active Runs to end, "now" does not, "cancel" stops a restart that waits).
 	mux.HandleFunc("POST /api/update/check", func(w http.ResponseWriter, r *http.Request) {
 		s.App.CheckUpdate()

@@ -1,4 +1,4 @@
-/* Loopbee app layer. loop.css (from the design package) owns tokens and components; this file only
+/* loopbee app layer. loop.css (from the design package) owns tokens and components; this file only
    adds what the static boards did not need: page structure, interaction states, editor, dialogs,
    menus and toasts. Nothing here changes the design's sizes, spacing or colours. */
 html{background:var(--bg)}
