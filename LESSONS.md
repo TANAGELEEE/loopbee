@@ -266,9 +266,10 @@ before review: work already on the branch now goes to review and the pull reques
 ### A decision is saved when it is made
 After “Approve and continue” the Run stayed “waiting” in storage while loopbee pushed and opened the pull request,
 so the page kept offering the gate and the click looked ignored. The approval and the delivery phase are saved at
-once, and a push never waits for a credential prompt nobody can see.
-- Evidence: `TestApprovalShowsDeliveryWhileItRuns`, `TestPushNeverWaitsForCredentials`
-- Seen: 2026-10-12
+once, and a push never waits for a credential prompt nobody can see. Team sync, which now runs in the background, ran
+Git with the user's prompts and could wait a minute for a password nobody would type; it uses the same settings.
+- Evidence: `TestApprovalShowsDeliveryWhileItRuns`, `TestPushNeverWaitsForCredentials`, `TestTeamSyncNeverWaitsForCredentials`
+- Seen: 2026-10-12, 2026-10-15
 
 ### A blocked agent says what it could not get
 A Run that could not reach a file, host, variable or tool ended “blocked” with one sentence, and people guessed which
