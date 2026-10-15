@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -405,8 +406,8 @@ func Locate(goos, exe string) Target {
 	t := Target{OS: goos}
 	switch goos {
 	case "darwin":
-		app := filepath.Dir(filepath.Dir(filepath.Dir(exe))) // …/Loopbee.app/Contents/MacOS/loopbee
-		if filepath.Ext(app) != ".app" || filepath.Base(filepath.Dir(exe)) != "MacOS" {
+		app := path.Dir(path.Dir(path.Dir(exe))) // …/Loopbee.app/Contents/MacOS/loopbee; a macOS path, also when tested elsewhere
+		if path.Ext(app) != ".app" || path.Base(path.Dir(exe)) != "MacOS" {
 			t.Stuck = "unsupported"
 			return t
 		}
@@ -414,7 +415,7 @@ func Locate(goos, exe string) Target {
 		switch {
 		case strings.Contains(app, "/AppTranslocation/"):
 			t.Stuck = "translocated"
-		case strings.HasPrefix(app, "/Volumes/") && !Writable(filepath.Dir(app)):
+		case strings.HasPrefix(app, "/Volumes/") && !Writable(path.Dir(app)):
 			t.Stuck = "read-only"
 		}
 	case "windows":

@@ -430,6 +430,12 @@ race in the update test. `TestMain` turns the sleep off for every child process.
 - Evidence: `internal/core/main_test.go#atexit_sleep_ms=0`, `TestUpdateDownloadsAndRestartsWhenIdle`
 - Seen: 2026-10-15
 
+### A macOS path is a slash path on every OS
+`Locate` took the `.app` bundle apart with `filepath`, which turns `/` into `\` on Windows, so the test for a
+translocated app failed there while passing on the Mac. Paths of another OS use `path`, not `filepath`.
+- Evidence: `TestLocate`
+- Seen: 2026-10-15
+
 ### Do not parse Git's short names
 `git branch -r --format=%(refname:short)` prints a remote's HEAD pointer (`refs/remotes/origin/HEAD`) as a bare
 `origin`. Newer Git records that pointer on every fetch, older Git (2.43 here) does not, so every CI platform failed
