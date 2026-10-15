@@ -194,6 +194,20 @@ func TestNotificationResponses(t *testing.T) {
 		}
 	}
 }
+func TestTeamSnapshotReplacesLocalPathsInText(t *testing.T) {
+	data := filepath.Join(t.TempDir(), "data")
+	work := filepath.Join(data, "worktrees", "run")
+	artifact, _ := json.Marshal(map[string]string{"file": filepath.Join(work, "main.go")})
+	b, _ := json.Marshal(map[string]string{"event": filepath.Join(data, "loopbee.db"), "artifact": string(artifact)})
+	b = withoutLocalPaths(b, map[string]string{data: "<data>", work: "<workdir>", "": "~"})
+	var got map[string]string
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["event"] != filepath.Join("<data>", "loopbee.db") || !bytes.Contains([]byte(got["artifact"]), []byte("<workdir>")) || bytes.Contains(b, []byte("worktrees")) {
+		t.Fatalf("local paths left in %s", b)
+	}
+}
 func TestTeamSyncRoundTrip(t *testing.T) {
 	t.Setenv("LOOPBEE_HELPER", "success")
 	a := testApp(t)
@@ -224,8 +238,30 @@ func TestTeamSyncRoundTrip(t *testing.T) {
 	if _, err = a.SaveLoop(private); err != nil {
 		t.Fatal(err)
 	}
+	// Paths and state of this computer stay here: the Run's working directory, the data directory and the
+	// home folder, also inside event text, are not published.
+	if err = a.event(run.ID, "workspace.note", filepath.Join(definition.Directory, "go.mod")); err != nil {
+		t.Fatal(err)
+	}
 	if err = a.SyncTeam(); err != nil {
 		t.Fatal(err)
+	}
+	published, err := os.ReadFile(filepath.Join(a.Dir, "team", "loopbee", a.Settings().Publisher+".json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	home, _ := os.UserHomeDir()
+	for _, local := range []string{a.Dir, definition.Directory, home} {
+		if quoted, _ := json.Marshal(local); local != "" && bytes.Contains(published, quoted[1:len(quoted)-1]) {
+			t.Fatalf("team snapshot contains the local path %s", local)
+		}
+	}
+	var snapshot State
+	if err = json.Unmarshal(published, &snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Info != (Info{}) || snapshot.Update != (UpdateStatus{}) || snapshot.GitHub != (GitHubStatus{}) || snapshot.Runs[0].Workdir != "" {
+		t.Fatalf("team snapshot contains this computer's state: %+v %+v %+v %q", snapshot.Info, snapshot.Update, snapshot.GitHub, snapshot.Runs[0].Workdir)
 	}
 	b := testApp(t)
 	c = b.Settings()
@@ -258,5 +294,8 @@ func TestTeamSyncRoundTrip(t *testing.T) {
 	events, err := b.Events(run.ID)
 	if err != nil || len(events) == 0 {
 		t.Fatal("shared events missing")
+	}
+	if want := filepath.Join("<project>", "go.mod"); events[0].Text != want {
+		t.Fatalf("shared event %q, want the path relative to the project %q", events[0].Text, want)
 	}
 }

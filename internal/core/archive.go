@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -159,28 +160,33 @@ func (a *App) SyncTeam() error {
 	if c.Role == "viewer" {
 		return a.readTeam(dir)
 	}
-	s, err := a.State()
+	local, err := a.State()
 	if err != nil {
 		return err
 	}
-	s.Settings = Settings{}
-	s.Deliveries = nil
-	s.Agents = nil
-	s.Activity = nil
-	s.Evidence = map[string]Evidence{}
+	// Publish only what the team reads; settings, agents, Info (data directory), updates and gh stay on this computer.
+	s := State{Brand: local.Brand, Updated: local.Updated, Evidence: map[string]Evidence{}}
+	home, _ := os.UserHomeDir()
+	paths := map[string]string{a.Dir: "<data>", home: "~"}
 	loops := []Loop{}
 	runs := []Run{}
 	publicLoops := map[string]bool{}
-	for _, l := range s.Loops {
+	for _, l := range local.Loops {
 		publicLoops[l.ID] = !l.Private
 		if !l.Private {
+			paths[l.Directory] = "<project>"
 			l.Directory = ""
 			loops = append(loops, l)
 		}
 	}
-	for _, r := range s.Runs {
+	for _, r := range local.Runs {
 		if !r.Definition.Private && publicLoops[r.LoopID] {
+			if _, ok := paths[r.Workdir]; !ok {
+				paths[r.Workdir] = "<workdir>"
+			}
+			paths[r.Definition.Directory] = "<project>"
 			r.Definition.Directory = ""
+			r.Workdir = ""
 			evidence := Evidence{Artifacts: map[string]string{}}
 			if evidence.Events, err = a.Events(r.ID); err != nil {
 				return err
@@ -205,6 +211,7 @@ func (a *App) SyncTeam() error {
 	if err != nil {
 		return err
 	}
+	b = withoutLocalPaths(b, paths)
 	if len(b) > 16<<20 {
 		return errors.New("team snapshot exceeds 16 MiB; archive and prune old runs first")
 	}
@@ -242,6 +249,30 @@ func (a *App) SyncTeam() error {
 	_, err = git("push", "origin", "HEAD:refs/heads/"+c.TeamBranch)
 	return err
 }
+
+// withoutLocalPaths replaces this computer's folders in a JSON snapshot (event text, artifacts, reports, a
+// definition's read paths) with placeholders, so "<project>/go.mod" still says which file was meant. Longer paths
+// go first, so a worktree inside the data directory becomes <workdir>, not <data>/worktrees/….
+func withoutLocalPaths(b []byte, paths map[string]string) []byte {
+	type root struct{ path, name string }
+	roots := []root{}
+	for path, name := range paths {
+		if len(path) < 2 || !filepath.IsAbs(path) {
+			continue
+		}
+		// As it appears in a JSON string, and inside JSON text that was itself stored as a string.
+		once, _ := json.Marshal(path)
+		twice, _ := json.Marshal(string(once[1 : len(once)-1]))
+		roots = append(roots, root{string(twice[1 : len(twice)-1]), name}, root{string(once[1 : len(once)-1]), name})
+	}
+	sort.Slice(roots, func(i, j int) bool { return len(roots[i].path) > len(roots[j].path) })
+	pairs := []string{}
+	for _, r := range roots {
+		pairs = append(pairs, r.path, r.name)
+	}
+	return []byte(strings.NewReplacer(pairs...).Replace(string(b)))
+}
+
 func (a *App) readTeam(dir string) error {
 	files, err := filepath.Glob(filepath.Join(dir, "loopbee", "*.json"))
 	if err != nil {

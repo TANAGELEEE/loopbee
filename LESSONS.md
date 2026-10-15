@@ -317,6 +317,14 @@ Switching roles overwrote local dashboard history; shared data lives in `shared_
 - Evidence: `TestTeamSyncRoundTrip`
 - Seen: initial build
 
+### What goes to the team stays free of this computer's paths and state
+Team sync cleared the Loop's directory but still pushed each Run's working directory, the data directory (with the
+account name), loopbee's update state and the gh login to the shared repository. The snapshot now carries only
+Loops, Runs and their evidence; the project, working, data and home folders are replaced by `<project>`,
+`<workdir>`, `<data>` and `~` everywhere in it, including event text, artifacts and reports.
+- Evidence: `TestTeamSyncRoundTrip`, `TestTeamSnapshotReplacesLocalPathsInText`
+- Seen: 2026-10-15
+
 ### Localhost HTTP still needs CSRF and DNS-rebinding protection
 Bind to loopback, check Host and Origin, and require the random launch session.
 - Evidence: `TestAuthenticationAndOrigin`, `TestLoopbackOnly`
