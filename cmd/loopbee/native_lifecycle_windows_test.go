@@ -34,6 +34,13 @@ func TestNativeDesktopLifecycle(t *testing.T) {
 	}
 	data := filepath.Join(t.TempDir(), "桌面 lifecycle")
 	cmd := exec.Command(binary, "-data", data)
+	// A file, not a pipe: Wait must not wait for WebView2 processes that inherit the handle.
+	stderr, err := os.Create(filepath.Join(t.TempDir(), "stderr.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stderr.Close()
+	cmd.Stderr = stderr
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -78,6 +85,13 @@ func TestNativeDesktopLifecycle(t *testing.T) {
 		for time.Now().Before(until) {
 			if check() {
 				return
+			}
+			select {
+			case <-exited:
+				// A crash, not a slow start: say so with the app's own output.
+				output, _ := os.ReadFile(stderr.Name())
+				t.Fatalf("desktop exited while waiting for %s: %s", label, output)
+			default:
 			}
 			time.Sleep(100 * time.Millisecond)
 		}

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"path/filepath"
 	"runtime"
+	"sync"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -56,7 +57,7 @@ func desktop(url string, lb *core.App, shutdown func()) error {
 		}
 		saveWindowState(data, state)
 	}
-	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+	place := func() {
 		var work []rect
 		if primary := app.Screen.GetPrimary(); primary != nil {
 			work = append(work, rect{primary.WorkArea.X, primary.WorkArea.Y, primary.WorkArea.Width, primary.WorkArea.Height})
@@ -77,7 +78,16 @@ func desktop(url string, lb *core.App, shutdown func()) error {
 		if hasSaved && saved.Maximised {
 			window.Maximise()
 		}
-	})
+	}
+	if runtime.GOOS == "windows" {
+		// Shown once WebView2 has loaded the page. Shown any earlier, Wails (v3.0.0-beta.24) starts a 3-second
+		// fallback that calls the WebView2 controller from another goroutine; when WebView2 starts slowly the
+		// controller does not exist yet and the app crashes on a nil pointer.
+		var once sync.Once
+		window.OnWindowEvent(events.Windows.WebViewNavigationCompleted, func(*application.WindowEvent) { once.Do(place) })
+	} else {
+		app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) { place() })
+	}
 	window.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) { remember(); e.Cancel(); window.Hide() })
 	tray := app.SystemTray.New()
 	tray.SetIcon(icon)
