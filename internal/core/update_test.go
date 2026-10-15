@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -49,16 +50,16 @@ func releaseFeed(t *testing.T, version, body string) {
 
 // updateSandbox makes this a Windows desktop app of version current, installed as exe, whose restarts are
 // recorded instead of done.
-func updateSandbox(t *testing.T, current string) (exe string, restarts *int, relaunched *int) {
+func updateSandbox(t *testing.T, current string) (exe string, restarts, relaunched *atomic.Int32) {
 	t.Helper()
 	dir := t.TempDir()
 	exe = filepath.Join(dir, "loopbee.exe")
 	os.WriteFile(exe, []byte("old"), 0o755)
-	restarts, relaunched = new(int), new(int)
+	restarts, relaunched = new(atomic.Int32), new(atomic.Int32)
 	oldVersion, oldGOOS, oldExe, oldRelaunch, oldFirst, oldTick, oldClient := Version, updateGOOS, updateExecutable, updateRelaunch, updateFirst, updateWaitTick, updateClient
 	Version, updateGOOS = current, "windows"
 	updateExecutable = func() (string, error) { return exe, nil }
-	updateRelaunch = func(update.Target) error { *relaunched++; return nil }
+	updateRelaunch = func(update.Target) error { relaunched.Add(1); return nil }
 	updateFirst, updateWaitTick = time.Hour, 10*time.Millisecond
 	updateClient = func() *update.Client { return &update.Client{} }
 	t.Cleanup(func() {
@@ -85,7 +86,7 @@ func TestUpdateDownloadsAndRestartsWhenIdle(t *testing.T) {
 	exe, restarts, relaunched := updateSandbox(t, "0.1.2")
 	releaseFeed(t, "0.1.3", "new loopbee")
 	a := testApp(t)
-	a.EnableUpdates(func() { *restarts++ })
+	a.EnableUpdates(func() { restarts.Add(1) })
 	a.CheckUpdate()
 	s := waitUpdate(t, a, "ready")
 	if s.Latest != "0.1.3" || s.Current != "0.1.2" || s.Notes != "What changed" || !s.CanRestart {
@@ -102,7 +103,7 @@ func TestUpdateDownloadsAndRestartsWhenIdle(t *testing.T) {
 		t.Fatalf("%+v %v", s, err)
 	}
 	time.Sleep(50 * time.Millisecond)
-	if *restarts != 0 {
+	if restarts.Load() != 0 {
 		t.Fatal("restarted while a Run was active")
 	}
 	if b, _ := os.ReadFile(exe); string(b) != "old" {
@@ -111,11 +112,11 @@ func TestUpdateDownloadsAndRestartsWhenIdle(t *testing.T) {
 	a.mu.Lock()
 	delete(a.active, "run1")
 	a.mu.Unlock()
-	for i := 0; i < 200 && *restarts == 0; i++ {
+	for i := 0; i < 200 && restarts.Load() == 0; i++ {
 		time.Sleep(10 * time.Millisecond)
 	}
-	if *restarts != 1 || *relaunched != 1 {
-		t.Fatalf("restarts %d relaunched %d", *restarts, *relaunched)
+	if restarts.Load() != 1 || relaunched.Load() != 1 {
+		t.Fatalf("restarts %d relaunched %d", restarts.Load(), relaunched.Load())
 	}
 	if b, _ := os.ReadFile(exe); string(b) != "new loopbee" {
 		t.Fatalf("installed %q", b)
@@ -176,12 +177,12 @@ func TestUpdateStates(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		a.EnableUpdates(func() { *restarts++ })
+		a.EnableUpdates(func() { restarts.Add(1) })
 		a.CheckUpdate()
 		waitUpdate(t, a, "ready")
 		a.Close()
-		if b, _ := os.ReadFile(exe); string(b) != "new loopbee" || *restarts != 0 {
-			t.Fatalf("installed %q restarts %d", b, *restarts)
+		if b, _ := os.ReadFile(exe); string(b) != "new loopbee" || restarts.Load() != 0 {
+			t.Fatalf("installed %q restarts %d", b, restarts.Load())
 		}
 	})
 	t.Run("viewers cannot restart", func(t *testing.T) {
