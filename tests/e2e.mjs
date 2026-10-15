@@ -65,7 +65,21 @@ try {
   assert.ok((await page.locator(".bee").count()) <= 2, "at most two bees per screen");
   assert.equal(await page.locator(".bee.fly").first().evaluate((b) => getComputedStyle(b).animationName), "fly");
   await page.getByRole("link", { name: "Settings" }).click();
+  // A setting is applied when the page shows it, not when the click returns; and a poll that read the state before
+  // the change and answers after it must not undo it. Hold the next poll's answer until the setting is saved.
+  let polled, saved;
+  const pollRead = new Promise((ok) => (polled = ok));
+  const settingSaved = new Promise((ok) => (saved = ok));
+  await page.route(/\/api\/state$/, async (r) => { const res = await r.fetch(); polled(); await settingSaved; await r.fulfill({ response: res }); }, { times: 1 });
+  await pollRead;
+  await page.evaluate(() => new MutationObserver(() => { if (document.body.classList.contains("nomo")) window.nomoSeen = true; else if (window.nomoSeen) window.nomoLost = true; }).observe(document.body, { attributeFilter: ["class"] }));
   await page.getByRole("radio", { name: "Off" }).click();
+  await page.waitForFunction(() => document.body.classList.contains("nomo"));
+  const staleAnswered = page.waitForResponse(/\/api\/state$/);
+  saved();
+  await staleAnswered;
+  await page.waitForResponse(/\/api\/state$/);
+  assert.equal(await page.evaluate(() => !!window.nomoLost), false, "an older poll switched the animation back on");
   await page.goto(core.base + "/#/run/" + slowRun.id);
   await page.locator(".bee.fly").first().waitFor();
   assert.equal(await page.locator(".bee.fly").first().evaluate((b) => getComputedStyle(b).animationName), "none");
