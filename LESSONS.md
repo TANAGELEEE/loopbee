@@ -364,6 +364,15 @@ Edit UTF-8 files directly and check translations for replacement characters.
 - Evidence: `tests/i18n.test.mjs`
 - Seen: initial build
 
+### Show the Windows window once WebView2 has loaded
+The window was shown as soon as the app started. Shown before WebView2's first navigation, Wails (v3.0.0-beta.24)
+starts a 3-second fallback that calls the WebView2 controller from another goroutine; when WebView2 started slowly
+the controller did not exist yet and the app crashed on a nil pointer, which CI only reported as “timed out: visible
+WebView2 controller”. The window is now shown after the first `WebViewNavigationCompleted`, and the lifecycle test
+fails at once with the app's output when the app exits.
+- Evidence: `TestNativeDesktopLifecycle`, `cmd/loopbee/desktop.go#WebViewNavigationCompleted`
+- Seen: 2026-10-15
+
 ### The first window must fit the screen
 A fixed 1280×900 window did not fit 1080p at 150 % or 1366×768. Clamp to the work area and remember bounds.
 - Evidence: `TestFitWindow`
@@ -387,6 +396,14 @@ again, the 3-second refresh had re-rendered the gate and wiped the review note, 
 The note is kept per Run and the page does not refresh over it.
 - Evidence: `tests/agents-e2e.mjs#the review note was wiped by a refresh`
 - Seen: 2026-10-12
+
+### A setting is applied when the page shows it, and an older answer must not undo it
+The E2E test chose “Off” for the animation and moved to the run page before the settings request had answered, so it
+sometimes still saw the bee fly. A poll sent before a save and answered after it also put the old setting back for
+up to three seconds. Polls now drop answers older than the last state change, and tests wait for what the page shows
+(a class, a text) before moving on, never for the click alone or a fixed delay.
+- Evidence: `tests/e2e.mjs#an older poll switched the animation back on`
+- Seen: 2026-10-15
 
 ### Do not override the design system from the app stylesheet
 Copying the design CSS and overriding it changed header height, title size and buttons. `app.css` only adds
