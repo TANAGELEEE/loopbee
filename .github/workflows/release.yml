@@ -2,7 +2,7 @@ name: Release loopbee
 # Push a tag such as v0.1.1 to build, test and publish loopbee as a GitHub Release.
 #
 # Release notes come from docs/releases/<tag>.md (see docs/releases/README.md). Without that file nothing is built
-# or published. Tags with a suffix (v0.2.0-rc.1) become pre-releases. Packages are unsigned and not notarized.
+# or published. Tags with a suffix (v0.2.0-rc.1) become pre-releases. macOS packages are signed ad hoc (no Developer ID) and not notarized; Windows packages are unsigned.
 #
 # Run it by hand (Actions › Release loopbee › Run workflow) to rebuild an existing tag, or with "notes only" to
 # replace the text of an existing release with the current docs/releases/<tag>.md, without rebuilding.

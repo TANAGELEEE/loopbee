@@ -23,7 +23,7 @@ loopbee updates itself from its GitHub releases, modelled on magpie's updater
    only fills in). A file without a published checksum, or that does not match, is never unpacked. The archive is
    unpacked beside the installed copy (`.loopbee-update`), or in the user cache when that folder is not writable.
    - macOS: `ditto -x -k`; the result must contain `loopbee.app` whose `Info.plist` names the release's version.
-     When the installed app is signed by a team (releases are unsigned today), the new one must be signed intact
+     When the installed app is signed by a team (releases are signed ad hoc, without a team, today), the new one must be signed intact
      by the same team.
    - Windows: only the top-level `loopbee.exe`, `beectl.exe` and `loopbee-nogui.exe` are extracted; paths inside
      the archive are never used.
