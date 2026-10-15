@@ -64,6 +64,8 @@ try {
 
   // Save: a disabled draft that keeps the conversation and the claude binding.
   await page.getByRole("button", { name: "Save as draft" }).click();
+  // The chat already shows the draft's title: wait for the saved Loop's own page, not for the title.
+  await page.waitForFunction(() => /^#\/loop\/[0-9a-f]{24}$/.test(location.hash));
   await page.locator(".hd h1", { hasText: "Fix production errors" }).waitFor();
   let s = await core.api("/state");
   const loop = s.loops.find((l) => l.name === "Fix production errors");
