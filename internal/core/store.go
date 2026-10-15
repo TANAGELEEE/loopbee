@@ -82,6 +82,21 @@ func Open(dir string) (*App, error) {
 			return nil, err
 		}
 	}
+	// Loops saved before projects existed get their project now; it is derived, so the version stays.
+	loops, err := a.Loops()
+	if err != nil {
+		a.Close()
+		return nil, err
+	}
+	for _, l := range loops {
+		if l.Project == "" {
+			l.Project = projectName(l.Directory)
+			if err = a.put("loop", l.ID, l); err != nil {
+				a.Close()
+				return nil, err
+			}
+		}
+	}
 	runs, err := a.Runs()
 	if err != nil {
 		a.Close()
@@ -286,6 +301,9 @@ func (a *App) SaveSettings(c Settings) error {
 	return nil
 }
 func (a *App) SaveLoop(l Loop) (Loop, error) {
+	if l.Project = strings.TrimSpace(l.Project); l.Project == "" {
+		l.Project = projectName(l.Directory)
+	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.config.Role == "viewer" {

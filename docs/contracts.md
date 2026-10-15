@@ -30,6 +30,8 @@ A nonzero verify exit or unmet condition starts another round from the first ste
 
 ## Persistence and archives
 
+A Loop's `project` groups it on the boards and travels with the team snapshot, unlike `directory`. When empty on save (and, for Loops saved by earlier versions, at start) it becomes the owner/repo of the directory's `origin` remote, without user, token or host, or else the folder name.
+
 SQLite `objects(kind,id,data)` stores versioned JSON entities under primary key `(kind,id)`; `events` is append-only. Local and `shared_*` namespaces are isolated, so role changes do not delete local data. Retention removes only terminal Runs older than the configured number of days, together with their events and files. Running and waiting Runs are retained.
 
 ZIP manifest version is 1. Exports contain only non-private Loops, terminal non-private Runs, the latest 1,000 events, and text artifacts. Matches for common credentials or email addresses block export. Imports validate extraction limits, registered artifacts, and paths before staging in the application directory and importing in a database transaction. They receive new IDs, and Loops are private and disabled; existing data is never overwritten.

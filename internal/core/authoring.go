@@ -372,7 +372,7 @@ func defaultDraft(c Settings, agent string) Loop {
 // normalizeDraft keeps identity and safety-relevant fields under loopbee's control.
 func normalizeDraft(p, base Loop, agent string) Loop {
 	p.ID, p.Version, p.Next, p.Updated = base.ID, base.Version, base.Next, base.Updated
-	p.Directory = base.Directory
+	p.Directory, p.Project = base.Directory, base.Project
 	p.Agent = agent
 	p.Enabled = base.Enabled && base.ID != "" // a proposal never enables a new Loop
 	p.Private = base.Private || base.ID == ""

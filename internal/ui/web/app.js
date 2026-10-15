@@ -156,7 +156,7 @@ function render() {
       html = settingsPage(a || "general", ui);
       break;
     default:
-      html = V.today();
+      html = V.today(q);
   }
   chrome(page);
   $("#banners").innerHTML = banners();
@@ -1102,6 +1102,7 @@ document.addEventListener("change", async (e) => {
     } else if (el.id === "runs-loop") setQuery({ loop: el.value });
     else if (el.id === "runs-source") setQuery({ source: el.value });
     else if (el.id === "art-loop") setQuery({ loop: el.value });
+    else if (el.dataset.q) setQuery({ [el.dataset.q]: el.value });
   } catch (err) {
     toast(err.message, "err");
   }

@@ -277,7 +277,7 @@ func TestTeamSyncRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(s.Loops) != 1 || s.Loops[0].ID != l.ID || s.Loops[0].Directory != "" {
+	if len(s.Loops) != 1 || s.Loops[0].ID != l.ID || s.Loops[0].Directory != "" || s.Loops[0].Project == "" || s.Loops[0].Project != l.Project {
 		body, _ := json.Marshal(s.Loops)
 		t.Fatalf("bad shared data: %s", body)
 	}
