@@ -208,6 +208,44 @@ func TestTeamSnapshotReplacesLocalPathsInText(t *testing.T) {
 		t.Fatalf("local paths left in %s", b)
 	}
 }
+
+// A mistyped repository used to stick: the app's checkout kept the first remote and every later sync failed with
+// “team remote differs”. A new repository starts a fresh checkout, so nothing of the old repository's history or
+// other publishers' files is pushed to the new one.
+func TestChangingTheTeamRepositoryStartsAFreshCheckout(t *testing.T) {
+	a := testApp(t)
+	bare := func() string {
+		remote := filepath.Join(t.TempDir(), "team.git")
+		if _, err := runCommand(context.Background(), "", []string{"git", "init", "-q", "--bare", remote}, nil); err != nil {
+			t.Fatal(err)
+		}
+		return remote
+	}
+	first, second := bare(), bare()
+	c := a.Settings()
+	c.TeamRemote = first
+	if err := a.SaveSettings(c); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SyncTeam(); err != nil {
+		t.Fatal(err)
+	}
+	oldHead := gitOutput(t, first, "rev-parse", "loopbee")
+	c.TeamRemote = second
+	if err := a.SaveSettings(c); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SyncTeam(); err != nil {
+		t.Fatalf("sync after changing the repository: %v", err)
+	}
+	if gitOutput(t, second, "rev-parse", "loopbee") == "" {
+		t.Fatal("nothing was published to the new repository")
+	}
+	if _, err := runCommand(context.Background(), second, []string{"git", "merge-base", "--is-ancestor", oldHead, "loopbee"}, nil); err == nil {
+		t.Fatal("the old repository's history was pushed to the new one")
+	}
+}
+
 func TestTeamSyncRoundTrip(t *testing.T) {
 	t.Setenv("LOOPBEE_HELPER", "success")
 	a := testApp(t)

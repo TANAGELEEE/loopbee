@@ -306,6 +306,14 @@ Hiding buttons did not stop a viewer. Start, SaveLoop, Gate, Cancel and Prune re
 - Evidence: `TestViewerAndArtifactTraversal`, `TestTeamSyncRoundTrip`
 - Seen: initial build
 
+### Changing the team repository starts a fresh checkout
+Team sync keeps its own Git checkout and refused every sync once the repository setting changed (“team remote
+differs”), so a mistyped repository stuck until the data directory was replaced. Only switching the remote would have
+pushed the old repository's history and other publishers' snapshots to the new one. A new repository now gets a new
+checkout.
+- Evidence: `TestChangingTheTeamRepositoryStartsAFreshCheckout`
+- Seen: 2026-10-15
+
 ### Deleting a Loop removes what loopbee created for it
 Deleting a definition left its worktree registered in the developer's repository and its secrets in the keychain.
 Both are removed now; branches (possibly unreviewed work) and Runs stay.
