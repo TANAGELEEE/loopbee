@@ -1,6 +1,10 @@
 # Loopbee
 
-A desktop app for local agent workflows and scheduling. Implemented from the [Loopbee overview](Loopbee總覽.md) and [prototype](doc/loopbee-design/README.md), using Go + Wails v3 (Windows / macOS) + vanilla JavaScript, with SQLite as the source of truth. License pending.
+A desktop app for local agent workflows and scheduling. Implemented from the [Loopbee overview](Loopbee總覽.md) and [prototype](doc/loopbee-design/README.md), using Go + Wails v3 (Windows / macOS) + vanilla JavaScript, with SQLite as the source of truth. [MIT licensed](LICENSE).
+
+## Download
+
+Download the newest version from [Releases](https://github.com/TANAGELEEE/Loopbee/releases/latest): the `.dmg` for macOS (arm64 for Apple Silicon, amd64 for Intel; drag Loopbee to Applications) or the `.exe` / `.zip` for Windows x64. The packages are unsigned: on macOS right-click `Loopbee.app` › Open the first time; on Windows choose More info › Run anyway if SmartScreen asks. Released builds then update themselves. Each release's notes list the files and how to install them. Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
 ## Getting started
 

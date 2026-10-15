@@ -62,7 +62,9 @@ with v0.1.1 and its seven files, each with GitHub's digest. `TestRealReleaseStag
 (`LOOPBEE_REAL_UPDATE=1 go test ./internal/update -run Real`) downloaded the real `Loopbee-macos-arm64.zip`, checked it
 against `SHA256SUMS`, unpacked it and swapped it in for a stand-in `Loopbee.app` in a temporary folder (16 s).
 
-So while the repository is private, only people signed in with `gh` (with access to it) get updates; everyone else
-sees the error with that hint. Not verified: the restart of the packaged app (relaunch after the old process exits)
+A public repository needs no token: anyone's copy reads the feed anonymously (GitHub allows 60 such requests an hour
+per address; Loopbee makes one every six hours). While it is private, only people signed in with `gh` (with access to
+it) get updates; everyone else sees the error with that hint. `releases/latest` skips pre-releases, so a `-rc` tag
+never reaches installed copies. Not verified: the restart of the packaged app (relaunch after the old process exits)
 on macOS and Windows, the administrator prompt, the Windows swap on real Windows, and Windows' file locks by
 antivirus or OneDrive. The first release with this code updates only to a later one.
