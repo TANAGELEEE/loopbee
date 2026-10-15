@@ -417,8 +417,10 @@ The note is kept per Run and the page does not refresh over it.
 The E2E test chose “Off” for the animation and moved to the run page before the settings request had answered, so it
 sometimes still saw the bee fly. A poll sent before a save and answered after it also put the old setting back for
 up to three seconds. Polls now drop answers older than the last state change, and tests wait for what the page shows
-(a class, a text) before moving on, never for the click alone or a fixed delay.
-- Evidence: `tests/e2e.mjs#an older poll switched the animation back on`
+(a class, a text) before moving on, never for the click alone or a fixed delay. What they wait for must not be on
+the page already: after “Save as draft” the chat already showed the draft's title, so the test read the state before
+the save had answered once saving took a little longer; it now waits for the saved Loop's own page.
+- Evidence: `tests/e2e.mjs#an older poll switched the animation back on`, `tests/agents-e2e.mjs#wait for the saved Loop's own page`
 - Seen: 2026-10-15
 
 ### Do not override the design system from the app stylesheet
