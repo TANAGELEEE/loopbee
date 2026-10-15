@@ -29,7 +29,7 @@ go run ./cmd/loopbee
 sh scripts/build-macos.sh
 ```
 
-On Windows and macOS, closing the window leaves the app running in the system tray. Click the tray icon or Open Loopbee to restore it; choose Quit to stop scheduling. A second instance using the same data directory is rejected. Start at login, Keep awake, and desktop notifications are implemented for both desktop platforms. See [platform acceptance](docs/subsystems/gui-shell.md) for the Windows native test scope.
+On Windows and macOS, closing the window leaves the app running in the system tray. Click the tray icon or Open Loopbee to restore it; choose Quit to stop scheduling. A second instance using the same data directory is rejected. Start at login, Keep awake, and desktop notifications are implemented for both desktop platforms. See [platform acceptance](docs/subsystems/gui-shell.md) for the Windows native test scope. Released builds update themselves from GitHub releases (checked against the release's SHA256SUMS, installed when you restart or quit); see [updates](docs/subsystems/updates.md).
 
 ## Agents and the chat
 
@@ -52,7 +52,7 @@ including what a malicious issue could try.
 
 ## Your first Loop
 
-1. Open Settings → Agents → Detect agents. Codex uses `exec --json --sandbox`; Claude Code remains experimental and execution is blocked.
+1. Open Settings → Agents → Detect agents. Codex CLI, Claude Code, Gemini CLI, OpenCode and pi are supported; each enforces only the permission levels listed there (OpenCode and pi have no sandbox, so they run read-only or with their own configuration).
 2. Create a Loop with an absolute working directory, prompt, steps, and limits. Defaults are read-only, private, disabled, and Require clean Git tree.
 3. Steps can be observe / act / verify / gate / summarize. A verify step's `argv` is a JSON array of strings whose first entry must be allowlisted; commands are never assembled as shell strings. Approval at a gate requires a review note.
 4. Run manually, or enter a five-field Cron expression and IANA timezone, then enable the Loop. After sleep, optionally catch up on the latest missed run; the app does not replay every missed occurrence.

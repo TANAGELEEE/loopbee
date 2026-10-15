@@ -15,6 +15,7 @@ import (
 	"net/http/cookiejar"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"text/tabwriter"
@@ -45,10 +46,14 @@ func usage(w io.Writer) {
   status                         app, agents and active runs
   version | --version            print beectl's version (no app required)
   loops [--json]                 list loops
-  runs [--loop ID|NAME] [--json] recent runs
+  runs [--loop ID|NAME] [--status S[,S]] [--json]
+                                 recent runs (S: running, waiting, queued, completed, failed, blocked, …)
   schema                         JSON schema of a loop definition with an example
   create -f FILE|- [--dir DIR]   create a disabled draft loop from JSON (directory defaults to the current folder)
-  run ID|NAME                    start a run now
+  run ID|NAME [-q|--json]        start a run now (-q prints only the run ID, for scripts)
+  cancel RUN [--wait]            cancel an active run (full ID or a unique prefix of at least 4 characters)
+  cancel --loop ID|NAME [--wait] cancel the loop's active run; --wait returns once it has stopped
+  delete ID|NAME --yes           delete a loop definition (its runs and evidence stay in history)
   skill print                    print the agent skill
   skill install [--agent codex|claude|all] [--dir DIR]
                                  install the skill for Codex and/or Claude Code
@@ -130,13 +135,70 @@ func (c *client) state() (core.State, error) {
 	return s, err
 }
 
+// findLoop resolves an ID or a name. Names are not unique: an ambiguous name is an error listing the IDs, never
+// the first match (a script deleting or cancelling "the" loop must not hit another one).
 func findLoop(s core.State, key string) (core.Loop, error) {
+	var named []core.Loop
 	for _, l := range s.Loops {
-		if l.ID == key || strings.EqualFold(l.Name, key) {
+		if l.ID == key {
 			return l, nil
 		}
+		if strings.EqualFold(l.Name, key) {
+			named = append(named, l)
+		}
 	}
-	return core.Loop{}, fmt.Errorf("no loop with id or name %q", key)
+	switch len(named) {
+	case 0:
+		return core.Loop{}, fmt.Errorf("no loop with id or name %q", key)
+	case 1:
+		return named[0], nil
+	}
+	ids := []string{}
+	for _, l := range named {
+		ids = append(ids, l.ID)
+	}
+	return core.Loop{}, fmt.Errorf("%d loops are named %q; use one of the IDs: %s", len(named), key, strings.Join(ids, ", "))
+}
+
+// findRun resolves a full run ID or a unique prefix of at least 4 characters (beectl runs shows 10).
+func findRun(s core.State, key string) (core.Run, error) {
+	var matches []core.Run
+	for _, r := range s.Runs {
+		if r.ID == key {
+			return r, nil
+		}
+		if len(key) >= 4 && strings.HasPrefix(r.ID, key) {
+			matches = append(matches, r)
+		}
+	}
+	switch len(matches) {
+	case 0:
+		return core.Run{}, fmt.Errorf("no run with id %q (see beectl runs)", key)
+	case 1:
+		return matches[0], nil
+	}
+	return core.Run{}, fmt.Errorf("%d runs start with %q; give more characters", len(matches), key)
+}
+
+func active(status string) bool {
+	return status == "running" || status == "waiting" || status == "queued"
+}
+
+// positional returns the arguments that are not flags; flags listed in valued take the next argument.
+func positional(args []string, valued ...string) []string {
+	out := []string{}
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if slices.Contains(valued, a) {
+			i++
+			continue
+		}
+		if strings.HasPrefix(a, "-") {
+			continue
+		}
+		out = append(out, a)
+	}
+	return out
 }
 
 func run(args []string, out io.Writer) error {
@@ -228,6 +290,16 @@ func run(args []string, out io.Writer) error {
 			}
 			runs = filtered
 		}
+		if v := flagValue(rest, "--status"); v != "" {
+			want := strings.Split(v, ",")
+			filtered := []core.Run{}
+			for _, r := range runs {
+				if slices.Contains(want, r.Status) {
+					filtered = append(filtered, r)
+				}
+			}
+			runs = filtered
+		}
 		if len(runs) > 20 {
 			runs = runs[:20]
 		}
@@ -294,27 +366,132 @@ func run(args []string, out io.Writer) error {
 		}
 		return nil
 	case "run":
-		if len(rest) == 0 {
+		key := strings.Join(positional(rest), " ")
+		if key == "" {
 			return errors.New("run needs a loop id or name")
 		}
 		s, err := c.state()
 		if err != nil {
 			return err
 		}
-		l, err := findLoop(s, strings.Join(rest, " "))
+		l, err := findLoop(s, key)
 		if err != nil {
 			return err
+		}
+		before := map[string]bool{}
+		for _, r := range s.Runs {
+			before[r.ID] = true
 		}
 		var after core.State
 		if err := c.do("POST", "/api/loops/"+l.ID+"/run", map[string]any{}, &after); err != nil {
 			return err
 		}
 		for _, r := range sortedRuns(after.Runs) {
-			if r.LoopID == l.ID {
-				fmt.Fprintf(out, "Started run %s of %q (%s)\n", r.ID[:10], l.Name, r.Status)
-				break
+			if r.LoopID != l.ID || before[r.ID] {
+				continue
+			}
+			switch {
+			case hasFlag(rest, "--json"):
+				return writeJSON(out, r)
+			case hasFlag(rest, "-q") || hasFlag(rest, "--quiet"):
+				_, err := fmt.Fprintln(out, r.ID)
+				return err
+			}
+			fmt.Fprintf(out, "Started run %s of %q (%s)\n", r.ID, l.Name, r.Status)
+			return nil
+		}
+		return errors.New("Loopbee accepted the request but no new run appeared; check beectl runs")
+	case "cancel":
+		s, err := c.state()
+		if err != nil {
+			return err
+		}
+		var target core.Run
+		if key := flagValue(rest, "--loop"); key != "" {
+			l, err := findLoop(s, key)
+			if err != nil {
+				return err
+			}
+			found := false
+			for _, r := range sortedRuns(s.Runs) {
+				if r.LoopID == l.ID && active(r.Status) {
+					target, found = r, true
+					break
+				}
+			}
+			if !found {
+				return fmt.Errorf("loop %q has no active run", l.Name)
+			}
+		} else {
+			args := positional(rest, "--timeout")
+			if len(args) != 1 {
+				return errors.New("cancel needs a run ID (or --loop ID|NAME)")
+			}
+			if target, err = findRun(s, args[0]); err != nil {
+				return err
+			}
+			if !active(target.Status) {
+				return fmt.Errorf("run %s already ended (%s)", target.ID, target.Status)
 			}
 		}
+		if err := c.do("POST", "/api/runs/"+target.ID+"/cancel", map[string]any{}, nil); err != nil {
+			return err
+		}
+		if !hasFlag(rest, "--wait") {
+			fmt.Fprintf(out, "Cancelling run %s of %q\n", target.ID, target.Definition.Name)
+			return nil
+		}
+		timeout := 60 * time.Second
+		if v := flagValue(rest, "--timeout"); v != "" {
+			if timeout, err = time.ParseDuration(v); err != nil {
+				return fmt.Errorf("--timeout: %w", err)
+			}
+		}
+		for deadline := time.Now().Add(timeout); ; {
+			s, err := c.state()
+			if err != nil {
+				return err
+			}
+			for _, r := range s.Runs {
+				if r.ID == target.ID && !active(r.Status) {
+					fmt.Fprintf(out, "Run %s of %q stopped (%s)\n", r.ID, r.Definition.Name, r.Status)
+					return nil
+				}
+			}
+			if time.Now().After(deadline) {
+				return fmt.Errorf("run %s is still stopping after %s; check beectl runs", target.ID, timeout)
+			}
+			time.Sleep(pollInterval)
+		}
+	case "delete":
+		key := strings.Join(positional(rest), " ")
+		if key == "" {
+			return errors.New("delete needs a loop id or name")
+		}
+		s, err := c.state()
+		if err != nil {
+			return err
+		}
+		l, err := findLoop(s, key)
+		if err != nil {
+			return err
+		}
+		runs := 0
+		for _, r := range s.Runs {
+			if r.LoopID == l.ID {
+				runs++
+				if active(r.Status) {
+					return fmt.Errorf("loop %q has an active run (%s); cancel it first: beectl cancel --loop %s", l.Name, r.ID, l.ID)
+				}
+			}
+		}
+		if !hasFlag(rest, "--yes") {
+			return fmt.Errorf("deleting %q (%s) removes its definition; its %d runs and their evidence stay in history. Run again with --yes to delete it", l.Name, l.ID, runs)
+		}
+		if err := c.do("DELETE", "/api/loops/"+l.ID, nil, nil); err != nil {
+			return err
+		}
+		fmt.Fprintf(out, "Deleted loop %q (%s); its %d runs stay in history\n", l.Name, l.ID, runs)
 		return nil
 	}
 	usage(out)
@@ -421,6 +598,9 @@ func skillCommand(args []string, out io.Writer) error {
 	}
 	return nil
 }
+
+// pollInterval is how often cancel --wait checks the run; tests shorten it.
+var pollInterval = 300 * time.Millisecond
 
 func sortedRuns(runs []core.Run) []core.Run {
 	out := append([]core.Run{}, runs...)

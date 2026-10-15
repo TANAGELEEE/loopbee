@@ -70,6 +70,16 @@ var statusText = map[string][3]string{
 	"interrupted": {"Interrupted", "已中斷", "已中断"},
 }
 
+func missingLabel(lang string) string {
+	switch lang {
+	case "zh-TW":
+		return "代理拿不到"
+	case "zh-CN":
+		return "代理拿不到"
+	}
+	return "The agent could not get"
+}
+
 func localized(status, lang string) string {
 	v, ok := statusText[status]
 	if !ok {
@@ -102,6 +112,9 @@ func runNotification(r Run, lang string, includeReport bool) string {
 	if r.Result != nil {
 		for _, l := range r.Result.Links {
 			b.WriteString("\n" + l)
+		}
+		if len(r.Result.Missing) > 0 {
+			b.WriteString("\n" + missingLabel(lang) + ": " + strings.Join(r.Result.Missing, "; "))
 		}
 	}
 	if r.Branch != "" && len(r.Commits) > 0 {

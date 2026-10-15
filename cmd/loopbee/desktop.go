@@ -13,7 +13,8 @@ import (
 	"loopbee/internal/ui"
 )
 
-func desktop(url, data string, shutdown func()) error {
+func desktop(url string, lb *core.App, shutdown func()) error {
+	data := lb.Dir
 	icon, err := ui.Files.ReadFile("web/bee.png")
 	if err != nil {
 		return err
@@ -95,5 +96,12 @@ func desktop(url, data string, shutdown func()) error {
 		app.Quit()
 	})
 	tray.SetMenu(menu)
+	// Restarting into an update quits the app; the new version starts once this process has exited.
+	lb.EnableUpdates(func() {
+		if window.IsVisible() {
+			remember()
+		}
+		app.Quit()
+	})
 	return app.Run()
 }

@@ -157,6 +157,30 @@ func (s *Server) Handler() http.Handler {
 		}
 		s.state(w)
 	})
+	// Loopbee's own updates: ask GitHub now (and download), or restart into the downloaded version (when: "" waits
+	// for active Runs to end, "now" does not, "cancel" stops a restart that waits).
+	mux.HandleFunc("POST /api/update/check", func(w http.ResponseWriter, r *http.Request) {
+		s.App.CheckUpdate()
+		s.state(w)
+	})
+	mux.HandleFunc("POST /api/update/install", func(w http.ResponseWriter, r *http.Request) {
+		var v struct {
+			When string `json:"when"`
+		}
+		if err := decode(w, r, &v); err != nil {
+			fail(w, err)
+			return
+		}
+		if v.When != "" && v.When != "now" && v.When != "cancel" {
+			fail(w, errors.New("when is empty, now or cancel"))
+			return
+		}
+		if _, err := s.App.RestartToUpdate(v.When); err != nil {
+			fail(w, err)
+			return
+		}
+		s.state(w)
+	})
 	mux.HandleFunc("POST /api/onboarding/done", func(w http.ResponseWriter, r *http.Request) {
 		if err := s.App.CompleteOnboarding(); err != nil {
 			fail(w, err)

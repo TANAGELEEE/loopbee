@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"loopbee/internal/core"
 	"loopbee/internal/httpapi"
@@ -223,4 +224,96 @@ func TestSelfImproveExampleIsValid(t *testing.T) {
 			t.Fatalf("step %q: the example must not run commands", s.Name)
 		}
 	}
+}
+
+// Scripts and CI cancel what they started: run -q prints the ID, cancel accepts what runs shows, and a name that
+// is not unique never picks one of several loops.
+func TestBeectlCancelAndDelete(t *testing.T) {
+	a, dir := startApp(t)
+	pollInterval = 10 * time.Millisecond
+	work := t.TempDir()
+	file := filepath.Join(t.TempDir(), "loop.json")
+	os.WriteFile(file, []byte(`{"name":"Deploy staging","requireClean":false,"directory":"`+filepath.ToSlash(work)+`","steps":[{"kind":"gate","name":"Review"}]}`), 0600)
+	var out bytes.Buffer
+	beectl := func(args ...string) (string, error) {
+		out.Reset()
+		err := run(append([]string{"-data", dir}, args...), &out)
+		return strings.TrimSpace(out.String()), err
+	}
+	if _, err := beectl("create", "-f", file); err != nil {
+		t.Fatal(err)
+	}
+	id, err := beectl("run", "Deploy staging", "-q")
+	if err != nil || len(id) != 24 || strings.ContainsAny(id, " \n") {
+		t.Fatalf("run -q must print only the run ID: %q %v", id, err)
+	}
+	waitFor(t, a, id, "waiting")
+	if got, err := beectl("cancel", id[:6], "--wait"); err != nil || !strings.Contains(got, "stopped (cancelled)") {
+		t.Fatalf("%q %v", got, err)
+	}
+	if _, err := beectl("cancel", id); err == nil || !strings.Contains(err.Error(), "already ended (cancelled)") {
+		t.Fatal(err)
+	}
+	if _, err := beectl("cancel", "--loop", "Deploy staging"); err == nil || !strings.Contains(err.Error(), "no active run") {
+		t.Fatal(err)
+	}
+	second, _ := beectl("run", "Deploy staging", "-q")
+	waitFor(t, a, second, "waiting")
+	// An active run blocks deletion and says how to cancel it.
+	if _, err := beectl("delete", "Deploy staging", "--yes"); err == nil || !strings.Contains(err.Error(), "beectl cancel --loop") {
+		t.Fatal(err)
+	}
+	if got, err := beectl("cancel", "--loop", "deploy staging", "--wait"); err != nil || !strings.Contains(got, second) {
+		t.Fatalf("%q %v", got, err)
+	}
+	if got, _ := beectl("runs", "--status", "cancelled"); strings.Count(got, "cancelled") != 2 {
+		t.Fatalf("status filter: %s", got)
+	}
+	if got, _ := beectl("runs", "--status", "completed,failed"); strings.Contains(got, "Deploy staging") {
+		t.Fatalf("status filter: %s", got)
+	}
+	// Deleting needs --yes, keeps the runs, and a duplicate name is refused with the IDs to choose from.
+	s, _ := a.State()
+	loopID := s.Loops[0].ID
+	if _, err := beectl("delete", loopID); err == nil || !strings.Contains(err.Error(), "--yes") || !strings.Contains(err.Error(), "2 runs") {
+		t.Fatal(err)
+	}
+	dup := s.Loops[0]
+	dup.ID, dup.Version = "", 0
+	if _, err := a.SaveLoop(dup); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"delete", "Deploy staging", "--yes"}, {"run", "Deploy staging"}, {"cancel", "--loop", "Deploy staging"}} {
+		if _, err := beectl(args...); err == nil || !strings.Contains(err.Error(), "2 loops are named") || !strings.Contains(err.Error(), loopID) {
+			t.Fatalf("%v: %v", args, err)
+		}
+	}
+	if got, err := beectl("delete", loopID, "--yes"); err != nil || !strings.Contains(got, "Deleted loop") {
+		t.Fatalf("%q %v", got, err)
+	}
+	s, _ = a.State()
+	if len(s.Loops) != 1 || s.Loops[0].ID == loopID || len(s.Runs) != 2 {
+		t.Fatalf("loops %d runs %d", len(s.Loops), len(s.Runs))
+	}
+	if _, err := beectl("cancel", "zz"); err == nil {
+		t.Fatal("a 2-character prefix must not match")
+	}
+	out.Reset()
+	run([]string{"help"}, &out)
+	for _, cmd := range []string{"cancel RUN", "delete ID|NAME --yes", "-q"} {
+		if !strings.Contains(out.String(), cmd) {
+			t.Fatalf("help omits %q", cmd)
+		}
+	}
+}
+
+func waitFor(t *testing.T, a *core.App, id, status string) {
+	t.Helper()
+	for deadline := time.Now().Add(20 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		if r, err := a.Run(id); err == nil && r.Status == status {
+			return
+		}
+	}
+	r, _ := a.Run(id)
+	t.Fatalf("run %s: want %s, got %s (%s)", id, status, r.Status, r.Error)
 }

@@ -1,11 +1,13 @@
 #!/bin/sh
 # Real end-to-end check on this Mac: package Loopbee.app, run the Go tests, then drive the packaged
-# binary with your own Codex CLI / Claude Code (uses your subscription for a few short agent runs).
+# binary with your own agent CLIs — Codex CLI, Claude Code, Gemini CLI, OpenCode, pi (uses your subscriptions for
+# a few short agent runs).
 # Everything runs against a throw-away sample repository in a temp folder; your projects are not touched.
 # The full log is written to .test-data/real-smoke.log; afterwards the packaged app opens on the test data.
 #
 #   sh scripts/real-smoke.sh                      # all detected agents, both scenarios
 #   sh scripts/real-smoke.sh --agents claude      # one agent
+#   sh scripts/real-smoke.sh --agents gemini,opencode,pi
 #   sh scripts/real-smoke.sh --scenarios report   # read-only scenario only
 set -u
 cd "$(dirname "$0")/.."
@@ -24,7 +26,7 @@ log=.test-data/real-smoke.log
   go version
   node --version
   git --version
-  for a in codex claude; do
+  for a in codex claude gemini opencode pi; do
     if command -v "$a" >/dev/null 2>&1; then echo "$a: $(command -v "$a") · $("$a" --version 2>&1 | head -1)"; else echo "$a: not on PATH"; fi
   done
   echo "== go test"

@@ -1,5 +1,5 @@
 // Editor, settings and onboarding views (form-heavy pages).
-import { ctx, t, T, esc, when, cronText, icon, btn, sec, empty, toggle, seg, fld, short, bytes, deliveryBadge, channelName, toDate, hm, SANDBOXES, sandboxRank, sandboxLabel, sandboxHelp, agentLabel } from "./ui.js";
+import { ctx, t, T, esc, when, cronText, icon, btn, sec, empty, toggle, seg, fld, short, bytes, deliveryBadge, channelName, toDate, hm, SANDBOXES, sandboxRank, sandboxLabel, sandboxHelp, agentLabel, agentColor, agentLevels } from "./ui.js";
 import { flowState, renderFlow } from "./flow.js";
 import { viewer, runsSorted } from "./views.js";
 
@@ -46,12 +46,24 @@ export function gaps(d) {
     if (!/^[A-Z_][A-Z0-9_]{0,63}$/.test(e.name)) add("block", t("Environment variable names use UPPER_SNAKE_CASE"), "env");
     else if (!e.value) add(e.secret ? "warn" : "block", t("{name} has no value yet; runs are blocked until it is set", { name: e.name }), "env");
   }
+  if (!agentLevels(d.agent).includes(d.sandbox)) add("block", t("{agent} cannot enforce “{level}” on its own; choose {levels}, or another agent", { agent: agentLabel(d.agent), level: sandboxLabel(d.sandbox), levels: agentLevels(d.agent).map(sandboxLabel).join(" / ") }), "sandbox");
+  if (d.model && /\s|^-/.test(d.model)) add("block", t("The model is a name without spaces, e.g. gpt-5.5"), "model");
+  if (S().info?.os === "windows" && d.agent === "claude" && (d.sandbox === "workspace-write" || d.sandbox === "workspace-network")) add("warn", t("Claude Code cannot sandbox commands on native Windows yet, so this Loop will not start. Use Codex, or the agent-config permission (Claude Code's own settings decide)"), "agent");
+  for (const p of d.readPaths || []) {
+    if (!/^(~[\/\\]|\/|[A-Za-z]:[\/\\])/.test(p) || /(^|[\/\\])\.\.([\/\\]|$)/.test(p)) add("block", t("Read path “{path}” must be absolute or start with ~/", { path: p }), "readPaths");
+    else if (/^~[\/\\](\.ssh|\.gnupg|\.aws|\.azure|\.kube|\.docker|\.netrc|\.git-credentials|\.config[\/\\](gh|gcloud)|Library[\/\\]Keychains)([\/\\]|$)/.test(p)) add("block", t("Read path “{path}” holds this computer's credentials; put what the Loop needs in its environment variables instead", { path: p }), "readPaths");
+  }
+  if ((d.copyFiles || []).length && d.workspace !== "worktree") add("block", t("Copied files are for the fresh git worktree workspace"), "copyFiles");
+  if (d.intake && (d.readPaths || []).length) add("warn", t("This Loop works on issues others write and lets the agent read {paths}. A crafted issue could ask the agent to send them away: keep a gate before anything leaves this computer", { paths: d.readPaths.join(", ") }), "readPaths");
   if (d.workspace === "worktree" && !d.baseRef) add("warn", t("Worktree starts from HEAD of the working directory; set a base such as origin/master"), "baseRef");
   if (d.workspace === "worktree" && !d.branch && sandboxRank(d.sandbox) >= sandboxRank("workspace-write") && sandboxRank(d.sandbox) < sandboxRank("agent-config")) add("warn", t("Agents cannot commit in a worktree; set a branch so Loopbee commits the changes"), "branch");
   // A command after an agent step runs code the agent may have written, as you and outside any sandbox.
   const firstAgent = d.steps.findIndex((s) => !["run", "verify", "gate"].includes(s.kind));
   const unreviewed = firstAgent < 0 ? -1 : d.steps.findIndex((s, i) => i > firstAgent && (s.kind === "run" || s.kind === "verify") && !d.steps.slice(firstAgent, i).some((x) => x.kind === "gate"));
   if (unreviewed >= 0 && d.sandbox !== "agent-config") add("warn", t("“{name}” runs after the agent and before any review: it executes the agent's changes on this computer outside the sandbox. Fine for your own tasks; for issues, e-mail or web content put a gate first", { name: d.steps[unreviewed].name || kindLabel(d.steps[unreviewed].kind) }), `step-${unreviewed}`);
+  // MCP tools act outside the sandbox (a console, a database): someone should see the change before it happens.
+  if (d.agentMcp && firstAgent >= 0 && !d.steps.some((s) => s.kind === "gate")) add("warn", t("The agent's MCP tools act outside the sandbox with your rights (a console, a database, a browser). Add a gate, or split the work into a read step, a gate and an apply step"), "agentMcp");
+  if (d.agentMcp && d.intake) add("warn", t("This Loop works on issues others write and lets the agent use its MCP tools: a crafted issue could make it act through them. Keep a gate before anything changes"), "agentMcp");
   // Work from issues and pull requests (Loopbee's own intake and delivery).
   if ((d.intake || d.pullRequest) && (d.workspace !== "worktree" || !d.branch)) add("block", t("Issues and pull requests need a fresh git worktree and a branch"), "branch");
   if (d.branch?.includes("{issue}") && !d.intake) add("block", t("{issue} in the branch name needs GitHub issues as the work source"), "branch");
@@ -111,9 +123,9 @@ export function editorPage(d, ui) {
       ${sec(T("Target"), { id: "ed-target" })}
       <div class="grp">${fld(T("Working directory"), input("directory", d.directory, `placeholder="${esc(ctx.state.info?.os === "windows" ? "C:\\work\\repo" : "/Users/me/work/repo")}" id="f-directory"`), T("Absolute local path. The agent runs here; Loopbee never switches your branches."))}${fld(T("Require clean tree"), toggle(d.requireClean, "ed-toggle", t("Require clean Git tree"), 'data-f="requireClean"'), T("Refuse to start when git status shows uncommitted changes."))}</div>
       ${sec(T("Agent & permission"), { id: "ed-agent" })}
-      <div class="grp">${fld(T("Agent"), `<select class="inp narrowi" data-f="agent" name="agent" id="f-agent">${["codex", "claude"].map((n) => `<option value="${n}" ${d.agent === n ? "selected" : ""}>${esc(agentLabel(n))}${S().agents.find((a) => a.name === n)?.status === "available" ? "" : " · " + T("not detected")}</option>`).join("")}</select>`)}${fld(T("Permission"), `<span id="f-sandbox">${seg("sandbox", d.sandbox, SANDBOXES.map((x) => [x, sandboxLabel(x)]), { action: "ed-seg", label: t("Permission") })}</span>`, `${esc(sandboxHelp(d.sandbox))} ${T("This device allows at most: {max}. A definition cannot raise it.", { max: sandboxLabel(S().settings.maxSandbox) })}`)}${fld(T("Allowed tools"), `<input class="inp mono" data-f="allowedTools" id="f-allowedTools" value="${esc(d.allowedTools.join(" "))}" placeholder="npm node git">`, T("Executables command and verify steps may call, separated by spaces. Commands run without a shell."))}</div>
+      <div class="grp">${fld(T("Agent"), `<select class="inp narrowi" data-f="agent" name="agent" id="f-agent">${agentNames(d.agent).map((n) => `<option value="${n}" ${d.agent === n ? "selected" : ""}>${esc(agentLabel(n))}${S().agents.find((a) => a.name === n)?.status === "available" ? "" : " · " + T("not detected")}</option>`).join("")}</select>`)}${fld(T("Model"), input("model", d.model || "", 'class="inp mono narrowi" placeholder="' + esc(t("Agent's default")) + '" id="f-model"'), T("Empty: the agent's own default. Every run records the model and tokens the agent reports."))}${fld(T("Permission"), `<span id="f-sandbox">${seg("sandbox", d.sandbox, SANDBOXES.map((x) => [x, sandboxLabel(x)]), { action: "ed-seg", label: t("Permission") })}</span>`, `${esc(sandboxHelp(d.sandbox))} ${T("This device allows at most: {max}. A definition cannot raise it.", { max: sandboxLabel(S().settings.maxSandbox) })} ${T("{agent} enforces: {levels}.", { agent: agentLabel(d.agent), levels: agentLevels(d.agent).map(sandboxLabel).join(", ") })}`)}${fld(T("Allowed tools"), `<input class="inp mono" data-f="allowedTools" id="f-allowedTools" value="${esc(d.allowedTools.join(" "))}" placeholder="npm node git">`, T("Executables command and verify steps may call, separated by spaces. Commands run without a shell."))}${fld(T("Read paths"), `<textarea class="inp mono" rows="2" data-f="readPaths" id="f-readPaths" placeholder="~/.pi/agent/private" spellcheck="false">${esc((d.readPaths || []).join("\n"))}</textarea>`, T("Folders or files outside the project the agent may read but not change, one per line (~/ is your home). The agent's own skills, plugins, subagents, commands and the project's memory are always available."))}${fld(T("MCP tools"), toggle(!!d.agentMcp, "ed-toggle", t("Use the agent's own MCP tools"), 'data-f="agentMcp" id="f-agentMcp"'), mcpHelp(d))}</div>
       ${sec(T("Workspace"), { id: "ed-workspace" })}
-      <div class="grp">${fld(T("Where it runs"), seg("workspace", d.workspace || "direct", [["direct", t("Working directory")], ["worktree", t("Fresh git worktree")]], { action: "ed-seg", label: t("Workspace") }), T("A worktree keeps your own checkout and uncommitted work untouched; use it when the Loop creates branches or commits."))}${d.workspace === "worktree" ? fld(T("Start from"), input("baseRef", d.baseRef || "", 'class="inp mono" placeholder="origin/master" id="f-baseRef"'), T("Loopbee fetches the remote first and creates the worktree at this ref for every run.")) + fld(T("Branch"), input("branch", d.branch || "", 'class="inp mono" placeholder="loopbee/fix-{date}" id="f-branch"'), T("Loopbee creates this branch and commits the agent's changes on it after each agent step, so the agent never touches Git itself. {date}, {time} and {run} are filled per run. Empty: a detached worktree.")) : ""}
+      <div class="grp">${fld(T("Where it runs"), seg("workspace", d.workspace || "direct", [["direct", t("Working directory")], ["worktree", t("Fresh git worktree")]], { action: "ed-seg", label: t("Workspace") }), T("A worktree keeps your own checkout and uncommitted work untouched; use it when the Loop creates branches or commits."))}${d.workspace === "worktree" ? fld(T("Start from"), input("baseRef", d.baseRef || "", 'class="inp mono" placeholder="origin/master" id="f-baseRef"'), T("Loopbee fetches the remote first and creates the worktree at this ref for every run.")) + fld(T("Branch"), input("branch", d.branch || "", 'class="inp mono" placeholder="loopbee/fix-{date}" id="f-branch"'), T("Loopbee creates this branch and commits the agent's changes on it after each agent step, so the agent never touches Git itself. {date}, {time} and {run} are filled per run. Empty: a detached worktree.")) + fld(T("Copy into the worktree"), `<textarea class="inp mono" rows="2" data-f="copyFiles" id="f-copyFiles" placeholder=".env" spellcheck="false">${esc((d.copyFiles || []).join("\n"))}</textarea>`, T("Git-ignored files or folders of the project the work needs, one per line (.env, local config). A fresh worktree has none of them; they are copied from your checkout and never committed. CLAUDE.local.md and .claude/settings.local.json are copied automatically. Install dependencies with a command step instead.")) : ""}
       ${fld(T("Environment"), `<div id="f-env" class="envlist">${(d.env || []).map((e, i) => `<div class="pair envrow"><input class="inp mono" data-env="name" data-i="${i}" value="${esc(e.name)}" placeholder="DB_HOST" aria-label="${T("Name")}"><input class="inp ${e.secret ? "" : "mono"}" data-env="value" data-i="${i}" type="${e.secret ? "password" : "text"}" value="${esc(e.secret && e.value ? "" : e.value)}" placeholder="${esc(e.secret ? (e.value ? t("Saved in keychain · type to replace") : t("Secret value")) : t("Value"))}" aria-label="${T("Value")}"><label class="check sm"><input type="checkbox" data-env="secret" data-i="${i}" ${e.secret ? "checked" : ""}>${T("Secret")}</label>${btn("Remove", "env-remove", { cls: "sm ghost", attrs: `data-i="${i}"` })}</div>`).join("")}${btn("Add variable", "env-add", { cls: "sm" })}</div>`, T("Injected into agent and command steps. Secret values go to the system keychain; the definition keeps a reference only."))}</div>
       ${workSection(d)}
       ${sec(T("Schedule"), { id: "ed-schedule" })}
@@ -172,39 +184,90 @@ function general(c) {
   <div class="grp">${fld(T("Theme"), seg("theme", c.theme, [["system", t("Follow system")], ["light", t("Light")], ["dark", t("Dark")]], { action: "set", label: t("Theme") }))}${fld(T("Connection animation"), seg("motion", c.motion ? "on" : "off", [["on", t("On")], ["off", t("Off")]], { action: "set", label: t("Connection animation") }), T("The bee flying along connections is decoration only. With “Reduce motion” enabled in the system it stays still at the middle of the line; animations pause while the window is hidden."))}</div>
   ${sec(T("Scheduling and running"))}
   <div class="grp">${fld(T("Pause all schedules"), toggle(c.paused, "pause-all", t("Pause all schedules"), ro()), T("Only affects future triggers; active runs continue and nothing is recorded as missed."))}${fld(T("Start at login"), toggle(c.startAtLogin, "set-toggle", t("Start at login"), `data-name="startAtLogin" ${ro()}`))}${fld(T("Keep awake"), toggle(c.keepAwake, "set-toggle", t("Keep awake"), `data-name="keepAwake" ${ro()}`), T("Prevents idle sleep only. Nothing runs while the computer sleeps or the lid is closed."))}${fld(T("Closing the window"), `<span class="nm">${T("Hide to the menu bar / tray; schedules continue")}</span>`, T("Use Quit in the tray menu to stop scheduling."))}${fld(T("Maximum permission"), seg("maxSandbox", c.maxSandbox, SANDBOXES.map((x) => [x, sandboxLabel(x)]), { action: "set", label: t("Maximum permission") }), `${esc(sandboxHelp(c.maxSandbox))} ${T("The highest level any Loop on this device may use.")}`)}${fld(T("Missed runs"), `<span class="nm">${T("Each Loop decides: catch up the latest once, or skip")}</span>`)}${fld(T("Concurrency"), `<span class="nm">${T("Loops with the same lock never run together")}</span>`)}</div>
+  ${updates(c)}
   ${sec(T("Daily digest"))}
   <form class="grp" id="digest-form">${fld(T("Send automatically"), toggle(c.digestEnabled, "set-toggle", t("Send daily digest"), `data-name="digestEnabled" ${ro()}`))}${fld(T("Schedule"), `<div class="pair"><input class="inp mono" name="digestCron" value="${esc(c.digestCron)}" aria-label="Cron" ${ro()}><input class="inp" name="digestTimezone" value="${esc(c.digestTimezone)}" aria-label="${T("Timezone")}" ${ro()}><button class="btn" ${ro()}>${T("Save")}</button></div>`, esc(cronText(c.digestCron)))}</form>`;
 }
+// Loopbee's own updates (after magpie's): checked shortly after start and every six hours, downloaded at once,
+// put in by a restart that waits for active Runs, or on quitting.
+function updates(c) {
+  const u = S().update || { state: "idle", current: S().info?.version || "" };
+  const pct = u.total ? Math.round((u.done / u.total) * 100) : 0;
+  const stuck = { translocated: t("macOS runs this copy from a temporary place because it was opened from Downloads. Move Loopbee to Applications, open it from there, and it will update itself."), "read-only": t("This copy runs from the disk image. Drag Loopbee to Applications and open it from there."), "not-writable": t("Loopbee may not change the folder it is installed in. Download the new version and replace this one."), headless: t("Loopbee runs without a window here and does not replace itself; download the new version."), unsupported: t("There is no release build for this system; update from the source code.") };
+  const line = {
+    idle: T("Not checked yet"),
+    checking: T("Checking…"),
+    latest: T("Loopbee is up to date"),
+    downloading: T("Downloading {version}… {pct}%", { version: u.latest || "", pct }),
+    ready: T("Version {version} is downloaded. Restart Loopbee to use it; quitting also installs it.", { version: u.latest || "" }),
+    installing: T("Installing {version}…", { version: u.latest || "" }),
+    available: T("Version {version} is available.", { version: u.latest || "" }),
+    source: u.latest ? T("This is a build from source; the newest release is {version}. Builds from source do not update themselves.", { version: u.latest }) : T("This is a build from source; builds from source do not update themselves."),
+    error: T("Could not check for updates: {error}", { error: u.error || "" }),
+  }[u.state] || "";
+  let act = viewer() ? "" : btn("Check now", "update-check", { cls: "sm", attrs: u.state === "checking" || u.state === "downloading" || u.state === "installing" ? "disabled" : "" });
+  if (u.state === "ready" && !viewer()) {
+    act = u.waiting
+      ? `${btn("Cancel restart", "update-restart", { cls: "sm", attrs: 'data-when="cancel"' })} ${btn("Restart now", "update-restart", { cls: "sm", attrs: 'data-when="now"' })}`
+      : `${btn(u.active ? "Restart when runs finish" : "Restart to update", "update-restart", { cls: "sm pri", attrs: 'data-when=""' })}${u.active ? " " + btn("Restart now", "update-restart", { cls: "sm", attrs: 'data-when="now"' }) : ""}`;
+  }
+  if (u.state === "available" && u.url) act = `<a class="btn sm" href="${esc(u.url)}" target="_blank" rel="noopener">${T("Open the release page")}</a> ${act}`;
+  const notes = (u.state === "ready" || u.state === "available" || u.state === "downloading") && u.notes ? `<details class="mt6"><summary class="sub">${T("What's new in {version}", { version: u.latest })}</summary><pre class="defpre update-notes">${esc(u.notes.slice(0, 4000))}</pre></details>` : "";
+  const extra = [
+    u.waiting ? T("Waiting for {n} active run(s) to finish (an hour at most).", { n: u.active }) : "",
+    u.gaveUp ? T("Runs were still active after an hour; restart when they finish, or now.") : "",
+    u.state === "available" && stuck[u.stuck] ? stuck[u.stuck] : "",
+    u.state !== "error" && u.error ? u.error : "",
+  ].filter(Boolean).map((x) => `<div class="sub mt3">${esc(x)}</div>`).join("");
+  return `${sec(T("Updates"), { note: T("Version {version}", { version: u.current || "" }), act, id: "updates-head" })}
+  <div class="grp" id="updates">${fld(T("Status"), `<div class="update-status"><span class="nm" id="update-line">${line}</span>${extra}${notes}</div>`, u.checked && !String(u.checked).startsWith("0001") ? T("Last checked {when}", { when: new Date(u.checked).toLocaleString(ctx.lang) }) : "")}${fld(T("Update automatically"), toggle(!c.noAutoUpdate, "auto-update", t("Check for and download updates automatically"), ro()), T("Checks GitHub shortly after start and every six hours, downloads a newer release and checks it against its published SHA-256. Nothing is installed until you restart or quit Loopbee."))}</div>`;
+}
+// The agents the core has adapters for, in its order; a definition's own agent is kept even if unknown here.
+const agentNames = (current) => {
+  const names = S().agents.length ? S().agents.map((a) => a.name) : ["codex", "claude", "gemini", "opencode", "pi"];
+  return current && !names.includes(current) ? [...names, current] : names;
+};
+const agentNote = {
+  codex: "Runs codex exec --json; skills and AGENTS.md from your Codex setup apply.",
+  claude: "Runs claude -p with stream-json output; your skills, plugins and CLAUDE.md apply.",
+  gemini: "Runs gemini with stream-json output; your skills, extensions and GEMINI.md apply. Its sandbox needs macOS or Docker/Podman.",
+  opencode: "Runs opencode run --format json; your skills, agents and AGENTS.md apply. OpenCode has no sandbox: Loopbee offers read only or its own config.",
+  pi: "Runs pi --mode json; your skills and AGENTS.md apply. pi has no sandbox: Loopbee offers read only or its own config.",
+};
+// What “Use the agent's own MCP tools” gives this Loop: the servers found in the agent's own configuration.
+function mcpHelp(d) {
+  const servers = S().agents.find((a) => a.name === d.agent)?.mcp || [];
+  const found = servers.length ? T("Found for {agent}: {servers}.", { agent: agentLabel(d.agent), servers: servers.join(", ") }) : T("No MCP servers found in {agent}'s own configuration; servers defined only in a project are not listed here.", { agent: agentLabel(d.agent) });
+  return `${T("Browser, database, console and the other tools the agent is set up with. Nobody can approve a tool during an unattended run, so this approves all of them in advance; they run outside the sandbox with your rights. Off: Loopbee disables them (at agent-config the agent's own settings decide).")} ${found}`;
+}
 function agentRows(selectable) {
-  const list = S().agents;
   const c = S().settings;
-  const known = [["codex", "Codex CLI", "#5b8def"], ["claude", "Claude Code", "#c95b9a"]];
-  return known.map(([id, name, color]) => {
-    const a = list.find((x) => x.name === id);
-    const state = !a || a.status === "unavailable" ? ["mut", "Not detected"] : a.status === "available" ? ["ok", "Connected"] : ["warn", "Unverified"];
+  const capNames = { "last-message": t("final message"), schema: t("structured output"), "add-dir": t("extra directories"), settings: t("sandbox settings"), tools: t("tool limits"), sandbox: t("sandbox"), policy: t("policy files"), "include-dirs": t("extra directories"), model: t("model choice") };
+  return agentNames().map((id) => {
+    const a = S().agents.find((x) => x.name === id);
+    const state = !a || (a.status === "unavailable" && !a.path) ? ["mut", "Not detected"] : a.status === "unavailable" ? ["err", "Not working"] : a.status === "available" ? ["ok", "Connected"] : ["warn", "Unverified"];
     const isDefault = c.defaultAgent === id;
-    const capNames = { "last-message": t("final message"), schema: t("structured output"), "add-dir": t("extra directories"), settings: t("sandbox settings"), tools: t("tool limits") };
-    return `<div class="row top"><span class="idot" data-c="${color}"></span><div class="grow min0"><div class="nm">${esc(name)} <span class="chip ${state[0]}">${state[0] === "ok" ? icon("ok") : state[0] === "warn" ? icon("warn") : ""}${T(state[1])}</span></div><div class="sub mono ell">${esc(a?.path ? [a.path, a.version].filter(Boolean).join(" · ") : t("Not found on PATH"))}</div>${(a?.caps || []).filter((x) => capNames[x]).length ? `<div class="chips mt3">${a.caps.filter((x) => capNames[x]).map((x) => `<span class="chip">${esc(capNames[x])}</span>`).join("")}</div>` : ""}<div class="sub mt3">${T(id === "codex" ? "Runs codex exec --json; skills and AGENTS.md from your Codex setup apply." : "Runs claude -p with stream-json output; your skills, plugins and CLAUDE.md apply.")}</div></div>${isDefault ? `<span class="chip ok">${icon("ok")}${T("Default")}</span>` : selectable && a?.status === "available" && !viewer() ? btn("Set as default", "set", { cls: "sm", attrs: `data-name="defaultAgent" data-value="${id}"` }) : ""}</div>`;
+    const caps = [...new Set((a?.caps || []).filter((x) => capNames[x]).map((x) => capNames[x]))];
+    return `<div class="row top" data-agent="${esc(id)}"><span class="idot" data-c="${agentColor(id)}"></span><div class="grow min0"><div class="nm">${esc(agentLabel(id))} <span class="chip ${state[0]}">${state[0] === "ok" ? icon("ok") : state[0] === "warn" ? icon("warn") : ""}${T(state[1])}</span></div><div class="sub mono ell">${esc(a?.path ? [a.path, a.version].filter(Boolean).join(" · ") : t("Not found on PATH"))}</div>${a?.problem ? `<div class="sub mt3 errtext agent-problem">${esc(a.problem)}</div>` : ""}${a?.mcp?.length ? `<div class="sub mt3 agent-mcp">${T("MCP servers: {servers}", { servers: a.mcp.join(", ") })}</div>` : ""}${caps.length ? `<div class="chips mt3">${caps.map((x) => `<span class="chip">${esc(x)}</span>`).join("")}</div>` : ""}<div class="sub mt3">${T(agentNote[id] || "No description.")} ${T("Permission levels: {levels}", { levels: agentLevels(id).map(sandboxLabel).join(", ") })}</div></div>${isDefault ? `<span class="chip ok">${icon("ok")}${T("Default")}</span>` : selectable && a?.status === "available" && !viewer() ? btn("Set as default", "set", { cls: "sm", attrs: `data-name="defaultAgent" data-value="${id}"` }) : ""}</div>`;
   }).join("");
 }
 function agents() {
   const c = S().settings;
-  const flags = {
-    "read-only": ["--sandbox read-only", "--permission-mode dontAsk --tools Read,Grep,Glob"],
-    "workspace-write": ["--sandbox workspace-write", "--permission-mode acceptEdits + sandbox (no network)"],
-    "workspace-network": ["--sandbox workspace-write -c sandbox_workspace_write.network_access=true", "--permission-mode acceptEdits + sandbox (allowedDomains *)"],
-    "agent-config": [t("(no flags — your config.toml / profile)"), t("(no flags — your settings.json permissions)")],
+  const flag = (id, level) => {
+    const a = S().agents.find((x) => x.name === id);
+    if (!agentLevels(id).includes(level)) return t("not offered: this agent cannot enforce it");
+    return a?.flags?.[level] || "—";
   };
   return `
   ${sec(T("Agents"), { note: T("The default agent writes Loops from your description and runs new Loops"), act: viewer() ? "" : btn("Detect again", "detect", { cls: "sm" }) })}
-  <div class="grp">${agentRows(true)}<div class="row"><span class="idot" data-c="#76767f"></span><div class="grow"><div class="nm">${T("Other agents")}</div><div class="sub">${T("Gemini, OpenCode and others have no adapter yet.")}</div></div><span class="chip mut">${T("No adapter")}</span></div></div>
+  <div class="grp">${agentRows(true)}</div>
   ${sec(T("GitHub"), { note: T("For Loops that work from issues or open pull requests") })}
   <div class="grp"><div class="row"><span class="idot" data-c="#24292f"></span><div class="grow"><div class="nm">GitHub CLI (gh)</div><div class="sub">${S().github?.version ? esc(S().github.version) : T("Install it from cli.github.com, run gh auth login, then detect again.")}</div></div><span class="chip ${S().github?.signedIn ? "ok" : S().github?.version ? "warn" : "mut"}">${T(S().github?.signedIn ? "signed in" : S().github?.version ? "not signed in" : "not found")}</span></div></div>
   <div class="bn mt10">${icon("ok")}<span>${T("Loopbee reads your login shell's PATH at start-up, so agents installed through nvm or Homebrew are found even when the app starts from the Dock or Start menu.")}</span></div>
   ${sec(T("Permission mapping"), { note: T("What each level passes to the agent CLI") })}
-  <div class="grp perm">${SANDBOXES.map((x) => `<div class="fld"><div class="lb">${esc(sandboxLabel(x))}${sandboxRank(x) > sandboxRank(c.maxSandbox) ? ` <span class="chip mut">${T("above device limit")}</span>` : ""}</div><div class="ctl"><div class="sub">${esc(sandboxHelp(x))}</div><div class="mono sub">Codex: ${esc(flags[x][0])}</div><div class="mono sub">Claude Code: ${esc(flags[x][1])}</div></div></div>`).join("")}${fld(T("Device limit"), `<span class="nm">${esc(sandboxLabel(c.maxSandbox))}</span>`, `<a href="#/settings/general">${T("Change in General")}</a>`)}</div>
+  <div class="grp perm">${SANDBOXES.map((x) => `<div class="fld"><div class="lb">${esc(sandboxLabel(x))}${sandboxRank(x) > sandboxRank(c.maxSandbox) ? ` <span class="chip mut">${T("above device limit")}</span>` : ""}</div><div class="ctl"><div class="sub">${esc(sandboxHelp(x))}</div>${agentNames().map((id) => `<div class="mono sub">${esc(agentLabel(id))}: ${esc(flag(id, x))}</div>`).join("")}</div></div>`).join("")}${[["on", T("MCP tools allowed")], ["off", T("MCP tools not allowed")]].map(([k, label]) => `<div class="fld mcp-map"><div class="lb">${label}</div><div class="ctl"><div class="sub">${T(k === "on" ? "“Use the agent's own MCP tools” is on: every tool of the agent's own MCP servers is approved in advance." : "Below agent-config Loopbee disables the agent's MCP tools; at agent-config the agent's own settings decide.")}</div>${agentNames().map((id) => `<div class="mono sub">${esc(agentLabel(id))}: ${esc(S().agents.find((x) => x.name === id)?.mcpFlags?.[k] || "—")}</div>`).join("")}</div></div>`).join("")}${fld(T("Device limit"), `<span class="nm">${esc(sandboxLabel(c.maxSandbox))}</span>`, `<a href="#/settings/general">${T("Change in General")}</a>`)}</div>
   ${sec(T("Create Loops from your agent"), { note: "beectl" })}
-  <div class="grp">${fld(T("Install the skill"), `<span class="mono">beectl skill install</span>`, T("Then ask Codex or Claude Code to “make this a nightly Loopbee loop”. It creates a disabled draft you review here."))}${fld(T("Commands"), `<div class="mono sub">beectl status · beectl loops · beectl runs --loop NAME · beectl create -f loop.json · beectl run NAME · beectl schema</div>`)}</div>`;
+  <div class="grp">${fld(T("Install the skill"), `<span class="mono">beectl skill install</span>`, T("Then ask Codex or Claude Code to “make this a nightly Loopbee loop”. It creates a disabled draft you review here."))}${fld(T("Commands"), `<div class="mono sub">beectl status · beectl loops · beectl runs --loop NAME · beectl create -f loop.json · beectl run NAME · beectl cancel RUN · beectl delete NAME --yes · beectl schema</div>`)}</div>`;
 }
 function notifications(c, ui) {
   const kinds = [["desktop", t("Desktop"), t("System notification")], ["feishu", t("Feishu"), t("Feishu webhook")], ["telegram", "TG", "Telegram Bot"], ["bark", "Bark", t("Bark (iOS push)")]];

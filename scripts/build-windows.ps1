@@ -14,7 +14,9 @@ if ($LASTEXITCODE -or $loopbeeOS -ne 'windows') { throw 'GOOS must be windows.' 
 New-Item -ItemType Directory -Path bin -Force | Out-Null
 # Argument arrays, because Windows PowerShell 5.1 drops empty string arguments.
 $loopbeeLdflags = if ($Version) { "-X loopbee/internal/core.Version=$Version" } else { '' }
-$loopbeeLdArgs = if ($Version) { @('-ldflags', $loopbeeLdflags) } else { @() }
+# LOOPBEE_REPO (owner/name, set by the release workflow) is where the app looks for its updates.
+if ($env:LOOPBEE_REPO) { $loopbeeLdflags = ("$loopbeeLdflags -X loopbee/internal/update.Repo=$($env:LOOPBEE_REPO)").Trim() }
+$loopbeeLdArgs = if ($loopbeeLdflags) { @('-ldflags', $loopbeeLdflags) } else { @() }
 $loopbeeGuiLdflags = ('-H windowsgui ' + $loopbeeLdflags).Trim()
 $loopbeeResArgs = @()
 if ($Version -match '^(\d+)\.(\d+)\.(\d+)') {

@@ -28,11 +28,12 @@ print the CLI's own build version, and list them in help.
 - Evidence: `TestBeectlVersionWithoutApp`, `TestBeectlHelpListsVersion`
 - Seen: 2026-10-12
 
-### When the same list exists in two places, fix both or make them share one source
-The 10-11 fix added “Command” to the add-step menu, but the function that inserts the step kept its own name
-table without `run`: new command steps were named `undefined` and had no command field. Both now use `kindLabel`.
-- Evidence: `tests/agents-e2e.mjs#Every step kind in the add menu has a label`
-- Seen: 2026-10-11, 2026-10-12
+### A name is not an identity, and what a command prints must be usable by the next one
+`beectl run NAME` started the first of several loops with that name, and printed a sentence with a 10-character run
+ID that no API accepted, so `RUN_ID=$(beectl run …)` could never be cancelled. A name shared by several loops is now
+refused with their IDs, `run -q` prints the full ID, and `cancel` accepts a unique prefix of what `runs` shows.
+- Evidence: `TestBeectlCancelAndDelete`
+- Seen: 2026-10-13
 
 ### Text that code parses must not depend on the checkout's line endings
 A Windows checkout with `core.autocrlf` embedded `cmd/beectl/SKILL.md` with CRLF: the test said “skill not
@@ -48,9 +49,14 @@ a real CLI becomes fake behaviour plus a test, and `scripts/real-smoke.sh` runs 
 adapters, the authoring prompt or workspaces.
 
 ### Run the real CLIs before trusting the fakes
-All fake-CLI tests passed while the first real run found four defects (the four lessons below).
-- Evidence: `tests/real-smoke.mjs`, `scripts/real-smoke.sh#real-smoke.mjs`
-- Seen: 2026-10-11
+All fake-CLI tests passed while the first real run found four defects (the four lessons below). On 10-13 the first
+real run of the new adapters found two more: real pi drafted a Loop at workspace-write, which pi cannot enforce, so
+the draft could not be saved (the designer is now told the agent's levels and Loopbee lowers a level it cannot
+enforce, saying so); and the developer's OpenCode was killed at start (exit 137) while Settings only said “Not
+detected” (detection now says what failed and how to fix it). Real pi output is kept as test data. The next real
+run had Codex propose a verify step with a metric name but no path, which stopped the draft; a half metric is dropped.
+- Evidence: `tests/real-smoke.mjs`, `scripts/real-smoke.sh#real-smoke.mjs`, `TestRealPiOutput`, `TestAuthorLowersALevelTheAgentCannotEnforce`, `TestDetectionSaysWhyAnAgentIsUnavailable`, `tests/e2e.mjs#Not working`, `TestDraftWithHalfAMetricIsRepaired`
+- Seen: 2026-10-11, 2026-10-13
 
 ### Read-only Claude Code has no shell; give it command output instead
 “Run the tests and report” could not run `npm test`. Command steps run first (with `continueOnError` when a failure
@@ -79,8 +85,43 @@ saved. The prompt states the limit and what Loopbee does itself; a draft above i
 ### An error says how to fix it
 `beectl create` answered a too-high permission with “permission exceeds this device's limit” and nothing else; the
 user could not tell what to change. It now names the level the draft needs, the device's limit and where to raise it.
-- Evidence: `TestBeectlCreatesDisabledDraftAndRuns`
-- Seen: 2026-10-12
+On Windows every Claude Code Loop at a write level failed with the CLI's advice to set `sandbox.failIfUnavailable`,
+which Loopbee overrides; the Run now says to use Codex, WSL2 or agent-config. A missing `env:` variable said
+“notification environment variable is not set”, also for Loop variables; it now names the variable and where to set it.
+- Evidence: `TestBeectlCreatesDisabledDraftAndRuns`, `TestClaudeSandboxUnavailableSaysHowToFix`, `TestEnvReferenceFallsBackToLoginShell`
+- Seen: 2026-10-12, 2026-10-13
+
+### A Loop reaches what the agent uses in the developer's own sessions
+Workflows that worked in people's own agent sessions failed as Loops: Claude Code at read-only could not load skills,
+a worktree had no `.env` or `CLAUDE.local.md` and looked for the project's memory under another path, a skill's
+credentials folder outside the project was unreadable (Windows, EPERM), and variables exported by the shell profile
+were missing from an app started from the Dock. Every run now gets the agent's own skills, plugins and memory, the
+Loop's read paths, copied Git-ignored files (never committed) and the shell's variables, and the designer is told
+what each kind of workflow needs. On 10-14 a sync Loop could not use the browser the developer drives through Codex
+to edit a Kubernetes ConfigMap in a web console: `codex exec` refuses every MCP call that needs approval, because
+nobody can answer the prompt, and the Run only said “blocked”. One switch per Loop now approves the agent's own MCP
+tools in advance, per CLI (or disables them below agent-config); refusals reach the missing list; a worktree gets the
+project's local MCP servers and pi's project trust; Loopbee adds no browser of its own. On the real Codex an
+approval entry for a plugin server the user had switched off switched it on again, and one for a server defined in
+another configuration layer stopped Codex from starting; Loopbee now asks Codex which servers are on and names only
+those it can address.
+- Evidence: `TestAgentContextReachesTheRun`, `TestCodexAndWorktreeGetReadPathsAndMemory`, `TestWorktreeCopiesIgnoredFilesAndNeverCommitsThem`, `TestEnvReferenceFallsBackToLoginShell`, `TestAuthorKnowsTheAgentContext`, `TestAgentMCPToolsPerCLI`, `TestRefusedMCPToolReachesTheRunAndTheSwitchFixesIt`, `TestAuthorKnowsTheAgentsMCPServers`, `tests/agents-e2e.mjs#Use the agent's own MCP tools`
+- Seen: 2026-10-13, 2026-10-14
+
+### A permission level is a promise the agent must keep
+Adding Gemini CLI, OpenCode and pi showed that not every CLI can enforce every level: OpenCode and pi have no sandbox,
+and Gemini's sandbox cannot cut the network because the CLI itself needs it. Each adapter lists only the levels its CLI
+enforces; any other level is refused with the alternatives, never run with less protection, and Gemini's
+workspace-write denies the shell instead of pretending there is no network.
+- Evidence: `TestEveryAdapterMeetsTheContract`, `TestAdapterPermissionFlags`, `tests/agents-e2e.mjs#pi cannot enforce`
+- Seen: 2026-10-13
+
+### Usage is what the CLI reported, never an estimate
+Each CLI reports tokens differently (cached tokens inside or outside the input count, reasoning inside or outside the
+output, a model in the events or only in its configuration). Loopbee normalises them per adapter, shows cost only when
+the CLI reports it, and records the model and tokens per step and per Run.
+- Evidence: `TestEveryAdapterMeetsTheContract`, `TestCodexModelFromConfig`, `tests/agents-e2e.mjs#input 1.0k · cached 200 · output 300`
+- Seen: 2026-10-13
 
 ### Show the CLI's own error, never its raw output
 A missing sandbox and a reached subscription limit showed up as generic failures or raw JSON.
@@ -120,6 +161,8 @@ The first issue Loop ran `go test` after the agent and before the gate, outside 
 ran repository hooks the agent could write (`.husky/`): a prompt-injected issue could have run code with the user's
 credentials. Now agents get no Git access, Loopbee's Git runs without hooks and checks `.git`, command steps refuse
 files the agent changed, the editor warns about commands between an agent and a gate, and the example has none.
+After a person approved the change at a gate, later commands may run it (a reviewed migration or deploy script):
+refusing those too made “merge → review → migrate → deploy” impossible in one Loop.
 - Evidence: `TestHostileAgentCannotEscapeThroughLoopbee`, `TestSelfImproveExampleIsValid`, `tests/agents-e2e.mjs#runs after the agent and before any review`
 - Seen: 2026-10-12
 
@@ -227,6 +270,13 @@ once, and a push never waits for a credential prompt nobody can see.
 - Evidence: `TestApprovalShowsDeliveryWhileItRuns`, `TestPushNeverWaitsForCredentials`
 - Seen: 2026-10-12
 
+### A blocked agent says what it could not get
+A Run that could not reach a file, host, variable or tool ended “blocked” with one sentence, and people guessed which
+access to add. The result contract asks for a `missing` list; the run page shows it with the ways to give a Loop
+access, and notifications carry it.
+- Evidence: `TestResultListsWhatWasMissing`, `tests/agents-e2e.mjs#The agent could not get`
+- Seen: 2026-10-13
+
 ### A retry must see why the previous round failed
 Each round started with an empty context, so after a failed verification the agent retried blind. The failed
 check's output is now part of the next round's prompt.
@@ -255,6 +305,12 @@ Mark the original retried and create the new pending delivery in one transaction
 Hiding buttons did not stop a viewer. Start, SaveLoop, Gate, Cancel and Prune reject viewers.
 - Evidence: `TestViewerAndArtifactTraversal`, `TestTeamSyncRoundTrip`
 - Seen: initial build
+
+### Deleting a Loop removes what Loopbee created for it
+Deleting a definition left its worktree registered in the developer's repository and its secrets in the keychain.
+Both are removed now; branches (possibly unreviewed work) and Runs stay.
+- Evidence: `TestDeleteLoopCleansUp`
+- Seen: 2026-10-13
 
 ### Local history and shared data stay separate
 Switching roles overwrote local dashboard history; shared data lives in `shared_*`.
@@ -367,6 +423,19 @@ sandbox limit from a broken change and reported blocked. Tests that need a local
 - Evidence: `TestLoopbackSkipsOnlyInsideASandbox`, `AGENTS.md#cannot open local ports`, `TestIssueIntakeToPullRequestAfterReview`
 - Seen: 2026-10-12
 
+### A test binary started again must not pay the race detector's exit sleep
+The fake CLIs are the test binary itself. Built with `-race`, each process sleeps a second at exit, and probing five
+adapters per Run pushed `internal/core` past `go test`'s 10-minute limit on Linux CI; the timeout also hid a data
+race in the update test. `TestMain` turns the sleep off for every child process.
+- Evidence: `internal/core/main_test.go#atexit_sleep_ms=0`, `TestUpdateDownloadsAndRestartsWhenIdle`
+- Seen: 2026-10-15
+
+### A macOS path is a slash path on every OS
+`Locate` took the `.app` bundle apart with `filepath`, which turns `/` into `\` on Windows, so the test for a
+translocated app failed there while passing on the Mac. Paths of another OS use `path`, not `filepath`.
+- Evidence: `TestLocate`
+- Seen: 2026-10-15
+
 ### Do not parse Git's short names
 `git branch -r --format=%(refname:short)` prints a remote's HEAD pointer (`refs/remotes/origin/HEAD`) as a bare
 `origin`. Newer Git records that pointer on every fetch, older Git (2.43 here) does not, so every CI platform failed
@@ -383,4 +452,14 @@ create the pointer in the test so every Git version sees it.
 
 ## Moved to the standards
 
-Nothing yet. Lessons move here, with the dates they were seen, after three separate days.
+Lessons move here, with the dates they were seen, after three separate days.
+
+### When the same list exists in two places, fix both or make them share one source
+The 10-11 fix added “Command” to the add-step menu, but the function that inserts the step kept its own name
+table without `run`: new command steps were named `undefined` and had no command field. Both now use `kindLabel`.
+On 10-13 the agent list was written out in a dozen places (validation, invocation, failure parsing, the designer, the
+editor, settings, the topology); adding three CLIs meant one adapter registry that the core and the UI both read.
+Now the standard “One source for every list” in docs/development.md. On 10-14 settings still accepted only Codex or
+Claude Code as the default agent; they now ask the adapter registry.
+- Evidence: `tests/agents-e2e.mjs#Every step kind in the add menu has a label`, `TestEveryAdapterMeetsTheContract`, `TestDefaultAgentIsAnyAdapter`
+- Seen: 2026-10-11, 2026-10-12, 2026-10-13, 2026-10-14

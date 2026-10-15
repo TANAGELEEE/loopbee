@@ -1,4 +1,5 @@
-// Real smoke test: the packaged Loopbee binary + the real Codex CLI / Claude Code on this machine.
+// Real smoke test: the packaged Loopbee binary + the real agent CLIs on this machine (Codex CLI, Claude Code,
+// Gemini CLI, OpenCode, pi).
 // It uses your agent subscription (a few short agent runs) and touches nothing outside a temp folder:
 // a throw-away sample Git repository with a bare "origin", and an isolated Loopbee data directory.
 //
@@ -10,6 +11,8 @@
 //   fix    — chat: "fix the failing test on a branch, commit, stop before master for my review"
 //            → run in a fresh worktree → gate → the branch has a commit that makes the tests pass,
 //              the developer's checkout is untouched → approve → done
+//            (only for agents that enforce workspace-write; OpenCode and pi have no sandbox and skip it)
+// Every run must also record the model and tokens the CLI reported.
 import { execFileSync } from "node:child_process";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -124,6 +127,10 @@ async function scenario(core, agent, root, name) {
     }
   }
   check(!!r.result, "agent returned the LOOPBEE_RESULT contract");
+  const u = r.usage;
+  const total = u ? (u.input || 0) + (u.cacheRead || 0) + (u.cacheWrite || 0) + (u.output || 0) : 0;
+  log(`     usage: ${u ? `${u.model || "(model not reported)"} · ${total} tokens (input ${u.input || 0}, cache ${(u.cacheRead || 0) + (u.cacheWrite || 0)}, output ${u.output || 0})${u.costUsd ? ` · $${u.costUsd.toFixed(4)}` : ""}` : "none"}`);
+  check(total > 0, "the run recorded the tokens the CLI reported");
   return { agent, name, checks, status: r.status };
 }
 
@@ -133,13 +140,18 @@ log("scratch:", root);
 const core = await startCore(join(root, "data"), {}, bin);
 try {
   const s = await waitFor(core.api, (s) => s.agents.length && s, 60000);
-  for (const a of s.agents) log(`agent ${a.name}: ${a.status} ${a.version || ""} ${(a.caps || []).join(",")}`);
+  for (const a of s.agents) log(`agent ${a.name}: ${a.status} ${a.version || ""} caps ${(a.caps || []).join(",")} · levels ${(a.levels || []).join(",")}`);
   await core.api("/settings", { ...s.settings, maxSandbox: "workspace-write" });
   const wanted = (opt("agents", "") || s.agents.filter((a) => a.status === "available").map((a) => a.name).join(",")).split(",").filter(Boolean);
-  if (!wanted.length) throw new Error("no agent CLI detected; install Codex CLI or Claude Code and sign in");
+  if (!wanted.length) throw new Error("no agent CLI detected; install one (Codex CLI, Claude Code, Gemini CLI, OpenCode, pi) and sign in");
   for (const agent of wanted) {
+    const levels = s.agents.find((a) => a.name === agent)?.levels || [];
     for (const name of scenarios) {
       log(`— ${agent} / ${name}`);
+      if (name === "fix" && !levels.includes("workspace-write")) {
+        log(`  skipped: ${agent} cannot enforce workspace-write (levels: ${levels.join(", ")})`);
+        continue;
+      }
       try {
         results.push(await scenario(core, agent, root, name));
       } catch (e) {

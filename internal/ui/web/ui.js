@@ -248,7 +248,34 @@ export const sandboxHelp = (s) => t({
   "workspace-network": "As workspace write, plus network: git push, deployments, databases, APIs, e-mail.",
   "agent-config": "Loopbee adds no sandbox flags; the agent's own config, profile or settings decide.",
 }[s] || "");
-export const agentLabel = (n) => ({ codex: "Codex CLI", claude: "Claude Code" })[n] || n || "—";
+// Agents come from the core (one adapter per CLI); these fallbacks cover a viewer without detection data.
+const AGENT_FALLBACK = { codex: "Codex CLI", claude: "Claude Code", gemini: "Gemini CLI", opencode: "OpenCode", pi: "pi" };
+export const agentLabel = (n) => ctx.state?.agents?.find((a) => a.name === n)?.label || AGENT_FALLBACK[n] || n || "—";
+export const agentColor = (n) => ({ codex: "#5b8def", claude: "#c95b9a", gemini: "#2f9e8f", opencode: "#8a6fe0", pi: "#d0892e" })[n] || "#76767f";
+export const agentCmd = (n) => ({ codex: "codex exec", claude: "claude -p", gemini: "gemini -o stream-json", opencode: "opencode run", pi: "pi --mode json" })[n] || n;
+// The permission levels an agent enforces itself (always includes agent-config).
+export const agentLevels = (n) => ctx.state?.agents?.find((a) => a.name === n)?.levels || ["read-only", "workspace-write", "workspace-network", "agent-config"];
+// Token counts as 950, 12.3k, 1.2M.
+export const tokens = (n) => (n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + "k" : String(n || 0));
+export const usageTotal = (u) => (u ? (u.input || 0) + (u.cacheRead || 0) + (u.cacheWrite || 0) + (u.output || 0) : 0);
+export const money = (v) => (v >= 1 ? "$" + v.toFixed(2) : v > 0 ? "$" + v.toFixed(v >= 0.01 ? 2 : 4) : "");
+// Sum of the usage of several Runs.
+export const sumUsage = (runs) => {
+  const s = { input: 0, cacheRead: 0, cacheWrite: 0, output: 0, costUsd: 0, models: new Set(), agents: new Set(), runs: 0 };
+  for (const r of runs) {
+    if (!r.usage) continue;
+    s.runs++;
+    for (const k of ["input", "cacheRead", "cacheWrite", "output", "costUsd"]) s[k] += r.usage[k] || 0;
+    for (const m of (r.usage.model || "").split(", ").filter(Boolean)) s.models.add(m);
+    for (const a of (r.usage.agent || "").split(", ").filter(Boolean)) s.agents.add(a);
+  }
+  return s;
+};
+// One line: "12.3k tokens · $0.04 · claude-sonnet" (cost only when the CLI reported it).
+export const usageLine = (u, { model = true } = {}) =>
+  u ? [t("{n} tokens", { n: tokens(usageTotal(u)) }), money(u.costUsd), model ? u.model : ""].filter(Boolean).join(" · ") : "";
+export const usageDetail = (u) =>
+  u ? t("input {i} · cached {c} · output {o}", { i: tokens(u.input || 0), c: tokens((u.cacheRead || 0) + (u.cacheWrite || 0)), o: tokens(u.output || 0) }) : "";
 export const resultChip = (res) => {
   if (!res) return "";
   const [cls, label] = { done: ["ok", "Agent: done"], no_action: ["mut", "Agent: nothing to do"], blocked: ["warn", "Agent: blocked"], needs_approval: ["warn", "Agent: needs approval"] }[res.status] || ["mut", res.status];

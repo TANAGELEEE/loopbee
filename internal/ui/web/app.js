@@ -265,7 +265,7 @@ function header(page, side) {
   if (page === "onboarding")
     return `<a class="brand" href="#/today"><span class="mark" aria-hidden="true"></span>Loopbee</a><span></span><div class="tools"><button type="button" class="btn ghost sm" id="language" data-action="lang-menu" aria-haspopup="menu" aria-label="${T("Language")}">${langShort} ▾</button><button type="button" class="btn ghost sm" data-action="finish-onboarding" data-href="#/today">${T("Skip setup")}</button></div>`;
   const lead = side ? `<div class="lead">${sideToggle(true)}${crumb(page)}</div><span></span>` : `<div class="lead"><a class="brand" href="#/today"><span class="mark" aria-hidden="true"></span>Loopbee${viewerTag}</a>${phoneQuery.matches ? "" : sideToggle(false)}</div><nav class="nav" aria-label="${T("Main")}">${nav.map(([id, l]) => `<a href="#/${id}" class="${cur === id ? "on" : ""}" ${cur === id ? 'aria-current="page"' : ""} data-vt="nav-${id}">${T(l)}</a>`).join("")}</nav>`;
-  return `${lead}<div class="tools">${!V.viewer() && ["today", "loops", "loop"].includes(page) ? `<a class="btn" href="#/new">＋ <span class="new-label">${T("New Loop")}</span></a>` : ""}${s.settings.paused ? `<a class="chip warn" href="#/settings/general">${icon("warn")}${T("Paused")}</a>` : ""}<button type="button" class="btn ghost sm" id="language" data-action="lang-menu" aria-haspopup="menu" aria-label="${T("Language")}">${langShort} ▾</button><button type="button" class="ib" data-action="refresh" aria-label="${T("Refresh")}" title="${T("Refresh")}">${icons.refresh}</button>${side ? "" : `<a class="ib ${page === "settings" ? "on" : ""}" href="#/settings/general" aria-label="${T("Settings")}" title="${T("Settings")}">${icons.gear}</a>`}</div>`;
+  return `${lead}<div class="tools">${!V.viewer() && ["today", "loops", "loop"].includes(page) ? `<a class="btn" href="#/new">＋ <span class="new-label">${T("New Loop")}</span></a>` : ""}${s.settings.paused ? `<a class="chip warn" href="#/settings/general">${icon("warn")}${T("Paused")}</a>` : ""}${s.update?.state === "ready" ? `<a class="chip ok" id="update-chip" href="#/settings/general">${T("Update {version} ready", { version: s.update.latest })}</a>` : ""}<button type="button" class="btn ghost sm" id="language" data-action="lang-menu" aria-haspopup="menu" aria-label="${T("Language")}">${langShort} ▾</button><button type="button" class="ib" data-action="refresh" aria-label="${T("Refresh")}" title="${T("Refresh")}">${icons.refresh}</button>${side ? "" : `<a class="ib ${page === "settings" ? "on" : ""}" href="#/settings/general" aria-label="${T("Settings")}" title="${T("Settings")}">${icons.gear}</a>`}</div>`;
 }
 function banners() {
   const s = ctx.state;
@@ -549,6 +549,17 @@ const actions = {
     closeMenu();
   },
   "set-toggle": (b) => saveSettings({ [b.dataset.name]: b.getAttribute("aria-checked") !== "true" }),
+  "auto-update": (b) => saveSettings({ noAutoUpdate: b.getAttribute("aria-checked") === "true" }),
+  "update-check": () => mutate("/update/check"),
+  "update-restart": async (b) => {
+    const when = b.dataset.when;
+    if (when === "now" && ctx.state.update?.active) {
+      const ok = await confirmDialog({ title: t("Restart now?"), body: t("{n} run(s) are active. Restarting stops them; they are marked interrupted and never replayed.", { n: ctx.state.update.active }), ok: t("Restart now"), danger: true });
+      if (!ok) return;
+    }
+    await mutate("/update/install", { when });
+    if (when !== "cancel" && ctx.state.update?.state !== "ready") toast(t("Restarting into the new version…"));
+  },
   "pause-all": async () => {
     const paused = !ctx.state.settings.paused;
     await mutate("/scheduler/pause", { paused });
@@ -1048,7 +1059,12 @@ document.addEventListener("input", (e) => {
   }
   if (el.dataset.f) {
     const f = el.dataset.f;
-    draft[f] = el.type === "number" ? Number(el.value) : f === "allowedTools" ? el.value.split(/\s+/).filter(Boolean) : el.value;
+    draft[f] = el.type === "number" ? Number(el.value) : f === "allowedTools" ? el.value.split(/\s+/).filter(Boolean) : f === "readPaths" || f === "copyFiles" ? el.value.split(/\r?\n/).map((x) => x.trim()).filter(Boolean) : f === "model" ? el.value.trim() : el.value;
+    if (f === "agent") {
+      // The permission levels on offer depend on the agent.
+      markDirty();
+      return render();
+    }
     refreshGaps();
   } else if (el.dataset.sf) {
     const s = draft.steps[Number(el.dataset.i)];
