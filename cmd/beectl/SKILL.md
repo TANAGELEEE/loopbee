@@ -64,6 +64,8 @@ Rules:
   SQL on shared databases). A gate as the last step means a person takes over.
 - `run` steps execute a script without a shell (`argv` array). `verify` steps decide whether another round is
   needed by exit code. For both, `argv[0]` must be listed in `allowedTools`.
+- `project` (optional): the name the boards group this loop under. Leave it out: loopbee uses the owner/repo of
+  the directory's Git origin, or else the folder name.
 - `agent`: `codex`, `claude`, `gemini`, `opencode` or `pi` (see `beectl status` for what is installed). OpenCode and
   pi have no sandbox: loopbee runs them only at `read-only` or `agent-config`. `model` is optional (empty = the
   agent's own default).

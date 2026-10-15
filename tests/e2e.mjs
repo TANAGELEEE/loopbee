@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { startCore, waitFor } from "./demo.mjs";
 import { uiFlow } from "./ui-flow.mjs";
 import { sidebarFlow } from "./sidebar-flow.mjs";
+import { projectFlow } from "./project-flow.mjs";
 // CI sets LOOPBEE_EVIDENCE_DIR to a fresh directory so uploaded screenshots always come from this run.
 const EVIDENCE = process.env.LOOPBEE_EVIDENCE_DIR || "docs/evidence";
 
@@ -17,8 +18,10 @@ const releases = createServer((req, res) => {
 await new Promise((ok) => releases.listen(0, "127.0.0.1", ok));
 process.env.LOOPBEE_UPDATE_FEED = `http://127.0.0.1:${releases.address().port}/latest`;
 // Real agent CLIs on this machine are ignored so the test never calls a model. OpenCode is installed but broken.
-const core = await startCore(undefined, { LOOPBEE_CODEX_BIN: "/nonexistent/codex", LOOPBEE_CLAUDE_BIN: "/nonexistent/claude", LOOPBEE_GEMINI_BIN: "/nonexistent/gemini", LOOPBEE_OPENCODE_BIN: new URL("./fake-agent/broken.mjs", import.meta.url).pathname, LOOPBEE_PI_BIN: "/nonexistent/pi", LOOPBEE_GH_BIN: "/nonexistent/gh" });
+const agentEnv = { LOOPBEE_CODEX_BIN: "/nonexistent/codex", LOOPBEE_CLAUDE_BIN: "/nonexistent/claude", LOOPBEE_GEMINI_BIN: "/nonexistent/gemini", LOOPBEE_OPENCODE_BIN: new URL("./fake-agent/broken.mjs", import.meta.url).pathname, LOOPBEE_PI_BIN: "/nonexistent/pi", LOOPBEE_GH_BIN: "/nonexistent/gh" };
+const core = await startCore(undefined, agentEnv);
 let browser;
+let projects;
 try {
   browser = await chromium.launch({ headless: true, channel: process.env.LOOPBEE_BROWSER || undefined });
   const page = await browser.newPage({ viewport: { width: 1280, height: 820 } });
@@ -28,6 +31,7 @@ try {
   await page.goto(core.url);
   const { gateLoop } = await uiFlow(page, { data: core.data, node: process.execPath });
   await sidebarFlow(page, core.base, core.api);
+  projects = await projectFlow(page, core, agentEnv);
 
   // An agent that is installed but cannot start says why, instead of “Not detected”.
   await page.goto(core.base + "/#/settings/agents");
@@ -113,4 +117,5 @@ try {
   await core.stop();
   releases.close();
   await rm(core.data, { recursive: true, force: true });
+  if (projects) await rm(projects.root, { recursive: true, force: true });
 }

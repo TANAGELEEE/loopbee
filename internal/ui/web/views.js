@@ -12,6 +12,20 @@ export const viewer = () => S().settings.role === "viewer";
 export const runsSorted = () => [...S().runs].sort((a, b) => String(b.started).localeCompare(String(a.started)));
 export const loopById = (id) => S().loops.find((l) => l.id === id);
 const runsOf = (loopId) => runsSorted().filter((r) => r.loopId === loopId);
+// Projects group Loops and Runs on the boards. A Run started before projects existed takes its Loop's project; ""
+// is "No project". The filter value "-" picks that group.
+export const projectOf = (x) => (x.definition ? x.definition.project || loopById(x.loopId)?.project : x.project) || "";
+export const projectsInUse = () => [...new Set([...S().loops, ...S().runs].map(projectOf))].sort((a, b) => (a === "") - (b === "") || a.localeCompare(b));
+const inProject = (q) => (x) => !q.project || projectOf(x) === (q.project === "-" ? "" : q.project);
+const projectLabel = (p) => p || t("No project");
+function projectPicker(q, id) {
+  const list = projectsInUse();
+  if (list.length < 2 && !q.project) return "";
+  return `<select class="btn sm" id="${id}" data-q="project" aria-label="${T("Project")}"><option value="">${T("Project: all")}</option>${list.map((p) => `<option value="${esc(p || "-")}" ${q.project === (p || "-") ? "selected" : ""}>${esc(projectLabel(p))}</option>`).join("")}</select>`;
+}
+// Cards on an unfiltered board with several projects say which project they belong to.
+let cardProject = false;
+const projectChip = (x) => (cardProject ? `<span class="chip mut ell">${esc(projectLabel(projectOf(x)))}</span>` : "");
 const sourceLabel = (r) =>
   ({ schedule: t("Scheduled"), catchup: t("Catch-up"), manual: t("Manual"), rerun: t("Rerun of {id}", { id: short(r.rerunOf) }) })[r.source] || "";
 const host = () => location.host;
@@ -93,7 +107,7 @@ function boardCol(id, title, cards, emptyTitle, emptySub) {
 function runCard(r, extra = "") {
   const [f1, f2] = runFacts(r);
   const [t1, t2] = runTimes(r);
-  return `<div class="row bcard"><span class="bc-dot">${dot(r.loopId)}</span><div class="grow min0"><a class="nm ell" href="#/run/${r.id}">${esc(r.definition.name)}</a><div class="sub ell">${esc(f1)}</div><div class="sub ell">${esc(f2)}</div><div class="bmeta">${badge(r)}${chip(r)}<span class="sub">${esc(t1)} · ${esc(t2)}</span>${r.usage ? `<span class="sub tok" title="${esc(usageLine(r.usage))}">${esc(tokens(usageTotal(r.usage)))}${r.usage.costUsd ? " · " + esc(money(r.usage.costUsd)) : ""}</span>` : ""}</div>${extra}</div></div>`;
+  return `<div class="row bcard"><span class="bc-dot">${dot(r.loopId)}</span><div class="grow min0"><a class="nm ell" href="#/run/${r.id}">${esc(r.definition.name)}</a><div class="sub ell">${esc(f1)}</div><div class="sub ell">${esc(f2)}</div><div class="bmeta">${badge(r)}${chip(r)}${projectChip(r)}<span class="sub">${esc(t1)} · ${esc(t2)}</span>${r.usage ? `<span class="sub tok" title="${esc(usageLine(r.usage))}">${esc(tokens(usageTotal(r.usage)))}${r.usage.costUsd ? " · " + esc(money(r.usage.costUsd)) : ""}</span>` : ""}</div>${extra}</div></div>`;
 }
 function attentionCard(it) {
   const ro = viewer();
@@ -122,12 +136,15 @@ function todayUsage(todays) {
   if (!rows.length) return `<div class="grp" id="today-usage">${empty(T("No usage today"), T("Agent steps record the model and tokens their CLI reports."))}</div>`;
   return `<div class="grp" id="today-usage">${rows.map((u) => `<div class="row"><span class="idot" data-c="${agentColor(u.agent)}"></span><div class="grow min0"><div class="nm ell">${esc(agentLabel(u.agent))}</div><div class="sub mono ell">${esc(u.model || t("model not reported"))}</div></div><div class="right"><div class="nm mono">${esc(tokens(u.n))}</div><div class="sub">${esc([t("{n} runs", { n: u.runs.size }), money(u.cost)].filter(Boolean).join(" · "))}</div></div></div>`).join("")}</div>`;
 }
-export function today() {
+export function today(q = {}) {
   const s = S();
-  const runs = runsSorted();
+  const mine = inProject(q);
+  cardProject = !q.project && projectsInUse().length > 1;
+  const runs = runsSorted().filter(mine);
   const todays = runs.filter((r) => isToday(r.started));
   const running = runs.filter((r) => r.status === "running" || r.status === "queued");
-  const att = attentionItems();
+  // Deliveries and agents belong to no project: they show only on the unfiltered board.
+  const att = attentionItems().filter((x) => (x.r ? mine(x.r) : !q.project));
   const listed = new Set(att.filter((x) => x.r).map((x) => x.r.id));
   const needsLook = todays.filter((r) => NEEDS_LOOK.includes(r.status) && !listed.has(r.id)).map((r) => ({ kind: "run", r }));
   const needs = [...att, ...needsLook];
@@ -147,21 +164,23 @@ export function today() {
   const ints = att.filter((x) => x.kind === "interrupted").length;
   const used = sumUsage(todays);
   const upcoming = s.loops
+    .filter(mine)
     .filter((l) => l.enabled && l.cron && toDate(l.next) && toDate(l.next) - ctx.now < 36 * 3600e3)
-    .map((l) => ({ at: l.next, name: l.name, sub: cronText(l.cron) + " · " + agentLabel(l.agent) + (l.model ? " · " + l.model : ""), href: `#/loop/${l.id}`, id: l.id }));
-  if (s.settings.digestEnabled) upcoming.push({ at: nextDigest(), name: t("Daily digest"), sub: t("{n} channels", { n: s.settings.channels.filter((c) => c.enabled).length }), href: "#/digest" });
+    .map((l) => ({ at: l.next, name: l.name, sub: cronText(l.cron) + " · " + agentLabel(l.agent) + (l.model ? " · " + l.model : ""), href: `#/loop/${l.id}`, id: l.id, loop: l }));
+  if (s.settings.digestEnabled && !q.project) upcoming.push({ at: nextDigest(), name: t("Daily digest"), sub: t("{n} channels", { n: s.settings.channels.filter((c) => c.enabled).length }), href: "#/digest" });
   upcoming.sort((a, b) => String(a.at).localeCompare(String(b.at)));
-  const upcomingCards = upcoming.slice(0, 8).map((u) => `<a class="row link bcard" href="${u.href}">${u.id ? `<span class="bc-dot">${dot(u.id)}</span>` : `<span class="idot" data-c="#76767f"></span>`}<div class="grow min0"><div class="nm ell">${esc(u.name)}</div><div class="sub ell">${esc(u.sub)}</div><div class="bmeta"><span class="chip mut mono">${esc(when(u.at))}</span></div></div></a>`);
+  const upcomingCards = upcoming.slice(0, 8).map((u) => `<a class="row link bcard" href="${u.href}">${u.id ? `<span class="bc-dot">${dot(u.id)}</span>` : `<span class="idot" data-c="#76767f"></span>`}<div class="grow min0"><div class="nm ell">${esc(u.name)}</div><div class="sub ell">${esc(u.sub)}</div><div class="bmeta"><span class="chip mut mono">${esc(when(u.at))}</span>${u.loop ? projectChip(u.loop) : ""}</div></div></a>`);
   const firstRun = !s.loops.length;
+  const pq = q.project ? "&project=" + encodeURIComponent(q.project) : "";
   return `
-  <div class="sec top-sec"><h2>${T("Today")}</h2><span class="note">${esc(new Date(ctx.now).toLocaleDateString(ctx.lang, { dateStyle: "full" }))} · ${esc(Intl.DateTimeFormat().resolvedOptions().timeZone)}</span><div class="act"><span class="sx">${icon(ctx.connected ? "ok" : "lost")}${T(ctx.connected ? "Updated {time}" : "Connection lost — retrying", { time: hm(s.updated) })}</span></div></div>
+  <div class="sec top-sec"><h2>${T("Today")}</h2><span class="note">${esc(new Date(ctx.now).toLocaleDateString(ctx.lang, { dateStyle: "full" }))} · ${esc(Intl.DateTimeFormat().resolvedOptions().timeZone)}</span><div class="act">${projectPicker(q, "today-project")}<span class="sx">${icon(ctx.connected ? "ok" : "lost")}${T(ctx.connected ? "Updated {time}" : "Connection lost — retrying", { time: hm(s.updated) })}</span></div></div>
   ${firstRun ? `<div class="card hero"><span class="mark xl" aria-hidden="true"></span><div class="grow"><h1>${T("Create your first Loop")}</h1><p class="sub t2">${T("Schedule local agents, review their work, and keep the evidence.")}</p></div>${viewer() ? `<a class="btn" href="#/settings/team">${T("Team sync")}</a>` : `<a class="btn pri" href="#/new">${T("New Loop")}</a><a class="btn" href="#/loops">${T("From a template")}</a>`}</div>` : ""}
   <div class="kpis">
-    ${kpi(running.length, t("Running"), running.map((r) => `${r.definition.name} · ${t("round {r}", { r: r.round })}`).join(" · "), "#/runs?status=running")}
-    ${kpi(needs.length, t("Needs you"), [gates && t("{n} gate|{n} gates", { n: gates }), ints && t("{n} interrupted", { n: ints }), dels && t("{n} delivery unknown|{n} deliveries unknown", { n: dels }), needsLook.length && t("{n} to look at", { n: needsLook.length })].filter(Boolean).join(" · "), "#/today?focus=attention")}
-    ${kpi(todays.length, t("Today’s runs"), breakdown, "#/runs?range=today")}
-    ${kpi(esc(tokens(used.input + used.cacheRead + used.cacheWrite + used.output)), t("Today’s tokens"), [money(used.costUsd) && t("{cost} reported cost", { cost: money(used.costUsd) }), used.runs && t("{n} runs with usage", { n: used.runs })].filter(Boolean).join(" · "), "#/today?focus=usage", "kpi-tokens")}
-    ${kpi(bad.length, t("Interrupted / failed"), t("{a} interrupted · {b} failed", { a: bad.filter((r) => r.status === "interrupted").length, b: bad.length - bad.filter((r) => r.status === "interrupted").length }), "#/runs?status=attention")}
+    ${kpi(running.length, t("Running"), running.map((r) => `${r.definition.name} · ${t("round {r}", { r: r.round })}`).join(" · "), "#/runs?status=running" + pq)}
+    ${kpi(needs.length, t("Needs you"), [gates && t("{n} gate|{n} gates", { n: gates }), ints && t("{n} interrupted", { n: ints }), dels && t("{n} delivery unknown|{n} deliveries unknown", { n: dels }), needsLook.length && t("{n} to look at", { n: needsLook.length })].filter(Boolean).join(" · "), "#/today?focus=attention" + pq)}
+    ${kpi(todays.length, t("Today’s runs"), breakdown, "#/runs?range=today" + pq)}
+    ${kpi(esc(tokens(used.input + used.cacheRead + used.cacheWrite + used.output)), t("Today’s tokens"), [money(used.costUsd) && t("{cost} reported cost", { cost: money(used.costUsd) }), used.runs && t("{n} runs with usage", { n: used.runs })].filter(Boolean).join(" · "), "#/today?focus=usage" + pq, "kpi-tokens")}
+    ${kpi(bad.length, t("Interrupted / failed"), t("{a} interrupted · {b} failed", { a: bad.filter((r) => r.status === "interrupted").length, b: bad.length - bad.filter((r) => r.status === "interrupted").length }), "#/runs?status=attention" + pq)}
   </div>
   <div class="board" id="board">
     ${boardCol("upcoming", t("Coming up"), upcomingCards, T("Nothing scheduled"), s.settings.paused ? T("All schedules are paused.") : T("Enable a Loop with a schedule to see it here."))}
@@ -205,13 +224,19 @@ export function loops(q) {
     private: (l) => l.private,
   };
   const search = (q.search || "").toLowerCase();
-  const list = s.loops
+  const base = s.loops.filter(inProject(q));
+  const list = base
     .filter(sets[filter] || sets.all)
     .filter((l) => (l.name + " " + l.description).toLowerCase().includes(search))
     .sort((a, b) => Number(b.enabled) - Number(a.enabled) || a.name.localeCompare(b.name));
   const shown = q.showDisabled || filter !== "all" ? list : list.filter((l) => l.enabled);
   const hidden = list.length - shown.length;
-  const counts = Object.fromEntries(Object.keys(sets).map((k) => [k, s.loops.filter(sets[k]).length]));
+  const counts = Object.fromEntries(Object.keys(sets).map((k) => [k, base.filter(sets[k]).length]));
+  // Several projects and no project picked: one section per project.
+  const byProject = new Map();
+  for (const l of shown) byProject.set(projectOf(l), [...(byProject.get(projectOf(l)) || []), l]);
+  const grouped = !q.project && byProject.size > 1 ? [...byProject.entries()].sort(([a], [b]) => (a === "") - (b === "") || a.localeCompare(b)) : null;
+  const foot = hidden > 0 ? `<button type="button" class="foot" data-action="show-disabled">${T("Show {n} paused Loop|Show {n} paused Loops", { n: hidden })} ⌄</button>` : q.showDisabled && filter === "all" && counts.paused ? `<button type="button" class="foot" data-action="show-disabled">${T("Hide paused Loops")} ⌃</button>` : "";
   const row = (l) => {
     const last = runsOf(l.id)[0];
     const steps = l.steps.map((x) => x.name).join("、");
@@ -219,8 +244,8 @@ export function loops(q) {
   };
   return `
   <div class="narrow">
-  <div class="sec top-sec"><h2>Loops</h2><span class="note">${T("{a} enabled · {b} paused", { a: counts.enabled, b: counts.paused })}</span><div class="act">${seg("filter", filter, [["all", t("All")], ["enabled", t("Enabled")], ["paused", t("Paused")], ["attention", t("Needs you") + (counts.attention ? ` ${counts.attention}` : "")], ["private", t("Private")]], { action: "loops-filter", label: t("Filter") })}<input class="inp search" id="search" type="search" value="${esc(q.search || "")}" placeholder="${T("Search name or purpose")}" aria-label="${T("Search")}"></div></div>
-  <div class="grp">${shown.length ? shown.map(row).join("") : s.loops.length ? empty(T("No matching Loops"), "", `<button class="btn sm" data-action="clear-filter">${T("Clear filters")}</button>`) : empty(T("No Loops yet"), T("Start from a template below or paste your own definition."), viewer() ? "" : `<a class="btn pri sm" href="#/new">${T("Add your first Loop")}</a>`)}${hidden > 0 ? `<button type="button" class="foot" data-action="show-disabled">${T("Show {n} paused Loop|Show {n} paused Loops", { n: hidden })} ⌄</button>` : q.showDisabled && filter === "all" && counts.paused ? `<button type="button" class="foot" data-action="show-disabled">${T("Hide paused Loops")} ⌃</button>` : ""}</div>
+  <div class="sec top-sec"><h2>Loops</h2><span class="note">${T("{a} enabled · {b} paused", { a: counts.enabled, b: counts.paused })}</span><div class="act">${projectPicker(q, "loops-project")}${seg("filter", filter, [["all", t("All")], ["enabled", t("Enabled")], ["paused", t("Paused")], ["attention", t("Needs you") + (counts.attention ? ` ${counts.attention}` : "")], ["private", t("Private")]], { action: "loops-filter", label: t("Filter") })}<input class="inp search" id="search" type="search" value="${esc(q.search || "")}" placeholder="${T("Search name or purpose")}" aria-label="${T("Search")}"></div></div>
+  ${grouped ? grouped.map(([p, ls]) => `${sec(esc(projectLabel(p)), { note: T("{n} Loop|{n} Loops", { n: ls.length }) })}<div class="grp">${ls.map(row).join("")}</div>`).join("") + (foot ? `<div class="grp mt14">${foot}</div>` : "") : `<div class="grp">${shown.length ? shown.map(row).join("") : s.loops.length ? empty(T("No matching Loops"), "", `<button class="btn sm" data-action="clear-filter">${T("Clear filters")}</button>`) : empty(T("No Loops yet"), T("Start from a template below or paste your own definition."), viewer() ? "" : `<a class="btn pri sm" href="#/new">${T("Add your first Loop")}</a>`)}${foot}</div>`}
   ${viewer() ? "" : `${sec(T("Start from a template"), { note: T("Templates still go through the editor checks before saving"), act: `<button class="linkbtn" data-action="import">${T("Paste your own definition")} ›</button>` })}
   <div class="tpls">${templates().map((tp, i) => `<a class="card sm tpl" href="#/new?template=${i}"><div class="nm">${esc(tp.title)}</div><div class="sub t2">${esc(tp.sub)}</div><span class="chip mut">${T("Template · unverified content")}</span></a>`).join("")}<button type="button" class="card sm tpl" data-action="import-archive"><div class="nm">${T("Import archive")}</div><div class="sub t2">${T("Restore Loops from a loopbee ZIP; imports are private and disabled")}</div><span class="chip mut">ZIP</span></button></div>`}
   ${footer()}
@@ -361,7 +386,7 @@ export function runsPage(q) {
   const s = S();
   const range = q.range || "7d";
   const since = { today: dayKey(new Date(ctx.now)), "7d": dayKey(new Date(ctx.now - 6 * 864e5)), "30d": dayKey(new Date(ctx.now - 29 * 864e5)), all: "0000" }[range] || "0000";
-  let runs = runsSorted().filter((r) => dayKey(r.started) >= since);
+  let runs = runsSorted().filter((r) => dayKey(r.started) >= since).filter(inProject(q));
   const inRange = runs;
   const statusSets = {
     all: () => true,
@@ -394,7 +419,7 @@ export function runsPage(q) {
     groups.get(k).push(r);
   }
   const loopsInRuns = [...new Map(runsSorted().map((r) => [r.loopId, r.definition.name])).entries()];
-  const filters = [q.outcome, q.loop, q.source, status !== "all" ? status : ""].filter(Boolean).length;
+  const filters = [q.outcome, q.loop, q.source, q.project, status !== "all" ? status : ""].filter(Boolean).length;
   return `
   <div class="sec top-sec"><h2>Runs</h2><span class="note">${T("Every run is kept; finished runs are never rewritten")}</span><div class="act">${seg("range", range, [["today", t("Today")], ["7d", t("7 days")], ["30d", t("30 days")], ["all", t("All")]], { action: "runs-q", label: t("Time range") })}<input class="inp search" id="search" type="search" value="${esc(q.search || "")}" placeholder="${T("Search id, name or error")}" aria-label="${T("Search")}"></div></div>
   <div class="kpis">
@@ -405,6 +430,7 @@ export function runsPage(q) {
     ${kp("stopped", cnt(outcomeSets.stopped), t("Interrupted / cancelled"), t("{n} need review", { n: cnt((r) => r.status === "interrupted" && !r.acked) }))}
   </div>
   <div class="filters">${seg("status", status, [["all", t("All")], ["running", `${t("Running")} ${statusCount("running") || ""}`], ["attention", `${t("Needs you")} ${statusCount("attention") || ""}`], ["ended", t("Ended")], ["interrupted", `${t("Interrupted")} ${statusCount("interrupted") || ""}`]], { action: "runs-q", label: t("Status") })}
+    ${projectPicker(q, "runs-project")}
     <select class="btn sm" id="runs-loop" aria-label="Loop"><option value="">${T("Loop: all")}</option>${loopsInRuns.map(([id, name]) => `<option value="${id}" ${q.loop === id ? "selected" : ""}>${esc(name)}</option>`).join("")}</select>
     <select class="btn sm" id="runs-source" aria-label="${T("Source")}"><option value="">${T("Source: all")}</option>${[["schedule", "Scheduled"], ["catchup", "Catch-up"], ["manual", "Manual"], ["rerun", "Rerun"]].map(([v, l]) => `<option value="${v}" ${q.source === v ? "selected" : ""}>${T(l)}</option>`).join("")}</select>
     <span class="sub flt">${filters ? `${T("{n} filters applied", { n: filters })} · <button class="linkbtn" data-action="clear-filter">${T("Clear")}</button>` : T("No filters applied")}</span></div>

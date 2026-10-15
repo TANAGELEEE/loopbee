@@ -37,12 +37,15 @@ type Step struct {
 	ContinueOnError bool `json:"continueOnError,omitempty"`
 }
 type Loop struct {
-	DoneWhen     string    `json:"doneWhen"`
-	ID           string    `json:"id"`
-	Version      int       `json:"version"`
-	Name         string    `json:"name"`
-	Description  string    `json:"description"`
-	Directory    string    `json:"directory"`
+	DoneWhen    string `json:"doneWhen"`
+	ID          string `json:"id"`
+	Version     int    `json:"version"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Directory   string `json:"directory"`
+	// Project groups Loops on the boards; published with the team snapshot (Directory is not). Empty on save: the
+	// owner/repo of the directory's origin remote, or else its folder name.
+	Project      string    `json:"project,omitempty"`
 	Agent        string    `json:"agent"`
 	Model        string    `json:"model,omitempty"` // model the agent CLI uses; "" = the CLI's own default
 	Sandbox      string    `json:"sandbox"`
@@ -279,6 +282,9 @@ func Validate(l Loop) error {
 	}
 	if strings.TrimSpace(l.Name) == "" || len(l.Name) > 160 {
 		return errors.New("name is required (maximum 160 characters)")
+	}
+	if err := validProject(l.Project); err != nil {
+		return err
 	}
 	if !filepath.IsAbs(l.Directory) {
 		return errors.New("working directory must be absolute")
