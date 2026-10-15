@@ -423,6 +423,13 @@ sandbox limit from a broken change and reported blocked. Tests that need a local
 - Evidence: `TestLoopbackSkipsOnlyInsideASandbox`, `AGENTS.md#cannot open local ports`, `TestIssueIntakeToPullRequestAfterReview`
 - Seen: 2026-10-12
 
+### A test binary started again must not pay the race detector's exit sleep
+The fake CLIs are the test binary itself. Built with `-race`, each process sleeps a second at exit, and probing five
+adapters per Run pushed `internal/core` past `go test`'s 10-minute limit on Linux CI; the timeout also hid a data
+race in the update test. `TestMain` turns the sleep off for every child process.
+- Evidence: `internal/core/main_test.go#atexit_sleep_ms=0`, `TestUpdateDownloadsAndRestartsWhenIdle`
+- Seen: 2026-10-15
+
 ### Do not parse Git's short names
 `git branch -r --format=%(refname:short)` prints a remote's HEAD pointer (`refs/remotes/origin/HEAD`) as a bare
 `origin`. Newer Git records that pointer on every fetch, older Git (2.43 here) does not, so every CI platform failed
