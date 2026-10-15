@@ -402,12 +402,14 @@ func TestAgentStepOutcomesForBothCLIs(t *testing.T) {
 
 func TestGateWaitIsOutsideTheTimeBudgetAndExpires(t *testing.T) {
 	oldWall, oldGate := wallUnit, gateUnit
-	wallUnit, gateUnit = 100*time.Millisecond, 400*time.Millisecond
+	// The gate's expiry is counted from when the gate opened, the test's sleep from when it noticed: keep a margin
+	// a busy CI machine cannot eat (it once had 50 ms), and wait for the expiry instead of sleeping past it.
+	wallUnit, gateUnit = 100*time.Millisecond, 2*time.Second
 	t.Cleanup(func() { wallUnit, gateUnit = oldWall, oldGate })
 	a := testApp(t)
 	l := testLoop(t)
 	l.WallMinutes = 3 // 300 ms of execution budget
-	l.GateHours = 1   // 400 ms gate expiry
+	l.GateHours = 1   // 2 s gate expiry
 	l.Steps = []Step{{Kind: "gate", Name: "Review"}}
 	l, err := a.SaveLoop(l)
 	if err != nil {
@@ -423,7 +425,7 @@ func TestGateWaitIsOutsideTheTimeBudgetAndExpires(t *testing.T) {
 
 	r2, _ := a.Start(l.ID)
 	waitStatus(t, a, r2.ID, "waiting")
-	time.Sleep(600 * time.Millisecond)
+	waitStatus(t, a, r2.ID, "timed_out")
 	got, _ := a.Run(r2.ID)
 	if got.Status != "timed_out" || !strings.Contains(got.Error, "gate expired") || got.Trace[0].Status != "expired" {
 		t.Fatalf("gate expiry: %+v", got)

@@ -465,6 +465,13 @@ race in the update test. `TestMain` turns the sleep off for every child process.
 - Evidence: `internal/core/main_test.go#atexit_sleep_ms=0`, `TestUpdateDownloadsAndRestartsWhenIdle`
 - Seen: 2026-10-15
 
+### A timing test keeps a margin its own polling cannot eat
+The gate test let the gate expire after 400 ms and approved it 350 ms after it *noticed* the gate, which polling
+starts late; on a busy Linux CI runner the 50 ms margin was gone and the approved Run had already timed out. Deadlines
+in tests are now far beyond what the test waits, and the test waits for the expiry instead of sleeping past it.
+- Evidence: `TestGateWaitIsOutsideTheTimeBudgetAndExpires`
+- Seen: 2026-10-15
+
 ### A macOS path is a slash path on every OS
 `Locate` took the `.app` bundle apart with `filepath`, which turns `/` into `\` on Windows, so the test for a
 translocated app failed there while passing on the Mac. Paths of another OS use `path`, not `filepath`.
