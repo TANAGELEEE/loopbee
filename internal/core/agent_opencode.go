@@ -7,7 +7,7 @@ import (
 )
 
 // OpenCode: `opencode run --format json`. OpenCode has no sandbox; it has per-tool permissions (allow, ask, deny),
-// and a non-interactive run rejects every "ask". Loopbee promises read-only by denying edits, shell, web and
+// and a non-interactive run rejects every "ask". loopbee promises read-only by denying edits, shell, web and
 // subagents through OPENCODE_CONFIG_CONTENT; for anything more the user's own configuration decides (agent-config).
 func init() {
 	registerAdapter(&adapter{
@@ -34,7 +34,7 @@ func init() {
 			return []string{filepath.Join(oc, "skills"), filepath.Join(oc, "agents"), filepath.Join(oc, "commands"),
 				filepath.Join(oc, "AGENTS.md"), filepath.Join(home, ".claude", "skills"), filepath.Join(home, ".agents", "skills")}
 		},
-		ToolNote: `OpenCode has no sandbox: Loopbee runs it only at read-only (edits, shell, web and subagents denied
+		ToolNote: `OpenCode has no sandbox: loopbee runs it only at read-only (edits, shell, web and subagents denied
   through its permission settings) or at agent-config, where the user's own opencode.json decides. For an OpenCode
   Loop that changes code, choose agent-config only if the user asks for it, and keep a gate after it.`,
 		MCPServers: func(home, project string) []string {

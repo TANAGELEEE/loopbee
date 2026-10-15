@@ -109,10 +109,10 @@ const coreErrors = {
   "verification output did not improve": "Verification results stopped improving",
   "working tree must be a clean Git repository": "The working tree must be a clean Git repository",
   "agent version unsupported; run detection first": "The agent was not detected. Run detection in Settings › Agents.",
-  "Application stopped; review evidence before starting a new run": "Loopbee stopped while this run was active; review the evidence before starting a new run",
+  "Application stopped; review evidence before starting a new run": "loopbee stopped while this run was active; review the evidence before starting a new run",
   "agent reported turn.failed; inspect the captured evidence": "The agent reported a failed turn; inspect the captured evidence",
   "Claude Code adapter is experimental and awaits captured live fixtures": "Claude Code is experimental; its steps are blocked until verified",
-  "application stopped before delivery was confirmed": "Loopbee stopped before the delivery was confirmed",
+  "application stopped before delivery was confirmed": "loopbee stopped before the delivery was confirmed",
 };
 export const errText = (msg) => (msg && coreErrors[msg] ? t(coreErrors[msg]) : msg || "");
 export const dot = (id, cls = "") => `<span class="idot ${cls}" data-c="${loopColor(id)}" aria-hidden="true"></span>`;
@@ -246,7 +246,7 @@ export const sandboxHelp = (s) => t({
   "read-only": "Reads the working directory; cannot change files or use the network.",
   "workspace-write": "Edits files and runs commands inside the working directory; no network.",
   "workspace-network": "As workspace write, plus network: git push, deployments, databases, APIs, e-mail.",
-  "agent-config": "Loopbee adds no sandbox flags; the agent's own config, profile or settings decide.",
+  "agent-config": "loopbee adds no sandbox flags; the agent's own config, profile or settings decide.",
 }[s] || "");
 // Agents come from the core (one adapter per CLI); these fallbacks cover a viewer without detection data.
 const AGENT_FALLBACK = { codex: "Codex CLI", claude: "Claude Code", gemini: "Gemini CLI", opencode: "OpenCode", pi: "pi" };

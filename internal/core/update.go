@@ -14,9 +14,9 @@ import (
 	"loopbee/internal/update"
 )
 
-// UpdateStatus is what Settings › General shows about Loopbee's own version.
+// UpdateStatus is what Settings › General shows about loopbee's own version.
 //
-// Loopbee asks GitHub for the newest release shortly after it starts and every six hours (unless the user turned
+// loopbee asks GitHub for the newest release shortly after it starts and every six hours (unless the user turned
 // automatic updates off), and downloads it at once when this copy can replace itself, so that only a restart is
 // left. A restart waits until no Run is active (a Run cut short is marked interrupted and never replayed), for an
 // hour at most; quitting puts a downloaded update in too. Builds from source never update themselves.
@@ -93,7 +93,7 @@ func ghToken() string {
 }
 
 // EnableUpdates starts the update checks. restart quits the desktop app (which then starts the new version);
-// headless Loopbee passes nil and only learns about new versions.
+// headless loopbee passes nil and only learns about new versions.
 func (a *App) EnableUpdates(restart func()) {
 	u := a.upd
 	u.mu.Lock()
@@ -331,14 +331,14 @@ func (a *App) restartNow() error {
 	}
 	u.staged = ""
 	if err := updateRelaunch(target); err != nil {
-		u.status.State, u.status.Error = "latest", "installed; reopen Loopbee to start the new version ("+err.Error()+")"
+		u.status.State, u.status.Error = "latest", "installed; reopen loopbee to start the new version ("+err.Error()+")"
 		return err
 	}
 	go restart()
 	return nil
 }
 
-// installOnQuit puts a downloaded update in when Loopbee quits, so the next start is the new version. It never
+// installOnQuit puts a downloaded update in when loopbee quits, so the next start is the new version. It never
 // asks for a password.
 func (a *App) installOnQuit() {
 	a.mu.Lock()

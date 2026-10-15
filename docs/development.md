@@ -39,7 +39,7 @@ Rules that have proven themselves; promoted lessons are added here with a link b
 
 - **Real agent CLIs before release.** Changes to agent adapters, the authoring prompt, workspaces or result parsing are
   verified with `scripts/real-smoke.sh` against the real Codex CLI and Claude Code before they are released; fake CLIs
-  cover only Loopbee's side (decided 2026-10-12 after four real-only defects, see LESSONS “Real agent CLIs”).
+  cover only loopbee's side (decided 2026-10-12 after four real-only defects, see LESSONS “Real agent CLIs”).
 - **Report what was not verified.** Every hand-off lists the checks that were not run (platform builds, real CLIs,
   CI-only steps) instead of implying them.
 - **One source for every list.** A list that more than one place needs (step kinds, agent CLIs, permission levels)

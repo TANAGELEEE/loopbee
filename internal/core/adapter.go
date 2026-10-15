@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// adapter is everything Loopbee knows about one agent CLI. Adapters are compiled in: Loopbee has no plugin host.
+// adapter is everything loopbee knows about one agent CLI. Adapters are compiled in: loopbee has no plugin host.
 // Adding a CLI means one file that registers an adapter, a fake for the tests, and a real smoke run.
 //
 // Permission levels are a promise to the person who reads the Loop: an adapter lists only the levels its CLI can
@@ -27,7 +27,7 @@ type adapter struct {
 	// Levels the CLI enforces itself. Enforcement says how, per level, for the settings page and the designer.
 	Levels      []string
 	Enforcement map[string]string
-	Flags       map[string]string // what Loopbee passes per level, shown in Settings › Agents
+	Flags       map[string]string // what loopbee passes per level, shown in Settings › Agents
 	// Args returns the arguments after the executable and extra environment variables for one turn. The prompt is
 	// always written to stdin.
 	Args func(inv agentInvocation, caps []string) ([]string, []string)
@@ -45,7 +45,7 @@ type adapter struct {
 	// ToolNote tells the chat designer what the agent can do at each level on this computer.
 	ToolNote string
 	// MCPServers lists the MCP servers of the agent's own setup (user and project), for the editor and the designer;
-	// it may be incomplete. MCPFlags says what Loopbee passes when a Loop allows them ("on") and when it does not
+	// it may be incomplete. MCPFlags says what loopbee passes when a Loop allows them ("on") and when it does not
 	// ("off", below agent-config). Refused lists MCP tool calls the CLI refused because nobody could approve them.
 	MCPServers func(home, project string) []string
 	MCPFlags   map[string]string
@@ -99,9 +99,9 @@ func supportsLevel(agent, level string) bool {
 func levelError(agent, level string) error {
 	a, ok := adapterFor(agent)
 	if !ok {
-		return fmt.Errorf("unknown agent %q; Loopbee supports %s", agent, strings.Join(adapterOrder, ", "))
+		return fmt.Errorf("unknown agent %q; loopbee supports %s", agent, strings.Join(adapterOrder, ", "))
 	}
-	return fmt.Errorf("%s cannot enforce the %q permission on its own, so Loopbee will not run it there; choose %s, or another agent", a.Label, level, strings.Join(a.Levels, " or "))
+	return fmt.Errorf("%s cannot enforce the %q permission on its own, so loopbee will not run it there; choose %s, or another agent", a.Label, level, strings.Join(a.Levels, " or "))
 }
 
 // agentLabel is the display name of an agent ("Codex CLI").
@@ -144,7 +144,7 @@ func finalMessage(name string, output []byte) (string, map[string]any) {
 	return "", nil
 }
 
-// failureFor is the CLI's reason for a failed turn, with what Loopbee knows about fixing it.
+// failureFor is the CLI's reason for a failed turn, with what loopbee knows about fixing it.
 func failureFor(agent string, output []byte, goos string) string {
 	a, ok := adapterFor(agent)
 	reason := ""
@@ -162,7 +162,7 @@ func failureFor(agent string, output []byte, goos string) string {
 	return reason
 }
 
-// explainFailure adds what Loopbee knows about fixing a failure the CLI reported.
+// explainFailure adds what loopbee knows about fixing a failure the CLI reported.
 func explainFailure(agent, reason, goos string) string {
 	if a, ok := adapterFor(agent); ok && a.Explain != nil {
 		return a.Explain(reason, goos)
@@ -265,7 +265,7 @@ func fnum(m map[string]any, k string) float64 { f, _ := m[k].(float64); return f
 // Usage is the model and tokens of one agent turn or, summed, of a Run. Input counts prompt tokens that were not
 // read from the provider's cache; CacheRead and CacheWrite count cached prompt tokens; Output counts generated tokens
 // including reasoning (Reasoning repeats the reasoning part when the CLI reports it). CostUSD is the CLI's own
-// figure; Loopbee never estimates prices.
+// figure; loopbee never estimates prices.
 type Usage struct {
 	Agent      string  `json:"agent,omitempty"`
 	Model      string  `json:"model,omitempty"`

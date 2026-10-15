@@ -236,7 +236,7 @@ func (a *App) SyncTeam() error {
 	if len(changes) == 0 {
 		return nil
 	}
-	if _, err = git("-c", "user.name=Loopbee", "-c", "user.email=loopbee@localhost", "commit", "-m", "Update Loopbee dashboard"); err != nil {
+	if _, err = git("-c", "user.name=loopbee", "-c", "user.email=loopbee@localhost", "commit", "-m", "Update loopbee dashboard"); err != nil {
 		return err
 	}
 	_, err = git("push", "origin", "HEAD:refs/heads/"+c.TeamBranch)

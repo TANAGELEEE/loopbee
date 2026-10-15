@@ -18,7 +18,7 @@ import (
 //	workspace-network  --approval-mode yolo --sandbox: every tool, writes confined to the project, network open
 //
 // The CLI itself needs the network for its model, so its sandbox cannot cut network off; workspace-write therefore
-// denies the shell instead. Skills need activate_skill, which Loopbee allows through a policy file.
+// denies the shell instead. Skills need activate_skill, which loopbee allows through a policy file.
 func init() {
 	registerAdapter(&adapter{
 		Name: "gemini", Label: "Gemini CLI", Binary: "gemini",
@@ -137,11 +137,11 @@ func geminiArgs(inv agentInvocation, caps []string) ([]string, []string) {
 	return argv, env
 }
 
-// geminiPolicy writes the policy rules Loopbee adds: skills may load at every level, and edit tools may not touch
+// geminiPolicy writes the policy rules loopbee adds: skills may load at every level, and edit tools may not touch
 // read paths (they are workspace directories for the read tools only).
 func geminiPolicy(dir, level string, readPaths []string, mcp bool) (string, error) {
 	var b strings.Builder
-	b.WriteString("# Written by Loopbee for one run.\n")
+	b.WriteString("# Written by loopbee for one run.\n")
 	if level != "agent-config" {
 		b.WriteString("[[rule]]\ntoolName = \"activate_skill\"\ndecision = \"allow\"\npriority = 900\n")
 	}

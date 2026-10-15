@@ -10,7 +10,7 @@ import (
 )
 
 // Loopback skips a test that needs a local port when the process is not allowed to open one. That is the case
-// inside the workspace-write sandbox Loopbee runs coding agents in (Codex, Claude Code), including Loopbee's own
+// inside the workspace-write sandbox loopbee runs coding agents in (Codex, Claude Code), including loopbee's own
 // self-improvement Loop. CI never skips: there a refused port is a failure.
 func Loopback(t testing.TB) {
 	t.Helper()

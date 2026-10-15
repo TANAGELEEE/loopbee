@@ -128,7 +128,7 @@ try {
   await page.goto(core.base + "/#/loop/" + loop.id);
   await page.locator("#loop-usage", { hasText: "Last 7 days" }).getByText("1.5k").first().waitFor();
 
-  // The gate shows what Loopbee committed first, and approving closes it at once.
+  // The gate shows what loopbee committed first, and approving closes it at once.
   const edit = await core.api("/loops", { ...loop, id: "", version: 0, name: "Branch fix", conversation: [], workspace: "worktree", baseRef: "", branch: "loopbee/e2e-{run}", requireClean: false, steps: [{ kind: "act", name: "Fix", prompt: "EDIT_FILE" }, { kind: "gate", name: "Review the diff" }] });
   const editLoop = edit.loops.find((l) => l.name === "Branch fix");
   await core.api(`/loops/${editLoop.id}/run`, {});
@@ -161,7 +161,7 @@ try {
   await page.locator(".chat-side").getByText("This Loop needs “Workspace write + network”, but this device allows at most “Read only”.").waitFor();
   assert.ok(await page.locator(".chat-side").getByRole("link", { name: "Raise the limit in Settings" }).isVisible());
   assert.equal(await page.getByRole("button", { name: "Save as draft" }).isDisabled(), true);
-  assert.ok(await page.locator(".chat-side").getByText("→ loopbee/fix-{date}").isVisible(), "preview shows the Loopbee-managed branch");
+  assert.ok(await page.locator(".chat-side").getByText("→ loopbee/fix-{date}").isVisible(), "preview shows the loopbee-managed branch");
   // A subscription limit reads as a sentence, not raw JSON.
   await page.locator("#chat-input").fill("HIT_LIMIT");
   await page.getByRole("button", { name: "Send", exact: true }).click();
@@ -181,7 +181,7 @@ try {
   }
   await page.getByRole("radio", { name: "Fresh git worktree" }).click();
   await page.locator("#f-baseRef").waitFor();
-  // Agents never write Git metadata: the editor asks for a branch that Loopbee commits to.
+  // Agents never write Git metadata: the editor asks for a branch that loopbee commits to.
   await page.locator("#f-agent").selectOption("codex");
   await page.getByRole("radio", { name: "Workspace write", exact: true }).click();
   // An agent without a sandbox is not offered write levels.
@@ -189,7 +189,7 @@ try {
   await page.getByText("pi cannot enforce “Workspace write” on its own").waitFor();
   await page.locator("#f-agent").selectOption("codex");
   await page.locator("#f-model").fill("gpt-fake");
-  const codexGit = page.getByText("Agents cannot commit in a worktree; set a branch so Loopbee commits the changes");
+  const codexGit = page.getByText("Agents cannot commit in a worktree; set a branch so loopbee commits the changes");
   await codexGit.waitFor();
   await page.locator("#f-branch").fill("loopbee/fix-{date}");
   await codexGit.waitFor({ state: "detached" });
@@ -203,7 +203,7 @@ try {
   await page.getByRole("switch", { name: "Continue and pass the output on" }).click();
   // A command between the agent and any gate runs the agent's changes outside the sandbox: the editor says so.
   await page.getByText("“Command” runs after the agent and before any review").waitFor();
-  // Work from GitHub issues and open the pull request after review: Loopbee's own intake and delivery.
+  // Work from GitHub issues and open the pull request after review: loopbee's own intake and delivery.
   await page.getByRole("radio", { name: "GitHub issues" }).click();
   await page.locator("#f-intake-label").fill("bug");
   assert.equal(await page.locator("#f-branch").inputValue(), "loopbee/issue-{issue}");
@@ -211,7 +211,7 @@ try {
   await page.getByText("A draft pull request pushes the agent's change to GitHub before anyone has reviewed it").waitFor();
   await page.getByRole("radio", { name: "After my review" }).click();
   await page.getByRole("radio", { name: "When all checks pass" }).click();
-  await page.getByText("After your approval Loopbee waits for the pull request's checks").waitFor();
+  await page.getByText("After your approval loopbee waits for the pull request's checks").waitFor();
   await page.locator("#ed-work").locator("..").getByText("gh version 2.99.0 (fake) · signed in").waitFor();
   // Read paths: the agent may read a skill's folder outside the project, never the computer's credential stores.
   await page.locator("#f-readPaths").fill("~/.ssh");

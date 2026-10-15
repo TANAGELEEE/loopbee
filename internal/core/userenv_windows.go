@@ -4,7 +4,7 @@ package core
 
 import "golang.org/x/sys/windows/registry"
 
-// savedUserEnv reads the user's, then the system's saved environment variable, so a variable set after Loopbee
+// savedUserEnv reads the user's, then the system's saved environment variable, so a variable set after loopbee
 // started (setx, System Properties) is found without restarting the app.
 func savedUserEnv(name string) (string, bool) {
 	locations := []struct {

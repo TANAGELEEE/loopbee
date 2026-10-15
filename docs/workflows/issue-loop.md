@@ -1,27 +1,27 @@
 # Working from GitHub issues
 
-Any Loop can take its work from GitHub issues and deliver it as a pull request. Both are built into Loopbee, so a
-project needs nothing but a repository (and ideally an `AGENTS.md` that tells agents how to work in it). Loopbee
+Any Loop can take its work from GitHub issues and deliver it as a pull request. Both are built into loopbee, so a
+project needs nothing but a repository (and ideally an `AGENTS.md` that tells agents how to work in it). loopbee
 picks the issue, hands it to the agent, commits the change on a branch, stops for your review and opens the pull
 request; merging and releasing stay with people.
 
 ```
 schedule (e.g. hourly on weekdays)
-  Intake      Loopbee: oldest open issue labelled agent-ready, opened by someone with write access,
+  Intake      loopbee: oldest open issue labelled agent-ready, opened by someone with write access,
               not labelled agent-working → label it agent-working          (none → “Nothing to do”, no agent call)
   Agent step  your agent in a fresh worktree on loopbee/issue-<n>, workspace-write sandbox: no network, no Git;
               gets the issue as fenced, untrusted text; follows the repository's AGENTS.md
-  Commit      Loopbee commits the change (no hooks), keeps the diff, scans it for credentials
-  Gate        you read the diff in Loopbee and approve with a note, or send it back
-  Delivery    Loopbee pushes the branch and opens the pull request “Fixes #n”; the link goes to your phone
-  Merge       optional (“When all checks pass”): Loopbee waits for CI and squash-merges; red CI leaves it open
+  Commit      loopbee commits the change (no hooks), keeps the diff, scans it for credentials
+  Gate        you read the diff in loopbee and approve with a note, or send it back
+  Delivery    loopbee pushes the branch and opens the pull request “Fixes #n”; the link goes to your phone
+  Merge       optional (“When all checks pass”): loopbee waits for CI and squash-merges; red CI leaves it open
 then: merging “Fixes #n” closes the issue; releases follow docs/releases/README.md
 ```
 
 ## Set up a Loop for your repository
 
-1. On the computer that runs Loopbee: install the GitHub CLI and run `gh auth login`. **Settings › Agents** shows
-   whether Loopbee found it. Loopbee uses your login for reading issues, labelling, pushing and pull requests.
+1. On the computer that runs loopbee: install the GitHub CLI and run `gh auth login`. **Settings › Agents** shows
+   whether loopbee found it. loopbee uses your login for reading issues, labelling, pushing and pull requests.
 2. In the repository, create the label `agent-ready` (`gh label create agent-ready`); `agent-working` is created on
    first use. Optionally add an `AGENTS.md` describing how to test and what not to touch.
 3. **Settings › General › Maximum permission**: *Workspace write*.
@@ -40,17 +40,17 @@ and push what it should build on first. Uncommitted or unpushed changes are invi
 | Also trust | Logins trusted in addition to people with write access |
 | Pull request | *No* (keep the branch) · *After my review* (needs a gate after the agent) · *Draft, review on GitHub* (no gate; the draft is the review) |
 | Target branch | Defaults to the branch of the base ref (`origin/main` → `main`) |
-| Merge | *I merge on GitHub* · *When all checks pass* (only after your review): Loopbee waits up to an hour for the pull request's checks, then squash-merges exactly the commit you approved and deletes the branch on GitHub. Failing, missing or unfinished checks, or a conflict, leave it open; the Run ends “Blocked” with the reason |
+| Merge | *I merge on GitHub* · *When all checks pass* (only after your review): loopbee waits up to an hour for the pull request's checks, then squash-merges exactly the commit you approved and deletes the branch on GitHub. Failing, missing or unfinished checks, or a conflict, leave it open; the Run ends “Blocked” with the reason |
 
-## Loopbee improving itself
+## loopbee improving itself
 
 [examples/self-improve.json](../../examples/self-improve.json) is this repository's own Loop (base `origin/main`).
-From a checkout of Loopbee, with the app running, run `./bin/beectl create -f examples/self-improve.json` (after
+From a checkout of loopbee, with the app running, run `./bin/beectl create -f examples/self-improve.json` (after
 `sh scripts/build-macos.sh`; or put `bin/beectl` on your PATH, e.g. `ln -s "$PWD/bin/beectl" ~/.local/bin/beectl`),
-open the draft, run it once, enable it. Loopbee then works
+open the draft, run it once, enable it. loopbee then works
 through its own `agent-ready` issues with the rules in [AGENTS.md](../../AGENTS.md) and
 [LESSONS.md](../../LESSONS.md); you review each change and merge it; a release (`docs/releases/<tag>.md` + tag)
-ships it, and you update the app. The running Loopbee only changes its source in a separate worktree, never itself.
+ships it, and you update the app. The running loopbee only changes its source in a separate worktree, never itself.
 
 Pair it with [examples/lessons-review.json](../../examples/lessons-review.json), which checks every Monday that fixes
 came with lessons and tests.
@@ -60,12 +60,12 @@ came with lessons and tests.
 The Run stops at **Review the diff** (Today › Review, or the Telegram “Needs you” message). No extra steps or a
 second Loop are needed: this gate is the review before the pull request.
 
-1. **Changes to review** is selected first: the commits Loopbee made on `loopbee/issue-<n>` (on a continued branch,
+1. **Changes to review** is selected first: the commits loopbee made on `loopbee/issue-<n>` (on a continued branch,
    earlier Runs' commits too). **Agent report** and the raw output follow.
 2. Write a note and choose **Approve and continue**. The gate closes at once and the Run shows “Pushing the branch
    and opening the pull request”; when it ends, the run page and the notification carry the pull request link.
    **Send back** ends the Run without pushing anything.
-3. With *When all checks pass* Loopbee merges after CI is green (the Run shows “Waiting for the pull request's
+3. With *When all checks pass* loopbee merges after CI is green (the Run shows “Waiting for the pull request's
    checks, then merging”); otherwise merge on GitHub after CI passes. Merging “Fixes #n” closes the issue.
 
 ## Getting the pull request on Telegram
@@ -76,7 +76,7 @@ second Loop are needed: this gate is the review before the pull request.
 3. In the Loop's **Notifications**, choose Telegram. You get “Needs you” when the change waits at the gate (issue,
    summary, branch) and “Done” with the pull request link after delivery.
 
-Approving needs the Loopbee window on your computer. To review only on the phone, choose *Draft, review on GitHub*:
+Approving needs the loopbee window on your computer. To review only on the phone, choose *Draft, review on GitHub*:
 the draft pull request link arrives on Telegram and you review and merge on GitHub. The change then reaches GitHub
 before anyone has read it (CI runs it there, not on your computer).
 
@@ -101,7 +101,7 @@ review then shows the whole branch, earlier Runs included.
 | The change contains a credential | Run fails before the gate; nothing is pushed | Inspect and delete the branch; check what the issue asked for |
 | The change touches `.github/` | Run fails at delivery; nothing is pushed | Review the branch and push it yourself if it is right |
 | The issue's branch already exists | The Run continues it (or starts it again if it has no commits) | Delete `loopbee/issue-<n>` to start from scratch |
-| The push fails | Run fails with Git's message, e.g. authentication | Check `gh auth status`; Loopbee pushes GitHub HTTPS remotes with the gh login and never waits for a password prompt |
+| The push fails | Run fails with Git's message, e.g. authentication | Check `gh auth status`; loopbee pushes GitHub HTTPS remotes with the gh login and never waits for a password prompt |
 | CI fails on the pull request | Red checks on GitHub; with automatic merge the Run ends “Blocked: checks failed: …” and nothing is merged | Fix on the branch or comment; merge yourself when it is green |
 
 An issue keeps `agent-working` until a person removes it or the pull request (“Fixes #n”) is merged and closes it,
@@ -110,16 +110,16 @@ so no issue is taken twice.
 ## Security: what a malicious issue could try, and what stops it
 
 The agent reads text other people wrote and can edit code, so an issue is untrusted input that may try to steer it
-(prompt injection). Loopbee assumes the agent can be fooled and limits what a fooled agent can do. All of these run
-in Loopbee itself; nothing in the repository (which the agent can edit) decides them.
+(prompt injection). loopbee assumes the agent can be fooled and limits what a fooled agent can do. All of these run
+in loopbee itself; nothing in the repository (which the agent can edit) decides them.
 
 | Attempt | What stops it | Evidence |
 |---|---|---|
 | A stranger files or comments on an issue | Only issues opened by OWNER/MEMBER/COLLABORATOR (or listed logins) are taken; other comments never reach the agent; the text is fenced and labelled as data | `TestIssueIntakeToPullRequestAfterReview`, `TestIssueIntakeWithNothingTrustedCostsNoAgentCall` |
 | Make the agent send secrets over the network | The workspace-write sandbox has no network (Codex and Claude Code) | `TestBuildAgentArgs` |
-| Copy a credential into the change so it gets pushed | Loopbee scans each committed diff for keys and tokens and fails the Run before the gate | `TestHostileAgentCannotEscapeThroughLoopbee` |
+| Copy a credential into the change so it gets pushed | loopbee scans each committed diff for keys and tokens and fails the Run before the gate | `TestHostileAgentCannotEscapeThroughLoopbee` |
 | Write code that something runs as you before review | No step runs between the agent and the gate in these Loops; command steps refuse files the agent changed; the editor warns about unreviewed commands | same, `TestSelfImproveExampleIsValid` |
-| Plant a Git hook or redirect `.git` | Agents get no Git access; Loopbee's Git runs without hooks or fsmonitor and stops if `.git` changed | `TestHostileAgentCannotEscapeThroughLoopbee` |
+| Plant a Git hook or redirect `.git` | Agents get no Git access; loopbee's Git runs without hooks or fsmonitor and stops if `.git` changed | `TestHostileAgentCannotEscapeThroughLoopbee` |
 | Change CI so pushing runs it with the repository's token | Changes under `.github/` are never pushed automatically | `TestDraftPullRequestAndNoAutomaticCIChanges` |
 | Slip something past review | The gate shows the full diff; nothing is pushed before approval (or only as a draft); a person merges | — |
 | Burn your agent quota with many issues | One issue per Run; no ready issue costs no agent call; the schedule caps the rate | `TestIssueIntakeWithNothingTrustedCostsNoAgentCall` |

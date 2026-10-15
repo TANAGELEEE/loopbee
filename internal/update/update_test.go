@@ -32,7 +32,7 @@ func TestVersions(t *testing.T) {
 			t.Errorf("Released(%s) != %v", v, want)
 		}
 	}
-	if got := ParseSums(strings.NewReader(strings.Repeat("a", 64) + "  Loopbee-macos-arm64.zip\n" + strings.Repeat("B", 64) + " *x.exe\nbad line\n")); got["Loopbee-macos-arm64.zip"] != strings.Repeat("a", 64) || got["x.exe"] != strings.Repeat("b", 64) || len(got) != 2 {
+	if got := ParseSums(strings.NewReader(strings.Repeat("a", 64) + "  loopbee-macos-arm64.zip\n" + strings.Repeat("B", 64) + " *x.exe\nbad line\n")); got["loopbee-macos-arm64.zip"] != strings.Repeat("a", 64) || got["x.exe"] != strings.Repeat("b", 64) || len(got) != 2 {
 		t.Fatal(got)
 	}
 }
@@ -99,7 +99,7 @@ func zipOf(t *testing.T, files map[string]string) []byte {
 // A release is accepted only with a published checksum that matches; a private repository is read with the
 // GitHub CLI's token.
 func TestLatestChecksumsAndPrivateRepository(t *testing.T) {
-	name := "Loopbee-windows-" + runtime.GOARCH + ".zip"
+	name := "loopbee-windows-" + runtime.GOARCH + ".zip"
 	archive := zipOf(t, map[string]string{"loopbee.exe": "new"})
 	feed(t, "0.1.3", map[string][]byte{name: archive}, nil, true)
 	if _, err := (&Client{}).Latest(context.Background()); err == nil || !strings.Contains(err.Error(), "gh auth login") {
@@ -139,10 +139,10 @@ func TestLatestChecksumsAndPrivateRepository(t *testing.T) {
 // loopbee-nogui are replaced only where they are installed; paths inside the archive are never used.
 func TestStageAndInstallWindows(t *testing.T) {
 	dir := t.TempDir()
-	exe := filepath.Join(dir, "Loopbee-windows-amd64.exe")
+	exe := filepath.Join(dir, "loopbee-windows-amd64.exe")
 	os.WriteFile(exe, []byte("old"), 0o755)
 	os.WriteFile(filepath.Join(dir, "beectl.exe"), []byte("old beectl"), 0o755)
-	name := "Loopbee-windows-" + runtime.GOARCH + ".zip"
+	name := "loopbee-windows-" + runtime.GOARCH + ".zip"
 	archive := zipOf(t, map[string]string{"loopbee.exe": "new", "beectl.exe": "new beectl", "loopbee-nogui.exe": "new nogui", "../evil.exe": "x", "sub/loopbee.exe": "x"})
 	feed(t, "0.1.3", map[string][]byte{name: archive}, nil, false)
 	c := &Client{}
@@ -168,8 +168,8 @@ func TestStageAndInstallWindows(t *testing.T) {
 		t.Fatal(err)
 	}
 	read := func(name string) string { b, _ := os.ReadFile(filepath.Join(dir, name)); return string(b) }
-	if read("Loopbee-windows-amd64.exe") != "new" || read("beectl.exe") != "new beectl" || old != exe+".old" || read("Loopbee-windows-amd64.exe.old") != "old" {
-		t.Fatalf("exe %q beectl %q old %q", read("Loopbee-windows-amd64.exe"), read("beectl.exe"), old)
+	if read("loopbee-windows-amd64.exe") != "new" || read("beectl.exe") != "new beectl" || old != exe+".old" || read("loopbee-windows-amd64.exe.old") != "old" {
+		t.Fatalf("exe %q beectl %q old %q", read("loopbee-windows-amd64.exe"), read("beectl.exe"), old)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "loopbee-nogui.exe")); err == nil {
 		t.Fatal("a program that was not installed was added")
@@ -195,8 +195,8 @@ func TestStageAndInstallWindows(t *testing.T) {
 
 func TestLocate(t *testing.T) {
 	for exe, want := range map[string]string{
-		"/Applications/Loopbee.app/Contents/MacOS/loopbee":                               "",
-		"/private/var/folders/x/AppTranslocation/1/d/Loopbee.app/Contents/MacOS/loopbee": "translocated",
+		"/Applications/loopbee.app/Contents/MacOS/loopbee":                               "",
+		"/private/var/folders/x/AppTranslocation/1/d/loopbee.app/Contents/MacOS/loopbee": "translocated",
 		"/Users/me/bin/loopbee": "unsupported",
 	} {
 		if got := Locate("darwin", exe).Stuck; got != want {
@@ -206,10 +206,10 @@ func TestLocate(t *testing.T) {
 	if Locate("linux", "/usr/bin/loopbee").Stuck != "unsupported" {
 		t.Fatal("linux has no release build")
 	}
-	if got := (Target{OS: "darwin"}).AssetName("arm64"); got != "Loopbee-macos-arm64.zip" {
+	if got := (Target{OS: "darwin"}).AssetName("arm64"); got != "loopbee-macos-arm64.zip" {
 		t.Fatal(got)
 	}
-	if got := swapScript("/a b/new.app", "/Applications/Loopbee.app", "/x/old'.app"); !strings.Contains(got, `'/a b/new.app'`) || !strings.Contains(got, `'/x/old'\''.app'`) {
+	if got := swapScript("/a b/new.app", "/Applications/loopbee.app", "/x/old'.app"); !strings.Contains(got, `'/a b/new.app'`) || !strings.Contains(got, `'/x/old'\''.app'`) {
 		t.Fatal(got)
 	}
 }
@@ -217,10 +217,10 @@ func TestLocate(t *testing.T) {
 // A bundle is swapped in with a rename and put back when the second rename fails.
 func TestSwapBundle(t *testing.T) {
 	dir := t.TempDir()
-	bundle := filepath.Join(dir, "Loopbee.app")
+	bundle := filepath.Join(dir, "loopbee.app")
 	os.MkdirAll(filepath.Join(bundle, "Contents"), 0o755)
 	os.WriteFile(filepath.Join(bundle, "Contents", "v"), []byte("old"), 0o644)
-	staged := filepath.Join(dir, ".loopbee-update", "new", "Loopbee.app")
+	staged := filepath.Join(dir, ".loopbee-update", "new", "loopbee.app")
 	os.MkdirAll(filepath.Join(staged, "Contents"), 0o755)
 	os.WriteFile(filepath.Join(staged, "Contents", "v"), []byte("new"), 0o644)
 	if _, err := Install(staged, Target{OS: "darwin", Bundle: bundle}, false); err != nil {

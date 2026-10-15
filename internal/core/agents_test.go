@@ -75,7 +75,7 @@ func TestFakeAgent(t *testing.T) {
 	case "author":
 		proposal := map[string]any{
 			"reply":     "Here is a nightly Loop.",
-			"questions": []map[string]any{{"text": "Who merges to master?", "options": []string{"Loopbee after approval", "I do it myself"}}},
+			"questions": []map[string]any{{"text": "Who merges to master?", "options": []string{"loopbee after approval", "I do it myself"}}},
 			"loop": map[string]any{
 				"name": "Fix production errors", "description": "Nightly log sweep", "cron": "0 2 * * *", "timezone": fakeTimezone(),
 				"sandbox": "workspace-network", "workspace": "worktree", "baseRef": "origin/master", "lock": "env:test", "maxRounds": 1,
@@ -121,7 +121,7 @@ func TestFakeAgent(t *testing.T) {
 	case "nosandbox": // real Claude Code output when its sandbox cannot start
 		fmt.Println(`{"type":"result","subtype":"error_during_execution","is_error":true,"errors":["Sandbox required but unavailable: sandbox is enabled but the Windows sandbox is not active on this session (feature gate off). Set sandbox.failIfUnavailable=false to allow unsandboxed execution."]}`)
 		os.Exit(1)
-	case "unignore": // edits a copied, ignored file and un-ignores it, hoping Loopbee commits it
+	case "unignore": // edits a copied, ignored file and un-ignores it, hoping loopbee commits it
 		env, err := os.ReadFile(filepath.Join(cwd, ".env"))
 		local, err2 := os.ReadFile(filepath.Join(cwd, "CLAUDE.local.md"))
 		if err != nil || err2 != nil {
@@ -155,7 +155,7 @@ func TestFakeAgent(t *testing.T) {
 	os.Exit(0)
 }
 
-// Help text of each fake CLI: the flags Loopbee looks for.
+// Help text of each fake CLI: the flags loopbee looks for.
 var fakeHelp = map[string]string{
 	"codex":    "--json --sandbox --output-last-message --output-schema --add-dir --skip-git-repo-check --model",
 	"claude":   "--print --output-format stream-json --json-schema --add-dir --tools --settings --permission-mode --model",
@@ -668,7 +668,7 @@ func TestAuthorPromptKnowsTheAgentAndTimezone(t *testing.T) {
 	}
 }
 
-// With a branch, Loopbee creates it in the worktree and commits the agent's changes itself.
+// With a branch, loopbee creates it in the worktree and commits the agent's changes itself.
 func TestBranchWorkspaceCommitsForTheAgent(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
@@ -863,7 +863,7 @@ func TestVerifyFailureReachesTheNextRound(t *testing.T) {
 	}
 }
 
-// A prompt-injected agent must not get code executed outside its sandbox through Loopbee: not through scripts that
+// A prompt-injected agent must not get code executed outside its sandbox through loopbee: not through scripts that
 // later command steps run, not through Git hooks or a redirected .git file, and credentials in its change stop the
 // Run before review. The reviewer gets the committed diff.
 func TestHostileAgentCannotEscapeThroughLoopbee(t *testing.T) {
@@ -953,10 +953,10 @@ func TestHostileAgentCannotEscapeThroughLoopbee(t *testing.T) {
 			t.Fatalf("commit: %+v", r)
 		}
 		if _, err := os.Stat(marker); err == nil {
-			t.Fatal("a hook written by the agent was executed by Loopbee")
+			t.Fatal("a hook written by the agent was executed by loopbee")
 		}
 	})
-	t.Run("redirected .git file stops Loopbee's Git", func(t *testing.T) {
+	t.Run("redirected .git file stops loopbee's Git", func(t *testing.T) {
 		a, l, _ := setup(t, "gitfile")
 		r, _ := a.Start(l.ID)
 		waitStatus(t, a, r.ID, "failed")

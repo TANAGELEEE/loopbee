@@ -4,7 +4,7 @@
     "v": 1,
     "at": "2026-10-10T08:05:00Z"
   },
-  "title": "Loopbee 看板設計",
+  "title": "loopbee 看板設計",
   "launch": {
     "view": "canvas"
   },
@@ -250,7 +250,7 @@
     "t1": {
       "x": 0,
       "y": -300,
-      "text": "Loopbee 看板 · quiet-dashboard-ui 風格設計稿",
+      "text": "loopbee 看板 · quiet-dashboard-ui 風格設計稿",
       "kind": "title1",
       "maxW": 2640
     },

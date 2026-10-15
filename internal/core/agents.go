@@ -13,14 +13,14 @@ import (
 	"time"
 )
 
-// Agent is a locally installed agent CLI that Loopbee can drive headlessly.
+// Agent is a locally installed agent CLI that loopbee can drive headlessly.
 type Agent struct {
 	Name    string   `json:"name"`
 	Label   string   `json:"label"`
 	Path    string   `json:"path"`
 	Version string   `json:"version"`
 	Status  string   `json:"status"`            // available, unverified, unavailable
-	Problem string   `json:"problem,omitempty"` // why it is not available, when Loopbee found it but could not use it
+	Problem string   `json:"problem,omitempty"` // why it is not available, when loopbee found it but could not use it
 	Caps    []string `json:"caps,omitempty"`
 	// Levels are the permission levels this CLI enforces; Enforcement and Flags say how, per level.
 	Levels      []string          `json:"levels"`
@@ -37,7 +37,7 @@ type Agent struct {
 //	read-only          agent may read the working directory only
 //	workspace-write    agent may edit files and run commands inside the working directory, no network
 //	workspace-network  as workspace-write, plus outbound network (git push, deploy, databases, APIs)
-//	agent-config       Loopbee adds no sandbox flags; the agent's own config/profile/settings decide
+//	agent-config       loopbee adds no sandbox flags; the agent's own config/profile/settings decide
 var sandboxRank = map[string]int{"read-only": 0, "workspace-write": 1, "workspace-network": 2, "agent-config": 3}
 
 func validSandbox(s string) bool { _, ok := sandboxRank[s]; return ok }
@@ -136,7 +136,7 @@ func (a *App) DetectAgents() {
 							}
 						}
 					} else {
-						ag.Problem = "this version's help lists none of the headless flags Loopbee needs; update " + ad.Label
+						ag.Problem = "this version's help lists none of the headless flags loopbee needs; update " + ad.Label
 					}
 				}
 			}
@@ -231,11 +231,11 @@ func classifyAgentEvent(line string) (string, bool) {
 	return claudeClassify(line)
 }
 
-// Result contract appended to every agent step so Loopbee can tell done from no-op or blocked.
+// Result contract appended to every agent step so loopbee can tell done from no-op or blocked.
 const resultMarker = "LOOPBEE_RESULT"
 
 func resultInstructions(lang string) string {
-	return "\n\n---\nLoopbee runs this step unattended. Report in " + languageName(lang) + ". " +
+	return "\n\n---\nloopbee runs this step unattended. Report in " + languageName(lang) + ". " +
 		"When you finish, end your final message with exactly one line:\n" + resultMarker +
 		` {"status":"done|no_action|blocked|needs_approval","summary":"one or two sentences","links":["URLs of PRs, deployments or reports"]}` +
 		"\nUse no_action when there was nothing to do, blocked when you could not proceed (missing access, failing preconditions), and needs_approval when a person must decide before anything else happens. Never include secrets in the summary." +

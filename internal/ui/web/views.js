@@ -171,7 +171,7 @@ export function today() {
   </div>
   <div class="cols">
     <div class="main">
-      ${sec(T("Today’s usage"), { note: T("Tokens and cost as each agent CLI reported them; Loopbee does not estimate prices"), id: "usage" })}
+      ${sec(T("Today’s usage"), { note: T("Tokens and cost as each agent CLI reported them; loopbee does not estimate prices"), id: "usage" })}
       ${todayUsage(todays)}
     </div>
     <div class="side">
@@ -222,7 +222,7 @@ export function loops(q) {
   <div class="sec top-sec"><h2>Loops</h2><span class="note">${T("{a} enabled · {b} paused", { a: counts.enabled, b: counts.paused })}</span><div class="act">${seg("filter", filter, [["all", t("All")], ["enabled", t("Enabled")], ["paused", t("Paused")], ["attention", t("Needs you") + (counts.attention ? ` ${counts.attention}` : "")], ["private", t("Private")]], { action: "loops-filter", label: t("Filter") })}<input class="inp search" id="search" type="search" value="${esc(q.search || "")}" placeholder="${T("Search name or purpose")}" aria-label="${T("Search")}"></div></div>
   <div class="grp">${shown.length ? shown.map(row).join("") : s.loops.length ? empty(T("No matching Loops"), "", `<button class="btn sm" data-action="clear-filter">${T("Clear filters")}</button>`) : empty(T("No Loops yet"), T("Start from a template below or paste your own definition."), viewer() ? "" : `<a class="btn pri sm" href="#/new">${T("Add your first Loop")}</a>`)}${hidden > 0 ? `<button type="button" class="foot" data-action="show-disabled">${T("Show {n} paused Loop|Show {n} paused Loops", { n: hidden })} ⌄</button>` : q.showDisabled && filter === "all" && counts.paused ? `<button type="button" class="foot" data-action="show-disabled">${T("Hide paused Loops")} ⌃</button>` : ""}</div>
   ${viewer() ? "" : `${sec(T("Start from a template"), { note: T("Templates still go through the editor checks before saving"), act: `<button class="linkbtn" data-action="import">${T("Paste your own definition")} ›</button>` })}
-  <div class="tpls">${templates().map((tp, i) => `<a class="card sm tpl" href="#/new?template=${i}"><div class="nm">${esc(tp.title)}</div><div class="sub t2">${esc(tp.sub)}</div><span class="chip mut">${T("Template · unverified content")}</span></a>`).join("")}<button type="button" class="card sm tpl" data-action="import-archive"><div class="nm">${T("Import archive")}</div><div class="sub t2">${T("Restore Loops from a Loopbee ZIP; imports are private and disabled")}</div><span class="chip mut">ZIP</span></button></div>`}
+  <div class="tpls">${templates().map((tp, i) => `<a class="card sm tpl" href="#/new?template=${i}"><div class="nm">${esc(tp.title)}</div><div class="sub t2">${esc(tp.sub)}</div><span class="chip mut">${T("Template · unverified content")}</span></a>`).join("")}<button type="button" class="card sm tpl" data-action="import-archive"><div class="nm">${T("Import archive")}</div><div class="sub t2">${T("Restore Loops from a loopbee ZIP; imports are private and disabled")}</div><span class="chip mut">ZIP</span></button></div>`}
   ${footer()}
   </div>`;
 }
@@ -276,7 +276,7 @@ export function loopDetail(id) {
       <div class="grp">
         ${defRow(t("Target"), esc(l.directory), `${l.requireClean ? T("Requires a clean Git working tree") : T("Runs even with uncommitted changes")}${l.lock ? " · " + T("lock {lock}", { lock: l.lock }) : ""}`)}
         ${defRow(t("Agent & permission"), `${esc(agentLabel(l.agent))}${l.model ? " · " + esc(l.model) : ""} · ${esc(sandboxLabel(l.sandbox))}${l.agentMcp ? " · " + T("its own MCP tools") : ""}`, T("This device allows at most: {max}", { max: sandboxLabel(s.settings.maxSandbox) }) + (l.agentMcp ? " · " + T("MCP tools run outside the sandbox with your rights and are approved in advance.") : ""))}
-        ${defRow(t("Workspace"), l.workspace === "worktree" ? T("Fresh git worktree from {ref} for every run", { ref: l.baseRef || "HEAD" }) + (l.branch ? " → " + l.branch : "") : T("Runs directly in the working directory"), l.workspace === "worktree" ? T("Your own checkout and uncommitted work are never touched.") + (l.branch ? " " + T("Loopbee commits the agent's changes on this branch; it never pushes or merges.") : "") : "")}
+        ${defRow(t("Workspace"), l.workspace === "worktree" ? T("Fresh git worktree from {ref} for every run", { ref: l.baseRef || "HEAD" }) + (l.branch ? " → " + l.branch : "") : T("Runs directly in the working directory"), l.workspace === "worktree" ? T("Your own checkout and uncommitted work are never touched.") + (l.branch ? " " + T("loopbee commits the agent's changes on this branch; it never pushes or merges.") : "") : "")}
         ${l.env?.length ? defRow(t("Environment"), `<div class="chips">${l.env.map((e) => `<span class="chip ${e.secret && !e.value ? "warn" : ""}">${esc(e.name)}${e.secret ? " · " + T(e.value ? "secret" : "secret missing") : ""}</span>`).join("")}</div>`, T("Injected into agent and command steps; secrets come from the system keychain.")) : ""}
         ${defRow(t("Work & delivery"), esc(workSummary(l)), l.intake ? T("Only issues opened by people with write access; others' comments never reach the agent.") : "")}
         ${defRow(t("Notifications"), esc(notifySummary(l)), "")}
@@ -295,7 +295,7 @@ export function loopDetail(id) {
       <div class="card sm">${metricRuns.length ? metricChart(metricRuns) : dailyChart(runs)}</div>
       ${sec(T("Schedule"))}
       <div class="grp">
-        <div class="row"><div class="grow"><div class="nm">${esc(cronText(l.cron))}</div><div class="sub">${esc(l.cron ? `${l.timezone} · ${t("triggered by the built-in scheduler")}` : t("Run manually from Loopbee"))}</div></div>${l.cron && !viewer() ? toggle(l.enabled, "toggle-loop", t("Enable schedule"), `data-id="${l.id}"`) : ""}</div>
+        <div class="row"><div class="grow"><div class="nm">${esc(cronText(l.cron))}</div><div class="sub">${esc(l.cron ? `${l.timezone} · ${t("triggered by the built-in scheduler")}` : t("Run manually from loopbee"))}</div></div>${l.cron && !viewer() ? toggle(l.enabled, "toggle-loop", t("Enable schedule"), `data-id="${l.id}"`) : ""}</div>
         <div class="row"><div class="grow"><div class="nm">${T("Agent")}</div><div class="sub">${esc(agentLabel(l.agent))}</div></div><a class="btn sm" href="#/settings/agents">${T("Agent settings")}</a></div>
         <div class="row"><div class="grow"><div class="nm">${T("Missed runs")}</div><div class="sub">${T(l.catchUp ? "After wake-up, run the latest missed occurrence once; others are marked missed" : "Missed occurrences are skipped and recorded")}</div></div></div>
       </div>
@@ -524,7 +524,7 @@ export function gatePage(id) {
     <div class="kv mt10"><span><b>${T("Opened")}</b>${esc(gate ? `${hm(gate.started)} (${t("waited {d}", { d: duration(ctx.now - toDate(gate.started)) })})` : "—")}</span><span><b>Loop</b>${esc(l.name)} · v${l.version}</span><span><b>${T("Round")}</b>${r.round} / ${l.maxRounds}</span><span><b>${T("Expires")}</b>${esc(gate ? when(new Date(toDate(gate.started).getTime() + (l.gateHours || 72) * 3600e3).toISOString()) : "—")}</span></div>
   </div>
   ${r.result ? `<div class="bn mt10">${resultChip(r.result)}<span class="grow">${esc(r.result.summary || "")}${(r.result.links || []).map((u) => ` <span class="mono">${esc(u)}</span>`).join("")}</span></div>` : ""}
-  <div class="bn mt10">${icon("idle")}<span>${T("Approving lets Loopbee continue with the next step. Sending back ends this run as “Sent back”; nothing is reverted. Your note is stored with the decision.")}</span></div>
+  <div class="bn mt10">${icon("idle")}<span>${T("Approving lets loopbee continue with the next step. Sending back ends this run as “Sent back”; nothing is reverted. Your note is stored with the decision.")}</span></div>
   <div class="cols">
     <div class="main">
       ${sec(T("Evidence from this round"), { note: T("{n} item|{n} items", { n: prior.length }) })}

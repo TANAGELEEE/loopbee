@@ -12,8 +12,8 @@ import (
 
 // MCP tools are how agents reach a browser, a database, a console or a ticket system. An unattended Run has nobody
 // to answer the CLI's approval prompt, so without help every such call is refused ("MCP tool call requires approval,
-// but approval policy is never"). Loop.AgentMCP approves all of them in advance, per CLI; without it Loopbee
-// disables them below agent-config, so a level such as read-only stays what it says. Loopbee adds no MCP servers of
+// but approval policy is never"). Loop.AgentMCP approves all of them in advance, per CLI; without it loopbee
+// disables them below agent-config, so a level such as read-only stays what it says. loopbee adds no MCP servers of
 // its own: the agent uses what it is set up with.
 
 // agentMCPServers lists the MCP servers of the agent's own setup (sorted, unique). It may be incomplete.
@@ -33,7 +33,7 @@ func agentMCPServers(agent, home, project string) []string {
 }
 
 // mcpRefused lists MCP tool calls the CLI refused because nobody could approve them, for the Run's missing list.
-// allowed: the Loop already approves the agent's MCP tools, so the server must be defined where Loopbee cannot
+// allowed: the Loop already approves the agent's MCP tools, so the server must be defined where loopbee cannot
 // approve it (Codex: outside the user's config.toml).
 func mcpRefused(agent string, output []byte, allowed bool) []string {
 	a, ok := adapterFor(agent)
@@ -228,7 +228,7 @@ func fmtLabel(label, name string) string {
 // mcpNote is the missing-list text for an MCP tool nobody could approve.
 const (
 	mcpNote        = "MCP tool %s: needs an approval nobody can give in an unattended Run (turn on “Use the agent's own MCP tools” for this Loop)"
-	mcpNoteAllowed = "MCP tool %s: still needs an approval; its server is defined where Loopbee cannot approve it (for Codex: outside your ~/.codex/config.toml, e.g. a project's .codex/config.toml), so set default_tools_approval_mode = \"approve\" for it there"
+	mcpNoteAllowed = "MCP tool %s: still needs an approval; its server is defined where loopbee cannot approve it (for Codex: outside your ~/.codex/config.toml, e.g. a project's .codex/config.toml), so set default_tools_approval_mode = \"approve\" for it there"
 )
 
 // mcpServerState is one MCP server as the CLI reports it.

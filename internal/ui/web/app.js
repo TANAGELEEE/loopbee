@@ -1,4 +1,4 @@
-// Loopbee UI shell: routing, header, polling, dialogs, menus, toasts and actions.
+// loopbee UI shell: routing, header, polling, dialogs, menus, toasts and actions.
 import { ctx, t, T, esc, $, $$, applyVars, btn, icon, icons, navIcons, active, hm, cronText, sandboxLabel } from "./ui.js";
 import * as V from "./views.js";
 import { editorPage, gapsPanel, gaps, newDraft, definitionOnly, settingsPage, settingsTabs, onboardingPage, STEP_KINDS, kindLabel } from "./forms.js";
@@ -111,7 +111,7 @@ function render() {
   if (!s) return;
   ctx.now = Date.now();
   document.documentElement.lang = ctx.lang;
-  document.title = "Loopbee";
+  document.title = "loopbee";
   const dark = s.settings.theme === "dark" || (s.settings.theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
   document.body.classList.toggle("dark", dark);
   document.body.classList.toggle("nomo", !s.settings.motion);
@@ -206,7 +206,7 @@ function sidebar(page) {
   const cur = navPage(page);
   const viewerTag = V.viewer() ? `<span class="chip mut">${T("Viewer")}</span>` : "";
   const item = (id, l, ic) => `<a href="#/${id === "settings" ? "settings/general" : id}" class="sb-i ${cur === id ? "on" : ""}" ${cur === id ? 'aria-current="page"' : ""}${id === "settings" ? "" : ` data-vt="nav-${id}"`}>${ic}<span>${T(l)}</span></a>`;
-  return `<div class="sb-top"><a class="brand" href="#/today"><span class="mark" aria-hidden="true"></span>Loopbee${viewerTag}</a></div><nav class="sb-scroll" aria-label="${T("Main")}">${NAV.map(([id, l]) => item(id, l, navIcons[id])).join("")}</nav><div class="sb-foot">${item("settings", "Settings", navIcons.settings)}</div>`;
+  return `<div class="sb-top"><a class="brand" href="#/today"><span class="mark" aria-hidden="true"></span>loopbee${viewerTag}</a></div><nav class="sb-scroll" aria-label="${T("Main")}">${NAV.map(([id, l]) => item(id, l, navIcons[id])).join("")}</nav><div class="sb-foot">${item("settings", "Settings", navIcons.settings)}</div>`;
 }
 function sideToggle(side) {
   const label = T(side ? "Hide sidebar" : "Show sidebar");
@@ -266,14 +266,14 @@ function header(page, side) {
   const langShort = { "zh-TW": "繁", "zh-CN": "简", en: "EN" }[ctx.lang];
   const viewerTag = V.viewer() ? `<span class="chip mut">${T("Viewer")}</span>` : "";
   if (page === "onboarding")
-    return `<a class="brand" href="#/today"><span class="mark" aria-hidden="true"></span>Loopbee</a><span></span><div class="tools"><button type="button" class="btn ghost sm" id="language" data-action="lang-menu" aria-haspopup="menu" aria-label="${T("Language")}">${langShort} ▾</button><button type="button" class="btn ghost sm" data-action="finish-onboarding" data-href="#/today">${T("Skip setup")}</button></div>`;
-  const lead = side ? `<div class="lead">${sideToggle(true)}${crumb(page)}</div><span></span>` : `<div class="lead"><a class="brand" href="#/today"><span class="mark" aria-hidden="true"></span>Loopbee${viewerTag}</a>${phoneQuery.matches ? "" : sideToggle(false)}</div><nav class="nav" aria-label="${T("Main")}">${nav.map(([id, l]) => `<a href="#/${id}" class="${cur === id ? "on" : ""}" ${cur === id ? 'aria-current="page"' : ""} data-vt="nav-${id}">${T(l)}</a>`).join("")}</nav>`;
+    return `<a class="brand" href="#/today"><span class="mark" aria-hidden="true"></span>loopbee</a><span></span><div class="tools"><button type="button" class="btn ghost sm" id="language" data-action="lang-menu" aria-haspopup="menu" aria-label="${T("Language")}">${langShort} ▾</button><button type="button" class="btn ghost sm" data-action="finish-onboarding" data-href="#/today">${T("Skip setup")}</button></div>`;
+  const lead = side ? `<div class="lead">${sideToggle(true)}${crumb(page)}</div><span></span>` : `<div class="lead"><a class="brand" href="#/today"><span class="mark" aria-hidden="true"></span>loopbee${viewerTag}</a>${phoneQuery.matches ? "" : sideToggle(false)}</div><nav class="nav" aria-label="${T("Main")}">${nav.map(([id, l]) => `<a href="#/${id}" class="${cur === id ? "on" : ""}" ${cur === id ? 'aria-current="page"' : ""} data-vt="nav-${id}">${T(l)}</a>`).join("")}</nav>`;
   return `${lead}<div class="tools">${!V.viewer() && ["today", "loops", "loop"].includes(page) ? `<a class="btn" href="#/new">＋ <span class="new-label">${T("New Loop")}</span></a>` : ""}${s.settings.paused ? `<a class="chip warn" href="#/settings/general">${icon("warn")}${T("Paused")}</a>` : ""}${s.update?.state === "ready" ? `<a class="chip ok" id="update-chip" href="#/settings/general">${T("Update {version} ready", { version: s.update.latest })}</a>` : ""}<button type="button" class="btn ghost sm" id="language" data-action="lang-menu" aria-haspopup="menu" aria-label="${T("Language")}">${langShort} ▾</button><button type="button" class="ib" data-action="refresh" aria-label="${T("Refresh")}" title="${T("Refresh")}">${icons.refresh}</button>${side ? "" : `<a class="ib ${page === "settings" ? "on" : ""}" href="#/settings/general" aria-label="${T("Settings")}" title="${T("Settings")}">${icons.gear}</a>`}</div>`;
 }
 function banners() {
   const s = ctx.state;
   const list = [];
-  if (!ctx.connected) list.push(`<div class="bn err">${icon("err")}<span class="grow">${T("Loopbee core is not responding. Showing data from {time}; reconnecting every 3 seconds.", { time: hm(s.updated) })}</span>${btn("Retry", "refresh", { cls: "sm" })}</div>`);
+  if (!ctx.connected) list.push(`<div class="bn err">${icon("err")}<span class="grow">${T("loopbee core is not responding. Showing data from {time}; reconnecting every 3 seconds.", { time: hm(s.updated) })}</span>${btn("Retry", "refresh", { cls: "sm" })}</div>`);
   if (s.settings.paused) list.push(`<div class="bn warn">${icon("warn")}<span class="grow">${T("All schedules are paused. Active runs continue; paused triggers are not recorded as missed.")}</span>${V.viewer() ? "" : btn("Resume", "pause-all", { cls: "sm" })}</div>`);
   if (V.viewer()) list.push(`<div class="bn">${icon("idle")}<span class="grow">${T("Viewer mode: this board shows the team snapshot. Running, approving and editing happen on the executor’s computer.")}</span>${btn("Pull now", "sync", { cls: "sm" })}</div>`);
   const shown = list.slice(0, 2);
@@ -543,7 +543,7 @@ const actions = {
       const body = {
         "workspace-write": t("Loops on this device may then let agents change files inside their working directory. Each Loop must still ask for it explicitly."),
         "workspace-network": t("Agents may then also use the network: push to Git remotes, deploy, reach databases and APIs. Each Loop must still ask for it explicitly."),
-        "agent-config": t("Loopbee will no longer add sandbox flags for Loops that ask for it; whatever the agent's own configuration allows will apply, possibly full access to this computer."),
+        "agent-config": t("loopbee will no longer add sandbox flags for Loops that ask for it; whatever the agent's own configuration allows will apply, possibly full access to this computer."),
       }[value];
       const ok = await confirmDialog({ title: t("Raise the permission limit to “{level}”?", { level: sandboxLabel(value) }), body, ok: t("Allow"), typed: value, danger: value === "agent-config" });
       if (!ok) return;
@@ -586,7 +586,7 @@ const actions = {
     toast(t("Marked as reviewed"));
   },
   "cancel-run": async (b) => {
-    const ok = await confirmDialog({ title: t("Cancel this run?"), body: t("Loopbee stops the whole process tree. Files the agent already changed stay as they are; evidence collected so far is kept."), ok: t("Cancel run"), cancel: t("Keep running"), danger: true });
+    const ok = await confirmDialog({ title: t("Cancel this run?"), body: t("loopbee stops the whole process tree. Files the agent already changed stay as they are; evidence collected so far is kept."), ok: t("Cancel run"), cancel: t("Keep running"), danger: true });
     if (ok) {
       await mutate(`/runs/${b.dataset.id}/cancel`);
       toast(t("Run cancelled"));
@@ -655,7 +655,7 @@ const actions = {
   },
   "check-delivery": async (b) => {
     const d = ctx.state.deliveries.find((x) => x.id === b.dataset.id);
-    const v = await confirmDialog({ title: t("Check this notification"), body: t("{channel} · {when}. The request timed out, so Loopbee cannot tell whether it arrived. Please look in {channel}.", { channel: d.channel, when: new Date(d.updated).toLocaleString(ctx.lang) }), choices: [["received", t("It arrived"), t("Leave it as is")], ["resend", t("It did not arrive — resend"), t("May create a duplicate; only the notification is resent")]], ok: t("Confirm") });
+    const v = await confirmDialog({ title: t("Check this notification"), body: t("{channel} · {when}. The request timed out, so loopbee cannot tell whether it arrived. Please look in {channel}.", { channel: d.channel, when: new Date(d.updated).toLocaleString(ctx.lang) }), choices: [["received", t("It arrived"), t("Leave it as is")], ["resend", t("It did not arrive — resend"), t("May create a duplicate; only the notification is resent")]], ok: t("Confirm") });
     if (v === "resend") {
       await mutate("/deliveries/" + d.id + "/retry");
       toast(t("Resend queued"));
@@ -1292,7 +1292,7 @@ async function boot() {
       if (!busy() && ctx.state.runs.some(active)) render();
     }, 60000);
   } catch {
-    $("#app").innerHTML = `<div class="card mt14"><div class="empty"><span class="mark xl" aria-hidden="true"></span><div class="nm">${T("Loopbee is not connected")}</div><div class="sub">${T("Open Loopbee using launch-url.txt in the application data directory.")}</div></div></div>`;
+    $("#app").innerHTML = `<div class="card mt14"><div class="empty"><span class="mark xl" aria-hidden="true"></span><div class="nm">${T("loopbee is not connected")}</div><div class="sub">${T("Open loopbee using launch-url.txt in the application data directory.")}</div></div></div>`;
   }
 }
 boot();

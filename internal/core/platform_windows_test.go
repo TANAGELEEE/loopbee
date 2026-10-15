@@ -17,7 +17,7 @@ import (
 )
 
 func TestWindowsAutostartCommandRoundTrip(t *testing.T) {
-	args := []string{`C:\Program Files\Loopbee\loopbee.exe`, "-data", `D:\资料 & $()\trailing\`, "-nogui"}
+	args := []string{`C:\Program Files\loopbee\loopbee.exe`, "-data", `D:\资料 & $()\trailing\`, "-nogui"}
 	command, err := autostartCommand(args)
 	if err != nil {
 		t.Fatal(err)
@@ -200,7 +200,7 @@ func TestWindowsPlatformIntegration(t *testing.T) {
 		secret := "loopbee-integration-secret-" + newID()
 		settings.Channels = []Channel{{Kind: "telegram", Secret: secret}}
 		defer func() {
-			if err := keyring.Delete(Brand, settings.Publisher+"/telegram/secret"); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+			if err := keyring.Delete(keyringService, settings.Publisher+"/telegram/secret"); err != nil && !errors.Is(err, keyring.ErrNotFound) {
 				t.Errorf("remove integration-test credential: %v", err)
 			}
 		}()
@@ -230,7 +230,7 @@ func TestWindowsToastIntegration(t *testing.T) {
 	if os.Getenv("LOOPBEE_WINDOWS_TOAST_TEST") != "1" {
 		t.Skip("set LOOPBEE_WINDOWS_TOAST_TEST=1 to submit one native local test notification")
 	}
-	status, err := sendDesktopNotification(context.Background(), "Loopbee Windows desktop test · 中文 < & >")
+	status, err := sendDesktopNotification(context.Background(), "loopbee Windows desktop test · 中文 < & >")
 	if err != nil || status != "sent" {
 		t.Fatalf("native toast: %s %v", status, err)
 	}

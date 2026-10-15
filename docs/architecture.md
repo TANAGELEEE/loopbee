@@ -5,7 +5,7 @@ The original overview did not include its referenced subpages. This directory do
 ```mermaid
 flowchart LR
   W[Windows or macOS Wails / local browser] --> H[Loopback HTTP + session authentication]
-  H --> C[Loopbee core]
+  H --> C[loopbee core]
   S[Cron scheduler] --> C
   C --> D[(SQLite)]
   C --> A[Local Codex exec]

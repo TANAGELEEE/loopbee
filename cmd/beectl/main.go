@@ -1,4 +1,4 @@
-// beectl is the command-line companion of Loopbee. It talks to the running app over its loopback API
+// beectl is the command-line companion of loopbee. It talks to the running app over its loopback API
 // using the launch token in <data>/launch-url.txt, so agents (Codex, Claude Code) can create draft loops,
 // inspect runs and start loops from their own conversations.
 package main
@@ -79,7 +79,7 @@ type client struct {
 func connect(dir string) (*client, error) {
 	b, err := os.ReadFile(filepath.Join(dir, "launch-url.txt"))
 	if err != nil {
-		return nil, fmt.Errorf("Loopbee does not seem to be running (no launch-url.txt in %s); start the app first", dir)
+		return nil, fmt.Errorf("loopbee does not seem to be running (no launch-url.txt in %s); start the app first", dir)
 	}
 	url := strings.TrimSpace(string(b))
 	base, frag, ok := strings.Cut(url, "/#")
@@ -90,7 +90,7 @@ func connect(dir string) (*client, error) {
 	jar, _ := cookiejar.New(nil)
 	c := &client{base: base, http: &http.Client{Jar: jar, Timeout: 30 * time.Second}}
 	if err := c.do("POST", "/api/session", map[string]string{"token": token}, nil); err != nil {
-		return nil, fmt.Errorf("cannot reach Loopbee at %s: %w", base, err)
+		return nil, fmt.Errorf("cannot reach loopbee at %s: %w", base, err)
 	}
 	return c, nil
 }
@@ -203,7 +203,7 @@ func positional(args []string, valued ...string) []string {
 
 func run(args []string, out io.Writer) error {
 	fs := flag.NewFlagSet("beectl", flag.ContinueOnError)
-	data := fs.String("data", "", "Loopbee data directory (default: LOOPBEE_DATA_DIR or the app default)")
+	data := fs.String("data", "", "loopbee data directory (default: LOOPBEE_DATA_DIR or the app default)")
 	version := fs.Bool("version", false, "print beectl's version")
 	fs.SetOutput(io.Discard)
 	if err := fs.Parse(args); err != nil {
@@ -236,7 +236,7 @@ func run(args []string, out io.Writer) error {
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(out, "Loopbee %s · %s/%s · data %s\n", s.Info.Version, s.Info.OS, s.Info.Arch, s.Info.DataDir)
+		fmt.Fprintf(out, "loopbee %s · %s/%s · data %s\n", s.Info.Version, s.Info.OS, s.Info.Arch, s.Info.DataDir)
 		fmt.Fprintf(out, "default agent: %s · permission ceiling: %s · schedules paused: %v\n", orDash(s.Settings.DefaultAgent), s.Settings.MaxSandbox, s.Settings.Paused)
 		for _, a := range s.Agents {
 			fmt.Fprintf(out, "  %-7s %-11s %s\n", a.Name, a.Status, a.Version)
@@ -354,13 +354,13 @@ func run(args []string, out io.Writer) error {
 		var after core.State
 		if err := c.do("POST", "/api/loops", l, &after); err != nil {
 			if strings.Contains(err.Error(), "permission exceeds this device's limit") {
-				return fmt.Errorf("Loopbee rejected the draft: it needs the permission %q, but this device allows at most %q.\nRaise it in Loopbee → Settings → General → Maximum permission, then run this command again", l.Sandbox, s.Settings.MaxSandbox)
+				return fmt.Errorf("loopbee rejected the draft: it needs the permission %q, but this device allows at most %q.\nRaise it in loopbee → Settings → General → Maximum permission, then run this command again", l.Sandbox, s.Settings.MaxSandbox)
 			}
-			return fmt.Errorf("Loopbee rejected the draft: %w", err)
+			return fmt.Errorf("loopbee rejected the draft: %w", err)
 		}
 		for _, x := range after.Loops {
 			if !before[x.ID] {
-				fmt.Fprintf(out, "Created draft %q (%s), schedule off.\nOpen Loopbee → Loops → %s to review it, run it once, then enable the schedule.\n", x.Name, x.ID, x.Name)
+				fmt.Fprintf(out, "Created draft %q (%s), schedule off.\nOpen loopbee → Loops → %s to review it, run it once, then enable the schedule.\n", x.Name, x.ID, x.Name)
 				return nil
 			}
 		}
@@ -400,7 +400,7 @@ func run(args []string, out io.Writer) error {
 			fmt.Fprintf(out, "Started run %s of %q (%s)\n", r.ID, l.Name, r.Status)
 			return nil
 		}
-		return errors.New("Loopbee accepted the request but no new run appeared; check beectl runs")
+		return errors.New("loopbee accepted the request but no new run appeared; check beectl runs")
 	case "cancel":
 		s, err := c.state()
 		if err != nil {
@@ -535,7 +535,7 @@ func draftFromJSON(src []byte, c core.Settings) (core.Loop, error) {
 	}
 	for i := range l.Env {
 		if l.Env[i].Secret && l.Env[i].Value != "" && !strings.HasPrefix(l.Env[i].Value, "env:") {
-			return l, fmt.Errorf("secret %s must not be in the definition; leave its value empty and fill it in Loopbee", l.Env[i].Name)
+			return l, fmt.Errorf("secret %s must not be in the definition; leave its value empty and fill it in loopbee", l.Env[i].Name)
 		}
 	}
 	return l, nil

@@ -232,8 +232,8 @@ func TestClaudeReadRules(t *testing.T) {
 	if got := claudeReadRule("/Users/lee/.claude/CLAUDE.md", false); got != "Read(//Users/lee/.claude/CLAUDE.md)" {
 		t.Fatal(got)
 	}
-	if claudeProjectKey("/Users/lee/workspaces/Loopbee") != "-Users-lee-workspaces-Loopbee" {
-		t.Fatal(claudeProjectKey("/Users/lee/workspaces/Loopbee"))
+	if claudeProjectKey("/Users/lee/workspaces/loopbee") != "-Users-lee-workspaces-loopbee" {
+		t.Fatal(claudeProjectKey("/Users/lee/workspaces/loopbee"))
 	}
 }
 
@@ -272,7 +272,7 @@ func toStrings(v []any) []string {
 	return out
 }
 
-// A fresh worktree has none of the project's ignored files (.env, CLAUDE.local.md). Loopbee copies the listed ones
+// A fresh worktree has none of the project's ignored files (.env, CLAUDE.local.md). loopbee copies the listed ones
 // and the agents' local files, and never commits them, even when the agent un-ignores and changes them.
 func TestWorktreeCopiesIgnoredFilesAndNeverCommitsThem(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
@@ -340,6 +340,14 @@ func TestWorktreeCopiesIgnoredFilesAndNeverCommitsThem(t *testing.T) {
 	}
 }
 
+// The product name became lowercase, but secrets saved before stay under the old keychain service; macOS matches it
+// case-sensitively, so renaming it would make every saved secret unreadable.
+func TestKeychainServiceSurvivesTheRename(t *testing.T) {
+	if keyringService != "Loopbee" {
+		t.Fatalf("keychain service is %q; secrets saved by earlier versions are stored under \"Loopbee\"", keyringService)
+	}
+}
+
 // Apps started from the Dock or at login do not see what the shell profile exports; env: references ask the login
 // shell, and a missing variable says where to set it.
 func TestEnvReferenceFallsBackToLoginShell(t *testing.T) {
@@ -356,7 +364,7 @@ func TestEnvReferenceFallsBackToLoginShell(t *testing.T) {
 	}
 	t.Setenv("LOOPBEE_ONLY_IN_PROFILE", "from-app")
 	if v, _ := resolveSecret("env:LOOPBEE_ONLY_IN_PROFILE"); v != "from-app" {
-		t.Fatal("Loopbee's own environment must win")
+		t.Fatal("loopbee's own environment must win")
 	}
 	os.WriteFile(shell, []byte("#!/bin/sh\nprintf '\\n__LOOPBEE_ENV__\\n'\n"), 0700)
 	_, err := resolveSecret("env:LOOPBEE_NOWHERE")
@@ -396,7 +404,7 @@ func TestResultListsWhatWasMissing(t *testing.T) {
 	}
 }
 
-// Claude Code's own advice (set sandbox.failIfUnavailable=false) cannot work under Loopbee; the error says what does.
+// Claude Code's own advice (set sandbox.failIfUnavailable=false) cannot work under loopbee; the error says what does.
 func TestClaudeSandboxUnavailableSaysHowToFix(t *testing.T) {
 	reason := "Sandbox required but unavailable: sandbox is enabled but the Windows sandbox is not active on this session (feature gate off)."
 	if got := explainFailure("claude", reason, "windows"); !strings.Contains(got, "Switch this Loop to Codex") || !strings.Contains(got, "agent-config") || !strings.HasPrefix(got, reason) {
@@ -422,7 +430,7 @@ func TestClaudeSandboxUnavailableSaysHowToFix(t *testing.T) {
 	r, _ := a.Start(l.ID)
 	waitStatus(t, a, r.ID, "failed")
 	r, _ = a.Run(r.ID)
-	if !strings.Contains(r.Error, "Sandbox required but unavailable") || !strings.Contains(r.Error, "has no effect: Loopbee sets it") {
+	if !strings.Contains(r.Error, "Sandbox required but unavailable") || !strings.Contains(r.Error, "has no effect: loopbee sets it") {
 		t.Fatal(r.Error)
 	}
 }

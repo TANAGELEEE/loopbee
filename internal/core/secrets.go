@@ -13,14 +13,14 @@ func resolveSecret(value string) (string, error) {
 	if name, ok := strings.CutPrefix(value, "env:"); ok {
 		v, ok := userEnv(name)
 		if !ok {
-			return "", fmt.Errorf("%s is not set in Loopbee's environment or your login shell; export it in your shell profile (Windows: set it as a user environment variable), or store the value in Loopbee instead", name)
+			return "", fmt.Errorf("%s is not set in loopbee's environment or your login shell; export it in your shell profile (Windows: set it as a user environment variable), or store the value in loopbee instead", name)
 		}
 		return v, nil
 	}
 	if ref, ok := strings.CutPrefix(value, "keyring:"); ok {
-		v, err := keyring.Get(Brand, ref)
+		v, err := keyring.Get(keyringService, ref)
 		if err != nil {
-			return "", errors.New("the stored value is missing from the system keychain; enter it again in Loopbee")
+			return "", errors.New("the stored value is missing from the system keychain; enter it again in loopbee")
 		}
 		return v, nil
 	}
@@ -31,7 +31,7 @@ func storeSecret(publisher, field, value string) (string, error) {
 		return value, nil
 	}
 	ref := publisher + "/" + field
-	if err := keyring.Set(Brand, ref, value); err != nil {
+	if err := keyring.Set(keyringService, ref, value); err != nil {
 		return "", errors.New("system keychain unavailable; use env:VARIABLE_NAME for headless credentials")
 	}
 	return "keyring:" + ref, nil

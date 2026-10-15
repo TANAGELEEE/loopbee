@@ -68,17 +68,17 @@ Same container and module setup as the second pass.
 
 Not run: real Codex CLI, real model calls, Windows/macOS desktop builds of this pass, real notification channels.
 
-## Fourth pass: real agents, Loopbee-managed branches, CI and releases (2026-10-11 – 10-12)
+## Fourth pass: real agents, loopbee-managed branches, CI and releases (2026-10-11 – 10-12)
 
 Real-agent smoke test (`scripts/real-smoke.sh` → `tests/real-smoke.mjs`): the packaged binary, a throw-away Git
 repository with a bare origin, and the real CLIs on the developer's subscription.
 
 | Environment | Scenario | Result |
 |---|---|---|
-| macOS 27.0 arm64, packaged `Loopbee.app`, Codex CLI 0.162.1 | report (read-only) | Passed: drafted 39 s, run 40 s, report names the TODO and the failing test |
+| macOS 27.0 arm64, packaged `loopbee.app`, Codex CLI 0.162.1 | report (read-only) | Passed: drafted 39 s, run 40 s, report names the TODO and the failing test |
 | same, Claude Code 2.1.296 | report (read-only) | Passed: drafted 24 s, run 16 s |
 | same, Claude Code 2.1.296 | fix → gate → approve | Passed: branch with the committed fix, checkout untouched, nothing pushed, approval completes the Run |
-| same, Codex CLI 0.162.1 | fix → gate | Failed twice, both fixed: first above the device limit (designer now told the limit), then blocked by Codex's Git sandbox (`HEAD.lock`) → Loopbee-managed branches. **Not re-run since** |
+| same, Codex CLI 0.162.1 | fix → gate | Failed twice, both fixed: first above the device limit (designer now told the limit), then blocked by Codex's Git sandbox (`HEAD.lock`) → loopbee-managed branches. **Not re-run since** |
 | Linux container, Claude Code 2.1.296 | report / fix | Report passed; fix cannot run without bubblewrap (expected; error surfaced) |
 
 Defects found only with real CLIs: UTC default time zone, no shell for read-only Claude Code, Codex cannot write Git
@@ -103,24 +103,24 @@ weekly lessons review (`examples/lessons-review.json`).
 
 Not verified: the DMG step of `build-macos.sh` and the new `build-windows.ps1` section on their platforms; the release
 workflow end to end (first run on the next tag), including the `macos-15-intel` runner and go-winres version flags;
-Codex fix scenario with Loopbee-managed branches; the issue Loop against real GitHub (`gh`), which is only tested
+Codex fix scenario with loopbee-managed branches; the issue Loop against real GitHub (`gh`), which is only tested
 with a fake `gh`.
 
 Security review of the issue Loop (2026-10-12): the first version could execute agent-written code as the user before
-review (a `go test` verify step between agent and gate; repository hooks such as `.husky/` run by Loopbee's commit,
+review (a `go test` verify step between agent and gate; repository hooks such as `.husky/` run by loopbee's commit,
 writable by Claude Code through `--add-dir`). Fixed and covered by `TestHostileAgentCannotEscapeThroughLoopbee`
 (confirmed failing with the hook protection removed): no Git access for agents, hook-less Git with a `.git` check,
 refusal to run agent-changed files, diff artifact and credential scan before the gate, trusted-author filter for issues
-(then in the scripts, now in Loopbee's intake), editor warning for commands between an agent and a gate. Residual risks are listed in
+(then in the scripts, now in loopbee's intake), editor warning for commands between an agent and a gate. Residual risks are listed in
 [docs/workflows/issue-loop.md](workflows/issue-loop.md).
 
 
-## Fifth pass: issue intake and pull requests built into Loopbee (2026-10-12)
+## Fifth pass: issue intake and pull requests built into loopbee (2026-10-12)
 
 The repository scripts that picked issues and opened pull requests (`scripts/loopbee/*.mjs`) were replaced by Loop
-settings run by Loopbee: `intake` (GitHub issues, trusted authors only, claim label, fenced prompt, `{issue}` branch,
+settings run by loopbee: `intake` (GitHub issues, trusted authors only, claim label, fenced prompt, `{issue}` branch,
 no issue → `no_action`) and `pullRequest` (`after-review` with a gate, or `draft`; `.github/` never pushed; link in the
-result and notifications). Any repository can use them; `examples/self-improve.json` is Loopbee's own Loop and contains
+result and notifications). Any repository can use them; `examples/self-improve.json` is loopbee's own Loop and contains
 no commands. Editor section “Work & delivery”, chat authoring (schema, prompt, notify channels), GitHub CLI status in
 Settings › Agents, loop and run details.
 

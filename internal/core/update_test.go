@@ -29,7 +29,7 @@ func releaseFeed(t *testing.T, version, body string) {
 	w.Write([]byte(body))
 	z.Close()
 	archive := buf.Bytes()
-	name := "Loopbee-windows-" + runtime.GOARCH + ".zip"
+	name := "loopbee-windows-" + runtime.GOARCH + ".zip"
 	var srv *httptest.Server
 	srv = httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		switch filepath.Base(r.URL.Path) {

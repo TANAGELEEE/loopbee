@@ -22,10 +22,10 @@ merged changes as the source, but write for users.
 
 | Platform | File | Use |
 |---|---|---|
-| Windows x64 | `Loopbee-windows-amd64.exe` | Run the desktop app directly (not an installer) |
-| Windows x64 | `Loopbee-windows-amd64.zip` | Portable: desktop app, headless `loopbee-nogui.exe` and `beectl.exe` |
-| macOS Apple Silicon | `Loopbee-macos-arm64.dmg` / `.zip` | Open the DMG and drag Loopbee to Applications; the ZIP holds the same app |
-| macOS Intel | `Loopbee-macos-amd64.dmg` / `.zip` | Same, for Intel Macs |
+| Windows x64 | `loopbee-windows-amd64.exe` | Run the desktop app directly (not an installer) |
+| Windows x64 | `loopbee-windows-amd64.zip` | Portable: desktop app, headless `loopbee-nogui.exe` and `beectl.exe` |
+| macOS Apple Silicon | `loopbee-macos-arm64.dmg` / `.zip` | Open the DMG and drag loopbee to Applications; the ZIP holds the same app |
+| macOS Intel | `loopbee-macos-amd64.dmg` / `.zip` | Same, for Intel Macs |
 | All | `SHA256SUMS` | Checksums of every file above |
 
 Add a platform (Windows ARM64, Linux) only once it is built and verified in the release workflow.
@@ -34,6 +34,6 @@ Add a platform (Windows ARM64, Linux) only once it is built and verified in the 
 
 1. Write `docs/releases/vX.Y.Z.md`, commit it.
 2. `git tag vX.Y.Z && git push origin vX.Y.Z`.
-3. To fix the text later, edit the file on the main branch and run *Actions › Release Loopbee › Run workflow*
+3. To fix the text later, edit the file on the main branch and run *Actions › Release loopbee › Run workflow*
    with the tag and **notes only** checked. Running it without “notes only” rebuilds the tag and replaces the
    attachments as well as the text.

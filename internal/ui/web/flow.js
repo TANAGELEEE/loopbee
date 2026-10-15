@@ -83,7 +83,7 @@ export function renderFlow(steps, state, { run, maxRounds, selected = -1 } = {})
   return `<div class="flow" role="list">${parts.join("")}</div>${loop}`;
 }
 
-// Topology: schedule trigger → Loopbee core → agents. Only the Loop's agent is drawn solid.
+// Topology: schedule trigger → loopbee core → agents. Only the Loop's agent is drawn solid.
 export function renderTopology({ loop, run, state, agents, activeCount, host }) {
   const topo = state.topo;
   const using = loop.agent;
@@ -130,6 +130,6 @@ export function renderTopology({ loop, run, state, agents, activeCount, host }) 
     })
     .join("");
   const pathCls = (i) => (i !== idx ? "" : running ? "live" : topo === "lost" ? "lostp" : topo === "idle" || topo === "queued" ? "" : "donep");
-  const label = t("Execution topology: schedule trigger, Loopbee core, {agent}", { agent: list[idx].name }) + (run ? " · " + t(topo === "running" ? "Running" : topo === "waiting" ? "Waiting" : topo === "lost" ? "Interrupted" : "Ended") : "");
-  return `<div class="topo" role="img" aria-label="${esc(label)}"><div class="tn"><div class="tn-ic">${'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>'}</div><div class="nm">${T("Schedule trigger")}</div><span class="mono">${esc(cronText(loop.cron))} · ${T("Manual")}</span></div><span class="lk ${run && topo !== "idle" ? "done" : ""}"></span><div class="tn core"><span class="mark xl" aria-hidden="true"></span><div class="nm core-nm">${T("Loopbee core")}</div><span class="mono">${esc(host)}</span><div class="core-chip">${coreChip}</div>${topo === "waiting" ? bee("perch") : ""}</div><div class="tl" aria-hidden="true"><svg viewBox="0 0 76 138">${paths.map((p, i) => `<path class="${pathCls(i)}" d="${p}"/>`).join("")}</svg>${running ? bee("fly", paths[idx]) : ""}</div><div class="ags">${ags}</div></div>`;
+  const label = t("Execution topology: schedule trigger, loopbee core, {agent}", { agent: list[idx].name }) + (run ? " · " + t(topo === "running" ? "Running" : topo === "waiting" ? "Waiting" : topo === "lost" ? "Interrupted" : "Ended") : "");
+  return `<div class="topo" role="img" aria-label="${esc(label)}"><div class="tn"><div class="tn-ic">${'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>'}</div><div class="nm">${T("Schedule trigger")}</div><span class="mono">${esc(cronText(loop.cron))} · ${T("Manual")}</span></div><span class="lk ${run && topo !== "idle" ? "done" : ""}"></span><div class="tn core"><span class="mark xl" aria-hidden="true"></span><div class="nm core-nm">${T("loopbee core")}</div><span class="mono">${esc(host)}</span><div class="core-chip">${coreChip}</div>${topo === "waiting" ? bee("perch") : ""}</div><div class="tl" aria-hidden="true"><svg viewBox="0 0 76 138">${paths.map((p, i) => `<path class="${pathCls(i)}" d="${p}"/>`).join("")}</svg>${running ? bee("fly", paths[idx]) : ""}</div><div class="ags">${ags}</div></div>`;
 }

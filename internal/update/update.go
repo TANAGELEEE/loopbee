@@ -1,4 +1,4 @@
-// Package update keeps Loopbee current, after magpie's updater (github.com/yetone/magpie, internal/update; MIT).
+// Package update keeps loopbee current, after magpie's updater (github.com/yetone/magpie, internal/update; MIT).
 //
 // Releases are GitHub releases of Repo. The newest one is read from GitHub's API; its files are checked against
 // the release's SHA256SUMS (else the digest GitHub lists per file) before anything is unpacked. The macOS app
@@ -31,9 +31,9 @@ import (
 	"time"
 )
 
-// Repo is the GitHub repository whose releases are Loopbee's (owner/name). Release builds set it with
+// Repo is the GitHub repository whose releases are loopbee's (owner/name). Release builds set it with
 // -ldflags "-X loopbee/internal/update.Repo=…"; LOOPBEE_UPDATE_REPO overrides it.
-var Repo = "TANAGELEEE/Loopbee"
+var Repo = "TANAGELEEE/loopbee"
 
 // Feed is the URL of the newest release in GitHub's API format. LOOPBEE_UPDATE_FEED points it elsewhere, for
 // testing an update against a local server.
@@ -166,7 +166,7 @@ func (c *Client) get(ctx context.Context, rawURL, accept string) (*http.Response
 			return nil, err
 		}
 		req.Header.Set("Accept", accept)
-		req.Header.Set("User-Agent", "Loopbee-updater")
+		req.Header.Set("User-Agent", "loopbee-updater")
 		if token != "" {
 			req.Header.Set("Authorization", "Bearer "+token)
 		}
@@ -205,7 +205,7 @@ func (c *Client) download(ctx context.Context, a Asset) (*http.Response, error) 
 			}
 			req.Header.Set("Accept", "application/octet-stream")
 			req.Header.Set("Authorization", "Bearer "+token)
-			req.Header.Set("User-Agent", "Loopbee-updater")
+			req.Header.Set("User-Agent", "loopbee-updater")
 			// Go drops the Authorization header on the redirect to the storage host.
 			if res, err := c.http().Do(req); err == nil && res.StatusCode == 200 {
 				return res, nil
@@ -393,7 +393,7 @@ func parse(v string) *semver {
 // Target is what an update replaces on this computer.
 type Target struct {
 	OS     string // runtime.GOOS
-	Bundle string // macOS: the Loopbee.app the program runs from
+	Bundle string // macOS: the loopbee.app the program runs from
 	Exe    string // Windows: the running desktop program
 	// Stuck says why it cannot replace itself where it is ("" when it can): "translocated" (macOS moved it aside
 	// because it never left Downloads), "read-only" (run from the disk image), "not-writable" (a folder it may
@@ -406,7 +406,7 @@ func Locate(goos, exe string) Target {
 	t := Target{OS: goos}
 	switch goos {
 	case "darwin":
-		app := path.Dir(path.Dir(path.Dir(exe))) // …/Loopbee.app/Contents/MacOS/loopbee; a macOS path, also when tested elsewhere
+		app := path.Dir(path.Dir(path.Dir(exe))) // …/loopbee.app/Contents/MacOS/loopbee; a macOS path, also when tested elsewhere
 		if path.Ext(app) != ".app" || path.Base(path.Dir(exe)) != "MacOS" {
 			t.Stuck = "unsupported"
 			return t
@@ -432,9 +432,9 @@ func Locate(goos, exe string) Target {
 // AssetName is the release file this target installs from.
 func (t Target) AssetName(arch string) string {
 	if t.OS == "darwin" {
-		return "Loopbee-macos-" + arch + ".zip"
+		return "loopbee-macos-" + arch + ".zip"
 	}
-	return "Loopbee-" + t.OS + "-" + arch + ".zip"
+	return "loopbee-" + t.OS + "-" + arch + ".zip"
 }
 
 // Writable reports whether files can be created in dir.
@@ -449,7 +449,7 @@ func Writable(dir string) bool {
 }
 
 // stageDir is where an update is unpacked: beside what it replaces, so installing it is a rename on one volume,
-// or in the cache when that folder is not Loopbee's to write (the administrator moves it in).
+// or in the cache when that folder is not loopbee's to write (the administrator moves it in).
 func stageDir(dir string) string {
 	if !Writable(dir) {
 		if cache, err := os.UserCacheDir(); err == nil {
@@ -462,7 +462,7 @@ func stageDir(dir string) string {
 // Stage downloads the release's file for t, checks it and unpacks it; it returns what Install puts in place.
 func (c *Client) Stage(ctx context.Context, rel *Release, t Target, arch string) (string, error) {
 	if t.Stuck != "" {
-		return "", fmt.Errorf("this copy of Loopbee cannot replace itself (%s)", t.Stuck)
+		return "", fmt.Errorf("this copy of loopbee cannot replace itself (%s)", t.Stuck)
 	}
 	name := t.AssetName(arch)
 	a, ok := rel.asset(name)
@@ -496,7 +496,7 @@ func (c *Client) Stage(ctx context.Context, rel *Release, t Target, arch string)
 		return "", err
 	}
 	if t.OS == "darwin" {
-		app := filepath.Join(out, "Loopbee.app")
+		app := filepath.Join(out, "loopbee.app")
 		if err := checkApp(ctx, t.Bundle, app, rel.Version); err != nil {
 			os.RemoveAll(dir)
 			return "", err
@@ -514,15 +514,15 @@ func unzipApp(ctx context.Context, archive, out string) error {
 	return nil
 }
 
-// checkApp accepts the unpacked app only if it is Loopbee at the release's version and, when the installed app
+// checkApp accepts the unpacked app only if it is loopbee at the release's version and, when the installed app
 // is signed by a team, signed intact by the same team.
 func checkApp(ctx context.Context, installed, app, version string) error {
 	if _, err := os.Stat(filepath.Join(app, "Contents", "MacOS", "loopbee")); err != nil {
-		return errors.New("the downloaded archive has no Loopbee.app")
+		return errors.New("the downloaded archive has no loopbee.app")
 	}
 	plist, _ := os.ReadFile(filepath.Join(app, "Contents", "Info.plist"))
 	if want := strings.SplitN(version, "-", 2)[0]; !strings.Contains(string(plist), "<string>"+want+"</string>") {
-		return fmt.Errorf("the downloaded Loopbee.app is not version %s", version)
+		return fmt.Errorf("the downloaded loopbee.app is not version %s", version)
 	}
 	if want := team(ctx, installed); want != "" {
 		if b, err := exec.CommandContext(ctx, "codesign", "--verify", "--deep", "--strict", app).CombinedOutput(); err != nil {
@@ -583,7 +583,7 @@ func unzipFiles(archive, out string, names []string) error {
 		found++
 	}
 	if found == 0 {
-		return errors.New("the downloaded archive has none of Loopbee's programs")
+		return errors.New("the downloaded archive has none of loopbee's programs")
 	}
 	return nil
 }
@@ -628,7 +628,7 @@ func swapBundle(staged, bundle string) error {
 }
 
 // installFiles puts the staged programs in place: loopbee.exe as the running program (whatever its name, such
-// as Loopbee-windows-amd64.exe), beectl.exe and loopbee-nogui.exe only where they are already installed beside it.
+// as loopbee-windows-amd64.exe), beectl.exe and loopbee-nogui.exe only where they are already installed beside it.
 // A running .exe cannot be overwritten, but it can be moved aside; the moved copy is removed at the next start.
 func installFiles(staged, exe string) (string, error) {
 	dir := filepath.Dir(exe)
@@ -680,7 +680,7 @@ func moveAside(exe string) (string, error) {
 			os.Chmod(exe, 0o755)
 		}
 	}
-	return "", fmt.Errorf("couldn't move %s aside to put the new version in (%v); another program may have it open (often an antivirus or OneDrive): let Loopbee through it, or download the new version and replace this one", filepath.Base(exe), err)
+	return "", fmt.Errorf("couldn't move %s aside to put the new version in (%v); another program may have it open (often an antivirus or OneDrive): let loopbee through it, or download the new version and replace this one", filepath.Base(exe), err)
 }
 
 func oldName(exe string) string {
@@ -714,7 +714,7 @@ var asAdmin = func(script string) error {
 	if runtime.GOOS != "darwin" {
 		return errors.New("cannot ask for the administrator's password here")
 	}
-	out, err := exec.Command("osascript", "-e", `do shell script "`+appleString(script)+`" with prompt "Loopbee is updating itself." with administrator privileges`).CombinedOutput()
+	out, err := exec.Command("osascript", "-e", `do shell script "`+appleString(script)+`" with prompt "loopbee is updating itself." with administrator privileges`).CombinedOutput()
 	if err != nil && strings.Contains(string(out), "(-128)") {
 		return ErrCanceled
 	}
@@ -758,7 +758,7 @@ func Relaunch(t Target) error {
 	return errors.New("cannot restart here")
 }
 
-// AwaitPredecessor waits, for 30 seconds at most, until the Loopbee that relaunched this one has exited and let
+// AwaitPredecessor waits, for 30 seconds at most, until the loopbee that relaunched this one has exited and let
 // go of the data folder.
 func AwaitPredecessor() {
 	pid, err := strconv.Atoi(os.Getenv("LOOPBEE_REPLACES"))

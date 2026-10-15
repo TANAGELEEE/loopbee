@@ -1,4 +1,4 @@
-# Loopbee 設計稿
+# loopbee 設計稿
 
 - `html/`：每張畫板一個靜態 HTML（共用 `loop.css`）。蜜蜂動效在 Motion.html 與 LoopDetail.html、RunDetail.html、Editor.html 裡即時播放。
 - `png/`：每張畫板的整頁截圖（1280 寬）。

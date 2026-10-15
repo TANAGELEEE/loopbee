@@ -27,7 +27,7 @@ try {
   $notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('app.loopbee.desktop')
   $toast = [Windows.UI.Notifications.ToastNotification]::new($document)
   $notifier.Show($toast)
-  if ($notifier.get_Setting() -ne 'Enabled') { throw 'Windows notifications are disabled for Loopbee or by system policy' }
+  if ($notifier.get_Setting() -ne 'Enabled') { throw 'Windows notifications are disabled for loopbee or by system policy' }
 } catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }
 `
 

@@ -1,7 +1,7 @@
 # Lessons
 
 Read this before changing code. Every entry is something a change in this repository once got wrong, written so
-the next change does not repeat it. Agents (Codex, Claude Code, Loopbee's own Loops) and people use the same file.
+the next change does not repeat it. Agents (Codex, Claude Code, loopbee's own Loops) and people use the same file.
 
 Each lesson is a rule (the heading), the reason, and two lines that `tests/lessons.test.mjs` checks in `npm test`:
 
@@ -44,14 +44,14 @@ every checkout and normalise in code; tests report read errors separately from c
 
 ## Real agent CLIs
 
-Fake CLIs prove Loopbee's side of the contract; only the real CLIs show the other side. Every difference found with
+Fake CLIs prove loopbee's side of the contract; only the real CLIs show the other side. Every difference found with
 a real CLI becomes fake behaviour plus a test, and `scripts/real-smoke.sh` runs before releasing changes to the
 adapters, the authoring prompt or workspaces.
 
 ### Run the real CLIs before trusting the fakes
 All fake-CLI tests passed while the first real run found four defects (the four lessons below). On 10-13 the first
 real run of the new adapters found two more: real pi drafted a Loop at workspace-write, which pi cannot enforce, so
-the draft could not be saved (the designer is now told the agent's levels and Loopbee lowers a level it cannot
+the draft could not be saved (the designer is now told the agent's levels and loopbee lowers a level it cannot
 enforce, saying so); and the developer's OpenCode was killed at start (exit 137) while Settings only said “Not
 detected” (detection now says what failed and how to fix it). Real pi output is kept as test data. The next real
 run had Codex propose a verify step with a metric name but no path, which stopped the draft; a half metric is dropped.
@@ -64,9 +64,9 @@ is information) and their output is appended to later agent prompts.
 - Evidence: `TestCommandOutputReachesTheAgentStep`, `TestAuthorPromptKnowsTheAgentAndTimezone`
 - Seen: 2026-10-11
 
-### Agents do not write Git metadata; Loopbee commits for them
+### Agents do not write Git metadata; loopbee commits for them
 Codex's workspace-write sandbox makes `.git` read-only, including a worktree's gitdir: it created a branch and
-failed on `HEAD.lock`. Loopbee creates the branch in the worktree and commits after each agent step; agents get no
+failed on `HEAD.lock`. loopbee creates the branch in the worktree and commits after each agent step; agents get no
 Git access at all (see “Code the agent wrote never runs as you before review”).
 - Evidence: `TestBranchWorkspaceCommitsForTheAgent`, `tests/agents-e2e.mjs#Agents cannot commit in a worktree`
 - Seen: 2026-10-11
@@ -77,8 +77,8 @@ Chat drafts defaulted to UTC, so “9:00” ran at 17:00 in Taipei. The UI sends
 - Seen: 2026-10-11
 
 ### The designer must know the device's permission limit
-Codex asked for network access to “fetch origin/master”, which Loopbee already does, and the draft could not be
-saved. The prompt states the limit and what Loopbee does itself; a draft above it says how to raise the limit.
+Codex asked for network access to “fetch origin/master”, which loopbee already does, and the draft could not be
+saved. The prompt states the limit and what loopbee does itself; a draft above it says how to raise the limit.
 - Evidence: `TestAuthorFlagsPermissionAboveTheDeviceLimit`, `tests/agents-e2e.mjs#Raise the limit in Settings`
 - Seen: 2026-10-11
 
@@ -86,7 +86,7 @@ saved. The prompt states the limit and what Loopbee does itself; a draft above i
 `beectl create` answered a too-high permission with “permission exceeds this device's limit” and nothing else; the
 user could not tell what to change. It now names the level the draft needs, the device's limit and where to raise it.
 On Windows every Claude Code Loop at a write level failed with the CLI's advice to set `sandbox.failIfUnavailable`,
-which Loopbee overrides; the Run now says to use Codex, WSL2 or agent-config. A missing `env:` variable said
+which loopbee overrides; the Run now says to use Codex, WSL2 or agent-config. A missing `env:` variable said
 “notification environment variable is not set”, also for Loop variables; it now names the variable and where to set it.
 - Evidence: `TestBeectlCreatesDisabledDraftAndRuns`, `TestClaudeSandboxUnavailableSaysHowToFix`, `TestEnvReferenceFallsBackToLoginShell`
 - Seen: 2026-10-12, 2026-10-13
@@ -101,9 +101,9 @@ what each kind of workflow needs. On 10-14 a sync Loop could not use the browser
 to edit a Kubernetes ConfigMap in a web console: `codex exec` refuses every MCP call that needs approval, because
 nobody can answer the prompt, and the Run only said “blocked”. One switch per Loop now approves the agent's own MCP
 tools in advance, per CLI (or disables them below agent-config); refusals reach the missing list; a worktree gets the
-project's local MCP servers and pi's project trust; Loopbee adds no browser of its own. On the real Codex an
+project's local MCP servers and pi's project trust; loopbee adds no browser of its own. On the real Codex an
 approval entry for a plugin server the user had switched off switched it on again, and one for a server defined in
-another configuration layer stopped Codex from starting; Loopbee now asks Codex which servers are on and names only
+another configuration layer stopped Codex from starting; loopbee now asks Codex which servers are on and names only
 those it can address.
 - Evidence: `TestAgentContextReachesTheRun`, `TestCodexAndWorktreeGetReadPathsAndMemory`, `TestWorktreeCopiesIgnoredFilesAndNeverCommitsThem`, `TestEnvReferenceFallsBackToLoginShell`, `TestAuthorKnowsTheAgentContext`, `TestAgentMCPToolsPerCLI`, `TestRefusedMCPToolReachesTheRunAndTheSwitchFixesIt`, `TestAuthorKnowsTheAgentsMCPServers`, `tests/agents-e2e.mjs#Use the agent's own MCP tools`
 - Seen: 2026-10-13, 2026-10-14
@@ -118,7 +118,7 @@ workspace-write denies the shell instead of pretending there is no network.
 
 ### Usage is what the CLI reported, never an estimate
 Each CLI reports tokens differently (cached tokens inside or outside the input count, reasoning inside or outside the
-output, a model in the events or only in its configuration). Loopbee normalises them per adapter, shows cost only when
+output, a model in the events or only in its configuration). loopbee normalises them per adapter, shows cost only when
 the CLI reports it, and records the model and tokens per step and per Run.
 - Evidence: `TestEveryAdapterMeetsTheContract`, `TestCodexModelFromConfig`, `tests/agents-e2e.mjs#input 1.0k · cached 200 · output 300`
 - Seen: 2026-10-13
@@ -157,9 +157,9 @@ Loops that read what other people write (issues, e-mail, web pages, logs) must a
 anything its sandbox allows.
 
 ### Code the agent wrote never runs as you before review
-The first issue Loop ran `go test` after the agent and before the gate, outside any sandbox, and Loopbee's commit
+The first issue Loop ran `go test` after the agent and before the gate, outside any sandbox, and loopbee's commit
 ran repository hooks the agent could write (`.husky/`): a prompt-injected issue could have run code with the user's
-credentials. Now agents get no Git access, Loopbee's Git runs without hooks and checks `.git`, command steps refuse
+credentials. Now agents get no Git access, loopbee's Git runs without hooks and checks `.git`, command steps refuse
 files the agent changed, the editor warns about commands between an agent and a gate, and the example has none.
 After a person approved the change at a gate, later commands may run it (a reviewed migration or deploy script):
 refusing those too made “merge → review → migrate → deploy” impossible in one Loop.
@@ -174,7 +174,7 @@ on a continued branch it shows everything not yet reviewed, also when this Run c
 - Seen: 2026-10-12
 
 ### Only trusted people's words reach the agent
-Anyone can open or comment on a public issue. Loopbee's intake takes issues opened by people with write access,
+Anyone can open or comment on a public issue. loopbee's intake takes issues opened by people with write access,
 drops other comments, and fences the text as data.
 - Evidence: `TestIssueIntakeToPullRequestAfterReview`, `TestIssueIntakeWithNothingTrustedCostsNoAgentCall`
 - Seen: 2026-10-12
@@ -184,10 +184,10 @@ The reviewer saw the agent's report, not its change. Each commit is kept as a di
 - Evidence: `TestHostileAgentCannotEscapeThroughLoopbee`, `TestSecretsInPatchIgnoresOrdinaryCode`
 - Seen: 2026-10-12
 
-### Picking work and delivering it belongs to Loopbee, not to the project
+### Picking work and delivering it belongs to loopbee, not to the project
 The first issue Loop used scripts in this repository to pick issues and open pull requests: they only worked here,
 the agent could edit them, and every other project would have needed a copy. Intake and pull requests are now Loop
-settings implemented in Loopbee; the project only says how to work (AGENTS.md).
+settings implemented in loopbee; the project only says how to work (AGENTS.md).
 - Evidence: `TestIssueIntakeToPullRequestAfterReview`, `TestDraftPullRequestAndNoAutomaticCIChanges`, `TestSelfImproveExampleIsValid`
 - Seen: 2026-10-12
 
@@ -199,7 +199,7 @@ could not create the worktree. A missing base now names the remote branches that
 
 ### Release a claim when no agent worked on it
 Intake labels the issue `agent-working` before the worktree exists. The first self-improvement Run stopped on a
-wrong base ref and kept the label, so every later Run skipped issue #1 and ended “Nothing to do”. Loopbee now
+wrong base ref and kept the label, so every later Run skipped issue #1 and ended “Nothing to do”. loopbee now
 removes the label when a Run ends before an agent started; after that, the label stays until a person removes it.
 - Evidence: `TestIntakeExplainsNothingToDoAndReleasesUnstartedClaims`
 - Seen: 2026-10-12
@@ -248,15 +248,15 @@ An hourly issue Loop would otherwise spend an agent call per run. A command step
 - Seen: 2026-10-12
 
 ### A quiet end still says why
-A “Nothing to do” Run showed “All steps succeeded and the completion condition was met.” and hid the reason Loopbee
+A “Nothing to do” Run showed “All steps succeeded and the completion condition was met.” and hid the reason loopbee
 had recorded. The run page shows the Run's own summary, and intake names the issues it passed over (not labelled,
 already being worked on, opened by someone without write access).
 - Evidence: `tests/agents-e2e.mjs#No actionable errors`, `TestIntakeExplainsNothingToDoAndReleasesUnstartedClaims`
 - Seen: 2026-10-12
 
 ### An unfinished Run keeps its work
-In the first self-improvement Run Codex fixed issue #1 and reported blocked; Loopbee ended the Run before
-committing, the next Run would have deleted the worktree, and the leftover branch blocked every retry. Loopbee now
+In the first self-improvement Run Codex fixed issue #1 and reported blocked; loopbee ended the Run before
+committing, the next Run would have deleted the worktree, and the leftover branch blocked every retry. loopbee now
 commits before acting on the agent's result, and a retry of the same issue continues its branch; the reviewer sees
 the whole branch. On that retry Codex found the fix already there and reported “nothing to do”, which ended the Run
 before review: work already on the branch now goes to review and the pull request.
@@ -264,7 +264,7 @@ before review: work already on the branch now goes to review and the pull reques
 - Seen: 2026-10-12
 
 ### A decision is saved when it is made
-After “Approve and continue” the Run stayed “waiting” in storage while Loopbee pushed and opened the pull request,
+After “Approve and continue” the Run stayed “waiting” in storage while loopbee pushed and opened the pull request,
 so the page kept offering the gate and the click looked ignored. The approval and the delivery phase are saved at
 once, and a push never waits for a credential prompt nobody can see.
 - Evidence: `TestApprovalShowsDeliveryWhileItRuns`, `TestPushNeverWaitsForCredentials`
@@ -306,7 +306,7 @@ Hiding buttons did not stop a viewer. Start, SaveLoop, Gate, Cancel and Prune re
 - Evidence: `TestViewerAndArtifactTraversal`, `TestTeamSyncRoundTrip`
 - Seen: initial build
 
-### Deleting a Loop removes what Loopbee created for it
+### Deleting a Loop removes what loopbee created for it
 Deleting a definition left its worktree registered in the developer's repository and its secrets in the keychain.
 Both are removed now; branches (possibly unreviewed work) and Runs stay.
 - Evidence: `TestDeleteLoopCleansUp`

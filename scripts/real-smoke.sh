@@ -1,5 +1,5 @@
 #!/bin/sh
-# Real end-to-end check on this Mac: package Loopbee.app, run the Go tests, then drive the packaged
+# Real end-to-end check on this Mac: package loopbee.app, run the Go tests, then drive the packaged
 # binary with your own agent CLIs — Codex CLI, Claude Code, Gemini CLI, OpenCode, pi (uses your subscriptions for
 # a few short agent runs).
 # Everything runs against a throw-away sample repository in a temp folder; your projects are not touched.
@@ -19,7 +19,7 @@ rm -f .test-data/real-smoke.status
 log=.test-data/real-smoke.log
 (
   set -e
-  echo "== Loopbee real smoke test · $(date '+%Y-%m-%d %H:%M:%S %Z')"
+  echo "== loopbee real smoke test · $(date '+%Y-%m-%d %H:%M:%S %Z')"
   sw_vers 2>/dev/null || true
   uname -m
   echo "== tools"
@@ -42,8 +42,8 @@ echo "== $( [ $status = 0 ] && echo PASSED || echo FAILED ) · log saved to $log
 # Open the packaged app on the smoke test's data so the Loops and Runs created by the real agents can be
 # reviewed in the real window (set LOOPBEE_SMOKE_NO_OPEN=1 to skip).
 kept=$(sed -n 's/^kept: //p' "$log" | tail -1)
-if [ -n "$kept" ] && [ -d "$kept/data" ] && [ -z "${LOOPBEE_SMOKE_NO_OPEN:-}" ] && [ -d bin/Loopbee.app ]; then
-  echo "== opening bin/Loopbee.app with $kept/data"
-  open -n bin/Loopbee.app --args -data "$kept/data"
+if [ -n "$kept" ] && [ -d "$kept/data" ] && [ -z "${LOOPBEE_SMOKE_NO_OPEN:-}" ] && [ -d bin/loopbee.app ]; then
+  echo "== opening bin/loopbee.app with $kept/data"
+  open -n bin/loopbee.app --args -data "$kept/data"
 fi
 exit $status

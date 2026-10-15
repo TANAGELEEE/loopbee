@@ -464,7 +464,7 @@ func TestMergeAfterChecksOnlyWhenGreen(t *testing.T) {
 	if r.Status != "blocked" || len(st.Merged) != 0 || !strings.Contains(r.Error, "no checks ran") {
 		t.Fatalf("no checks: %s %q", r.Status, r.Error)
 	}
-	// A draft was never reviewed in Loopbee: it can never be merged automatically.
+	// A draft was never reviewed in loopbee: it can never be merged automatically.
 	a, l, _, _, _ := issueSetup(t, "edit", []fakeIssue{trustedIssue()}, nil)
 	l.PullRequest = &PullRequest{Mode: "draft", Merge: "after-checks"}
 	if _, err := a.SaveLoop(l); err == nil || !strings.Contains(err.Error(), "a draft has not been reviewed") {
@@ -487,7 +487,7 @@ func TestDraftPullRequestAndNoAutomaticCIChanges(t *testing.T) {
 	r, _ = a.Start(l.ID)
 	waitStatus(t, a, r.ID, "failed")
 	r, _ = a.Run(r.ID)
-	if !strings.Contains(r.Error, "touches .github/workflows/x.yml; Loopbee does not push changes to CI configuration") {
+	if !strings.Contains(r.Error, "touches .github/workflows/x.yml; loopbee does not push changes to CI configuration") {
 		t.Fatal(r.Error)
 	}
 	if st := readFakeGitHub(t, state); len(st.PRs) != 0 || gitOutput(t, origin, "branch", "--list", "loopbee/issue-4") != "" {

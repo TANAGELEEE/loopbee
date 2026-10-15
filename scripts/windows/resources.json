@@ -5,7 +5,7 @@
   "RT_MANIFEST": {
     "#1": {
       "0409": {
-        "description": "Loopbee",
+        "description": "loopbee",
         "minimum-os": "win10",
         "execution-level": "as invoker",
         "dpi-awareness": "per monitor v2",
@@ -20,8 +20,8 @@
         "fixed": { "file_version": "0.1.0.0", "product_version": "0.1.0.0" },
         "info": {
           "0409": {
-            "FileDescription": "Loopbee desktop",
-            "ProductName": "Loopbee",
+            "FileDescription": "loopbee desktop",
+            "ProductName": "loopbee",
             "ProductVersion": "0.1.0",
             "OriginalFilename": "loopbee.exe"
           }

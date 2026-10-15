@@ -85,7 +85,7 @@ func agentToolNote(agent string) string {
 		return ""
 	}
 	return a.ToolNote + "\n  " + a.Label + " enforces these permission levels: " + strings.Join(a.Levels, ", ") +
-		". Never choose another level for it: Loopbee refuses to run it there."
+		". Never choose another level for it: loopbee refuses to run it there."
 }
 
 func authorPrompt(req AuthorRequest, dir, lang, tz, agent, maxSandbox string, draft Loop) string {
@@ -94,7 +94,7 @@ func authorPrompt(req AuthorRequest, dir, lang, tz, agent, maxSandbox string, dr
 	for _, m := range req.Messages {
 		fmt.Fprintf(&conv, "[%s] %s\n", m.Role, m.Text)
 	}
-	return `You are helping a developer configure Loopbee, a local desktop scheduler that runs coding agents
+	return `You are helping a developer configure loopbee, a local desktop scheduler that runs coding agents
 (` + agentLabels() + `) headlessly on a schedule, records evidence, pauses at human gates and sends
 notifications. You are NOT running the workflow now: you only design the Loop definition.
 
@@ -116,19 +116,19 @@ Design rules:
   agent changed before anyone reviewed it; rely on the agent's own sandboxed tests and on CI after the gate.
 - Work from GitHub issues when the user asks for it (“work through our issues”, “fix issues labelled bug”): set
   intake {kind "github-issues", label (empty = agent-ready), repo only when it is not this folder's origin,
-  trustedUsers only for logins the user names}. Each Run Loopbee takes one issue opened by someone with write
+  trustedUsers only for logins the user names}. Each Run loopbee takes one issue opened by someone with write
   access, labels it agent-working and gives it to the agent; no issue means “nothing to do” without an agent call.
   Use workspace "worktree", branch "loopbee/issue-{issue}", baseRef "origin/<default branch>", and one agent step
   whose prompt says to follow the repository's AGENTS.md and lessons if it has them. A schedule such as hourly on
   weekdays suits it.
-- Pull requests are Loopbee's job: set pullRequest.mode "after-review" (default; put a gate after the agent step —
-  the person reviews the diff in Loopbee, then Loopbee pushes and opens the pull request) or "draft" (no gate; a
+- Pull requests are loopbee's job: set pullRequest.mode "after-review" (default; put a gate after the agent step —
+  the person reviews the diff in loopbee, then loopbee pushes and opens the pull request) or "draft" (no gate; a
   draft pull request is the review, e.g. when the user wants to review on GitHub or the phone). Never put push or
   pull-request commands in steps or prompts. Leave mode empty when a branch is enough. When the user wants the
   reviewed change merged without merging by hand, set pullRequest.merge "after-checks" (only with "after-review"):
-  Loopbee waits for the pull request's checks and squash-merges it when all pass, otherwise leaves it open.
+  loopbee waits for the pull request's checks and squash-merges it when all pass, otherwise leaves it open.
 - notify.channels: the channels the user names (telegram, feishu, bark, desktop); empty means all configured.
-- Loopbee hands the output of earlier run/verify steps to later agent steps of the same round. Set
+- loopbee hands the output of earlier run/verify steps to later agent steps of the same round. Set
   continueOnError=true on a run step when a non-zero exit is information, not a failure (e.g. failing tests
   that the agent should report on).
 - This Loop will run with ` + agentLabel(agent) + `. ` + agentToolNote(agent) + `
@@ -143,7 +143,7 @@ Design rules:
   (.env, CLAUDE.local.md, local config). A fresh worktree has no ignored files and no installed dependencies:
   install those with a run step before the agent step (e.g. ["npm","ci"]).
 - env: variables the workflow needs. value "env:NAME" passes the variable NAME from the user's shell
-  (Loopbee also looks in the login shell); otherwise leave value empty and the user fills it in Loopbee.
+  (loopbee also looks in the login shell); otherwise leave value empty and the user fills it in loopbee.
 - model: leave empty (the agent's own default) unless the user names a model for this Loop.
 - agentMcp: true when the work uses the agent's own MCP tools: a browser (to operate a web console, test a site,
   fill a form), a database, a ticket system, a design tool or anything the user does through their agent's
@@ -157,7 +157,7 @@ Design rules:
   explicitly wants the agent's own configuration to decide. For ` + agentLabel(agent) + ` ONLY these are possible: ` +
 		strings.Join(agentLevelsOf(agent), ", ") + `. run steps execute outside the agent, so they never need a higher level.
 - When the Loop changes code, use workspace "worktree" with baseRef (e.g. "origin/master") and branch (e.g.
-  "loopbee/fix-{date}"; {date}, {time}, {run} and {issue} are filled per run). Loopbee fetches baseRef itself (this
+  "loopbee/fix-{date}"; {date}, {time}, {run} and {issue} are filled per run). loopbee fetches baseRef itself (this
   never requires network permission), creates the branch in a fresh worktree and commits the agent's changes after
   each agent step. Agent prompts must therefore NOT create branches, commit or push (agents have no Git access).
   Pull requests come from pullRequest (below). Merging to the main branch or deploying to production is done by the
@@ -369,7 +369,7 @@ func defaultDraft(c Settings, agent string) Loop {
 		AllowedTools: []string{}, Steps: []Step{}}
 }
 
-// normalizeDraft keeps identity and safety-relevant fields under Loopbee's control.
+// normalizeDraft keeps identity and safety-relevant fields under loopbee's control.
 func normalizeDraft(p, base Loop, agent string) Loop {
 	p.ID, p.Version, p.Next, p.Updated = base.ID, base.Version, base.Next, base.Updated
 	p.Directory = base.Directory
@@ -535,9 +535,9 @@ func fallbackLevel(agent, from string) string {
 func levelNote(lang, label, from, to string) string {
 	switch lang {
 	case "zh-TW":
-		return fmt.Sprintf("（Loopbee：%s 無法強制執行「%s」，草稿已改為「%s」。需要的指令請放在代理步驟之前的指令步驟。）", label, from, to)
+		return fmt.Sprintf("（loopbee：%s 無法強制執行「%s」，草稿已改為「%s」。需要的指令請放在代理步驟之前的指令步驟。）", label, from, to)
 	case "zh-CN":
-		return fmt.Sprintf("（Loopbee：%s 无法强制执行“%s”，草稿已改为“%s”。需要的命令请放在代理步骤之前的命令步骤。）", label, from, to)
+		return fmt.Sprintf("（loopbee：%s 无法强制执行“%s”，草稿已改为“%s”。需要的命令请放在代理步骤之前的命令步骤。）", label, from, to)
 	}
-	return fmt.Sprintf("(Loopbee: %s cannot enforce %q, so the draft now uses %q. Put the commands it needs in run steps before the agent step.)", label, from, to)
+	return fmt.Sprintf("(loopbee: %s cannot enforce %q, so the draft now uses %q. Put the commands it needs in run steps before the agent step.)", label, from, to)
 }

@@ -52,7 +52,7 @@ func Open(dir string) (*App, error) {
 		return nil, err
 	}
 	if !ok {
-		return nil, errors.New("Loopbee is already using this data directory")
+		return nil, errors.New("loopbee is already using this data directory")
 	}
 	db, err := sql.Open("sqlite", filepath.Join(dir, "loopbee.db"))
 	if err != nil {
@@ -348,7 +348,7 @@ func (a *App) DeleteLoop(id string) error {
 	return nil
 }
 
-// cleanupLoop removes what Loopbee created for a deleted Loop: its worktree (registered in the developer's
+// cleanupLoop removes what loopbee created for a deleted Loop: its worktree (registered in the developer's
 // repository) and the secret values it stored in the system keychain. Branches stay: they may hold unreviewed work.
 // Runs keep their definition snapshot and evidence until retention prunes them.
 func (a *App) cleanupLoop(l Loop) {
@@ -377,7 +377,7 @@ func (a *App) cleanupLoop(l Loop) {
 
 // deleteSecret removes a stored value from the system keychain; tests replace it.
 var deleteSecret = func(ref string) error {
-	if err := keyring.Delete(Brand, ref); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+	if err := keyring.Delete(keyringService, ref); err != nil && !errors.Is(err, keyring.ErrNotFound) {
 		return err
 	}
 	return nil

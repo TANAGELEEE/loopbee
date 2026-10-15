@@ -218,7 +218,7 @@ func TestSelfImproveExampleIsValid(t *testing.T) {
 	if l.Enabled || l.Intake == nil || l.PullRequest == nil || l.PullRequest.Mode != "after-review" || l.Branch != "loopbee/issue-{issue}" || len(l.AllowedTools) != 0 {
 		t.Fatalf("unexpected definition: %+v", l)
 	}
-	// Picking work and opening the pull request are Loopbee's job: no project scripts, no commands at all.
+	// Picking work and opening the pull request are loopbee's job: no project scripts, no commands at all.
 	for _, s := range l.Steps {
 		if s.Kind == "run" || s.Kind == "verify" {
 			t.Fatalf("step %q: the example must not run commands", s.Name)

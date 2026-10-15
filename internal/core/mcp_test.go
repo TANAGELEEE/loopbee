@@ -256,7 +256,7 @@ func TestMCPHelpers(t *testing.T) {
 	if len(gem) != 1 || !strings.Contains(gem[0], "navigate (chrome MCP Server)") || !strings.Contains(gem[0], "turn on") {
 		t.Fatal(gem)
 	}
-	// With the switch on, a refusal means the server is defined where Loopbee cannot approve it.
+	// With the switch on, a refusal means the server is defined where loopbee cannot approve it.
 	cx := mcpRefused("codex", []byte(`{"type":"item.completed","item":{"type":"mcp_tool_call","server":"nexscope","tool":"query","status":"failed","error":{"message":"MCP tool call requires approval, but approval policy is never"}}}`), true)
 	if len(cx) != 1 || !strings.Contains(cx[0], "nexscope.query") || !strings.Contains(cx[0], "default_tools_approval_mode") {
 		t.Fatal(cx)

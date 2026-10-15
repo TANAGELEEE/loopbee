@@ -1,7 +1,7 @@
-// Real smoke test: the packaged Loopbee binary + the real agent CLIs on this machine (Codex CLI, Claude Code,
+// Real smoke test: the packaged loopbee binary + the real agent CLIs on this machine (Codex CLI, Claude Code,
 // Gemini CLI, OpenCode, pi).
 // It uses your agent subscription (a few short agent runs) and touches nothing outside a temp folder:
-// a throw-away sample Git repository with a bare "origin", and an isolated Loopbee data directory.
+// a throw-away sample Git repository with a bare "origin", and an isolated loopbee data directory.
 //
 //   node tests/real-smoke.mjs                       # packaged app on macOS, bin/loopbee.exe on Windows
 //   node tests/real-smoke.mjs --bin bin/loopbee --agents claude --scenarios report
@@ -24,7 +24,7 @@ const opt = (name, def) => {
   const i = args.indexOf("--" + name);
   return i >= 0 ? args[i + 1] : def;
 };
-const defaultBin = process.platform === "darwin" ? "bin/Loopbee.app/Contents/MacOS/loopbee" : process.platform === "win32" ? "bin/loopbee.exe" : "bin/loopbee";
+const defaultBin = process.platform === "darwin" ? "bin/loopbee.app/Contents/MacOS/loopbee" : process.platform === "win32" ? "bin/loopbee.exe" : "bin/loopbee";
 const bin = resolve(opt("bin", defaultBin));
 const scenarios = opt("scenarios", "report,fix").split(",");
 const keep = args.includes("--keep");
@@ -40,7 +40,7 @@ async function sampleRepo(root, name) {
   git(root, "init", "-q", "--bare", "-b", "master", origin);
   git(root, "init", "-q", "-b", "master", proj);
   git(proj, "remote", "add", "origin", origin);
-  await writeFile(join(proj, "calc.js"), "// Tiny sample project for the Loopbee smoke test.\nexport function add(a, b) { return a - b; }\nexport function mul(a, b) { return a * b; }\n");
+  await writeFile(join(proj, "calc.js"), "// Tiny sample project for the loopbee smoke test.\nexport function add(a, b) { return a - b; }\nexport function mul(a, b) { return a * b; }\n");
   await writeFile(join(proj, "calc.test.mjs"), 'import assert from "node:assert/strict";\nimport { add, mul } from "./calc.js";\nassert.equal(add(2, 3), 5, "add");\nassert.equal(mul(2, 3), 6, "mul");\nconsole.log("all tests passed");\n');
   await writeFile(join(proj, "package.json"), '{ "name": "smoke-calc", "private": true, "type": "module", "scripts": { "test": "node calc.test.mjs" } }\n');
   await writeFile(join(proj, "README.md"), "# smoke-calc\n\nRun `npm test`. TODO: add a subtract function.\n");
@@ -89,7 +89,7 @@ async function scenario(core, agent, root, name) {
   };
   const reply = await author(core, agent, proj, name);
   const l = reply.loop;
-  check(!reply.problem, "draft passes Loopbee's checks");
+  check(!reply.problem, "draft passes loopbee's checks");
   check(l.timezone === tz, `schedule uses your time zone (${tz})`);
   check(l.steps.some((s) => ["act", "observe", "summarize"].includes(s.kind)), "has an agent step");
   if (name === "report") check(l.sandbox === "read-only", "report Loop stays read-only");
@@ -97,7 +97,7 @@ async function scenario(core, agent, root, name) {
     check(l.steps.some((s) => s.kind === "gate"), "has a human gate before merging");
     check(["workspace-write", "workspace-network"].includes(l.sandbox), "fix Loop may edit files");
     check(l.workspace === "worktree", "fix Loop runs in a fresh worktree");
-    check(!!l.branch, "Loopbee creates the branch and commits (agent does not touch Git)");
+    check(!!l.branch, "loopbee creates the branch and commits (agent does not touch Git)");
   }
   if (reply.problem) return { agent, name, checks, status: "not run" };
   const t0 = Date.now();

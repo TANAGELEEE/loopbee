@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-// GitHub intake and delivery run inside Loopbee with the user's own GitHub CLI login. They are not project scripts:
+// GitHub intake and delivery run inside loopbee with the user's own GitHub CLI login. They are not project scripts:
 // every repository can use them, and nothing an agent writes can change how work is picked or delivered.
 
 // ghOverride substitutes the GitHub CLI in tests.
@@ -184,7 +184,7 @@ func pickIssue(ctx context.Context, l Loop) (*issueItem, []string, error) {
 		n := strconv.Itoa(item.Number)
 		if _, err := gh(ctx, l.Directory, in.Repo, "issue", "edit", n, "--add-label", in.workingLabel()); err != nil {
 			// The label does not exist yet in this repository: create it once, then claim the issue.
-			if _, err := gh(ctx, l.Directory, in.Repo, "label", "create", in.workingLabel(), "--color", "FBCA04", "--description", "Loopbee is working on this issue"); err != nil {
+			if _, err := gh(ctx, l.Directory, in.Repo, "label", "create", in.workingLabel(), "--color", "FBCA04", "--description", "loopbee is working on this issue"); err != nil {
 				return nil, nil, err
 			}
 			if _, err := gh(ctx, l.Directory, in.Repo, "issue", "edit", n, "--add-label", in.workingLabel()); err != nil {
@@ -219,7 +219,7 @@ var (
 )
 
 // mergeWhenGreen waits until every check on the pull request has finished, then squash-merges it if all passed and
-// its head is still the commit Loopbee pushed. It returns why it did not merge (merged == false, err == nil) for
+// its head is still the commit loopbee pushed. It returns why it did not merge (merged == false, err == nil) for
 // failing, missing or unfinished checks and refusals by GitHub, so the pull request stays open for a person.
 func mergeWhenGreen(ctx context.Context, l Loop, r Run, url, head string, onWait func()) (merged bool, why string, err error) {
 	repo := ""
@@ -262,7 +262,7 @@ func mergeWhenGreen(ctx context.Context, l Loop, r Run, url, head string, onWait
 			gh(ctx, l.Directory, repo, "api", "-X", "DELETE", "repos/{owner}/{repo}/git/refs/heads/"+r.Branch)
 			return true, "", nil
 		case len(checks) == 0 && time.Since(start) > checksAppear:
-			return false, "no checks ran on the pull request; Loopbee merges only after checks pass", nil
+			return false, "no checks ran on the pull request; loopbee merges only after checks pass", nil
 		case time.Since(start) > checksTimeout:
 			return false, "checks still running after " + checksTimeout.String() + ": " + strings.Join(pending, ", "), nil
 		}
@@ -366,7 +366,7 @@ func deliverPullRequest(ctx context.Context, l Loop, r Run, ws *workspace, revie
 		}
 	}
 	if len(ci) > 0 {
-		return "", fmt.Errorf("the change touches %s; Loopbee does not push changes to CI configuration — review %s and push it yourself", strings.Join(ci, ", "), r.Branch)
+		return "", fmt.Errorf("the change touches %s; loopbee does not push changes to CI configuration — review %s and push it yourself", strings.Join(ci, ", "), r.Branch)
 	}
 	if baseBranch == "" {
 		out, err := gh(ctx, l.Directory, repo, "repo", "view", "--json", "defaultBranchRef")
@@ -418,10 +418,10 @@ func deliverPullRequest(ctx context.Context, l Loop, r Run, ws *workspace, revie
 	}
 	args := []string{"pr", "create", "--base", baseBranch, "--head", r.Branch, "--title", title}
 	if pr.Mode == "draft" {
-		fmt.Fprintf(&body, "\nPrepared by Loopbee (run %s). Not reviewed yet: this draft is the review.\n", r.ID)
+		fmt.Fprintf(&body, "\nPrepared by loopbee (run %s). Not reviewed yet: this draft is the review.\n", r.ID)
 		args = append(args, "--draft")
 	} else {
-		fmt.Fprintf(&body, "\nPrepared by Loopbee (run %s) and approved in Loopbee before this pull request was opened.", r.ID)
+		fmt.Fprintf(&body, "\nPrepared by loopbee (run %s) and approved in loopbee before this pull request was opened.", r.ID)
 		if reviewNote != "" {
 			fmt.Fprintf(&body, "\nReview note: %s", reviewNote)
 		}

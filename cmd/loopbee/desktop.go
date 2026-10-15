@@ -26,7 +26,7 @@ func desktop(url string, lb *core.App, shutdown func()) error {
 		OnShutdown: shutdown,
 	})
 	if runtime.GOOS == "windows" && app.Env.Info().PlatformInfo["WebView2"] == "" {
-		return errors.New("Microsoft Edge WebView2 Runtime is required. Install the Evergreen Runtime from https://developer.microsoft.com/microsoft-edge/webview2/ and reopen Loopbee. You can also use loopbee-nogui.exe -nogui")
+		return errors.New("Microsoft Edge WebView2 Runtime is required. Install the Evergreen Runtime from https://developer.microsoft.com/microsoft-edge/webview2/ and reopen loopbee. You can also use loopbee-nogui.exe -nogui")
 	}
 	saved, hasSaved := loadWindowState(data)
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
