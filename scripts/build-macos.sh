@@ -56,6 +56,11 @@ case "$arch:$actual" in
   arm64:arm64|amd64:x86_64) ;;
   *) echo "loopbee.app was built for $actual, expected $arch" >&2; exit 1 ;;
 esac
+# Go's linker signs only the executable, so the bundle (Info.plist, resources) is unsigned and a downloaded copy is
+# reported as "damaged". Sign the whole bundle ad hoc (no Developer ID yet: macOS then offers "Open Anyway").
+codesign --force --sign - --identifier app.loopbee.beectl "$app/Contents/MacOS/beectl"
+codesign --force --sign - --identifier app.loopbee.desktop "$app"
+codesign --verify --deep --strict "$app" || { echo "loopbee.app is not signed intact" >&2; exit 1; }
 zip="bin/loopbee-macos-$arch.zip"
 rm -f "$zip"
 ditto -c -k --keepParent "$app" "$zip"
@@ -78,4 +83,4 @@ hdiutil detach -quiet "$mnt"
 for f in "$zip" "$dmg"; do
   (cd bin && shasum -a 256 "$(basename "$f")" > "$(basename "$f").sha256")
 done
-echo "Built $app ${version:-dev} for $arch (unsigned; not notarized), $dmg, $zip and bin/beectl. Put beectl on your PATH, e.g. ln -s \"$PWD/bin/beectl\" /usr/local/bin/beectl, then run: beectl skill install"
+echo "Built $app ${version:-dev} for $arch (ad-hoc signed; not notarized), $dmg, $zip and bin/beectl. Put beectl on your PATH, e.g. ln -s \"$PWD/bin/beectl\" /usr/local/bin/beectl, then run: beectl skill install"

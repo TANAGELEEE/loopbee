@@ -373,6 +373,14 @@ fails at once with the app's output when the app exits.
 - Evidence: `TestNativeDesktopLifecycle`, `cmd/loopbee/desktop.go#WebViewNavigationCompleted`
 - Seen: 2026-10-15
 
+### A downloaded macOS app is checked as a whole bundle
+v0.1.2 opened fine where it was built, but downloaded from the release macOS said “damaged” and offered no way to
+open it: Go's linker signs only the executable, so the bundle's `Info.plist` and resources were unsigned, and
+Gatekeeper rejects a quarantined bundle whose signature is incomplete. The build signs the whole bundle ad hoc and
+stops unless `codesign --verify --deep --strict` passes; macOS then offers “Open Anyway” until there is a Developer ID.
+- Evidence: `scripts/build-macos.sh#codesign --verify --deep --strict`
+- Seen: 2026-10-15
+
 ### The first window must fit the screen
 A fixed 1280×900 window did not fit 1080p at 150 % or 1366×768. Clamp to the work area and remember bounds.
 - Evidence: `TestFitWindow`

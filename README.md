@@ -4,7 +4,7 @@ A desktop app for local agent workflows and scheduling. Implemented from the [lo
 
 ## Download
 
-Download the newest version from [Releases](https://github.com/TANAGELEEE/loopbee/releases/latest): the `.dmg` for macOS (arm64 for Apple Silicon, amd64 for Intel; drag loopbee to Applications) or the `.exe` / `.zip` for Windows x64. The packages are unsigned: on macOS right-click `loopbee.app` › Open the first time; on Windows choose More info › Run anyway if SmartScreen asks. Released builds then update themselves. Each release's notes list the files and how to install them. Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+Download the newest version from [Releases](https://github.com/TANAGELEEE/loopbee/releases/latest): the `.dmg` for macOS (arm64 for Apple Silicon, amd64 for Intel; drag loopbee to Applications) or the `.exe` / `.zip` for Windows x64. The packages are not signed with a Developer ID: on macOS the first launch says Apple could not verify loopbee; choose Done, then System Settings › Privacy & Security › Open Anyway. On Windows choose More info › Run anyway if SmartScreen asks. Released builds then update themselves. Each release's notes list the files and how to install them. Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
 ## Getting started
 
@@ -29,7 +29,7 @@ On macOS, install Xcode Command Line Tools, then run:
 
 ```sh
 go run ./cmd/loopbee
-# Or build an unsigned .app
+# Or build an ad-hoc signed .app
 sh scripts/build-macos.sh
 ```
 
