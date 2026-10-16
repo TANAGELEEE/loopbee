@@ -324,6 +324,8 @@ async function chatSend(text) {
     const questions = (body.questions || []).filter((q) => q.text);
     current.messages.push({ role: "agent", agent: body.agent, text: [body.reply, ...questions.map((q) => "• " + q.text)].filter(Boolean).join("\n"), at: new Date().toISOString() });
     current.draft = { ...body.loop, directory: body.loop.directory || current.directory };
+    // The folder the person named in the chat becomes the project folder for the next messages too.
+    if (!current.directory && body.loop.directory) current.directory = body.loop.directory;
     current.questions = questions;
     current.picks = [];
     current.problem = body.problem || "";

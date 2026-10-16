@@ -57,7 +57,7 @@ func authorSchema() map[string]any {
 		"name": str, "prompt": str, "argv": strs, "metric": str, "metricPath": str, "continueOnError": map[string]any{"type": "boolean"},
 	})
 	loop := obj(map[string]any{
-		"name": str, "description": str, "cron": str, "timezone": str,
+		"name": str, "description": str, "directory": str, "cron": str, "timezone": str,
 		"sandbox":   map[string]any{"type": "string", "enum": []string{"read-only", "workspace-write", "workspace-network", "agent-config"}},
 		"workspace": map[string]any{"type": "string", "enum": []string{"direct", "worktree"}},
 		"baseRef":   str, "branch": str, "lock": str, "maxRounds": integer, "wallMinutes": integer, "stallRounds": integer, "gateHours": integer,
@@ -99,7 +99,7 @@ func authorPrompt(req AuthorRequest, dir, lang, tz, agent, maxSandbox string, dr
 notifications. You are NOT running the workflow now: you only design the Loop definition.
 
 Working directory: ` + dir + `
-You may READ this directory (read-only) to ground the definition: AGENTS.md, CLAUDE.md, README, skills or
+` + folderNote(req) + `You may READ this directory (read-only) to ground the definition: AGENTS.md, CLAUDE.md, README, skills or
 commands under .codex/ .claude/ .agents/, package.json scripts, Makefile, deploy scripts. Refer to the
 team's existing skills, slash commands and scripts by their real names. Do not modify anything.
 
@@ -372,7 +372,12 @@ func defaultDraft(c Settings, agent string) Loop {
 // normalizeDraft keeps identity and safety-relevant fields under loopbee's control.
 func normalizeDraft(p, base Loop, agent string) Loop {
 	p.ID, p.Version, p.Next, p.Updated = base.ID, base.Version, base.Next, base.Updated
+	// A chosen folder wins; without one, the folder the user named in the chat, if it exists.
+	proposed := p.Directory
 	p.Directory, p.Project = base.Directory, base.Project
+	if base.Directory == "" {
+		p.Directory = proposedDirectory(proposed)
+	}
 	p.Agent = agent
 	p.Enabled = base.Enabled && base.ID != "" // a proposal never enables a new Loop
 	p.Private = base.Private || base.ID == ""
@@ -540,4 +545,22 @@ func levelNote(lang, label, from, to string) string {
 		return fmt.Sprintf("（loopbee：%s 无法强制执行“%s”，草稿已改为“%s”。需要的命令请放在代理步骤之前的命令步骤。）", label, from, to)
 	}
 	return fmt.Sprintf("(loopbee: %s cannot enforce %q, so the draft now uses %q. Put the commands it needs in run steps before the agent step.)", label, from, to)
+}
+
+// proposedDirectory is a folder the designer proposed, kept only when it is an absolute folder that exists.
+func proposedDirectory(dir string) string {
+	dir = strings.TrimSpace(dir)
+	if info, err := os.Stat(dir); dir == "" || !filepath.IsAbs(dir) || err != nil || !info.IsDir() {
+		return ""
+	}
+	return filepath.Clean(dir)
+}
+
+// folderNote tells the designer whether the person chose the project folder or it may propose the one they name.
+func folderNote(req AuthorRequest) string {
+	if req.Directory != "" {
+		return "This is the project folder the person chose; leave loop.directory \"\".\n"
+	}
+	return "No project folder was chosen, so this is an empty scratch folder. If the person names the folder the Loop works\n" +
+		"in, put its absolute path in loop.directory (loopbee checks that it exists); otherwise leave it \"\".\n"
 }
