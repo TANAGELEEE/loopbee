@@ -387,7 +387,7 @@ func normalizeDraft(p, base Loop, agent string) Loop {
 	if p.Workspace == "" {
 		p.Workspace = "direct"
 	}
-	p.RequireClean = p.Workspace == "direct" && base.RequireClean
+	p.RequireClean = p.Workspace == "direct" && base.RequireClean && (p.Directory == "" || gitWorkTree(p.Directory))
 	if p.Workspace != "worktree" {
 		p.Branch = ""
 	}
@@ -554,6 +554,14 @@ func proposedDirectory(dir string) string {
 		return ""
 	}
 	return filepath.Clean(dir)
+}
+
+// gitWorkTree reports whether dir is inside a Git working tree; a folder holding several repositories is not.
+func gitWorkTree(dir string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, err := runCommand(ctx, dir, []string{"git", "rev-parse", "--is-inside-work-tree"}, nil)
+	return err == nil && strings.TrimSpace(string(out)) == "true"
 }
 
 // folderNote tells the designer whether the person chose the project folder or it may propose the one they name.

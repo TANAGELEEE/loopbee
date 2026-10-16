@@ -45,5 +45,8 @@ Rules that have proven themselves; promoted lessons are added here with a link b
 - **One source for every list.** A list that more than one place needs (step kinds, agent CLIs, permission levels)
   has one definition the others read: the Go core owns it and the UI reads it from State. Adding an item is one change
   plus its test (promoted 2026-10-13 after three sightings, see LESSONS “Moved to the standards”).
+- **An error says how to fix it.** Every error a person sees names what was wrong and what to change, and where: the
+  setting, the level, the variable, the command. Two causes never share one message (promoted 2026-10-16 after three
+  sightings, see LESSONS “Moved to the standards”).
 - **Text is LF.** `.gitattributes` keeps text LF in every checkout; code that parses checked-in or embedded text still
   tolerates CRLF.
