@@ -34,8 +34,8 @@ export function chatPage(c) {
   const s = S();
   const available = s.agents.filter((a) => a.status === "available");
   const editing = !!c.loop;
-  const msgs = c.messages.map((m) => `<div class="msg ${m.role === "user" ? "me" : "ag"} ${m.error ? "err" : ""}"><div class="who">${m.role === "user" ? T("You") : esc(agentLabel(m.agent || c.agent))}<span class="sub"> · ${esc(hm(m.at))}</span></div><div class="txt">${esc(m.text)}</div></div>`).join("");
-  const busy = c.busy ? `<div class="msg ag busy"><div class="who">${esc(agentLabel(c.agent))}</div><div class="txt"><span class="sk"></span><span class="sub" id="busy-t">${T("Reading your project and drafting… {n} s", { n: Math.round((Date.now() - c.started) / 1000) })}</span> <button type="button" class="linkbtn" data-action="chat-cancel">${T("Cancel")}</button></div></div>` : "";
+  const msgs = c.messages.map((m) => `<div class="msg ${m.role === "user" ? "me" : "bot"} ${m.error ? "err" : ""}"><div class="who">${m.role === "user" ? T("You") : esc(agentLabel(m.agent || c.agent))}<span class="sub"> · ${esc(hm(m.at))}</span></div><div class="txt">${esc(m.text)}</div></div>`).join("");
+  const busy = c.busy ? `<div class="msg bot busy"><div class="who">${esc(agentLabel(c.agent))}</div><div class="txt"><span class="sk"></span><span class="sub" id="busy-t">${T("Reading your project and drafting… {n} s", { n: Math.round((Date.now() - c.started) / 1000) })}</span> <button type="button" class="linkbtn" data-action="chat-cancel">${T("Cancel")}</button></div></div>` : "";
   const intro = !c.messages.length
     ? `<div class="chat-intro"><div class="nm">${T(editing ? "Tell your agent what to change" : "Describe the Loop in your own words")}</div><div class="sub">${T("Your agent reads the project (read-only) to find your skills, scripts and conventions, then drafts the Loop. Nothing runs until you save and start it.")}</div>${editing ? "" : `<div class="examples">${EXAMPLES.map((e, i) => `<button type="button" class="ex" data-action="chat-example" data-i="${i}">${T(e)}</button>`).join("")}</div>`}</div>`
     : "";

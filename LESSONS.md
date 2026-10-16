@@ -438,6 +438,13 @@ layout and states; component sizes, spacing and colours stay in `loop.css`.
 - Evidence: `tests/screens.mjs`
 - Seen: 2026-10-11
 
+### A component's class must not reuse a design-system class
+The chat marked the agent's replies `msg ag`, and `loop.css` styles `.ag` as the topology's agent card: a 64 px flex
+row. Every reply became a fixed-height row with the name beside the text, and longer replies ran out of the bubble.
+The chat uses `bot`; before naming a class in `app.css` or markup, search `loop.css` for it.
+- Evidence: `tests/agents-e2e.mjs#the agent's reply runs out of its bubble`
+- Seen: 2026-10-16
+
 ### The CSP forbids inline styles
 Design markup like `style="--c:…"` silently did nothing. Use data attributes and apply variables through CSSOM.
 - Evidence: `tests/e2e.mjs`
