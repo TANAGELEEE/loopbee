@@ -1,5 +1,5 @@
 // "Describe your Loop": the bound local agent CLI drafts the definition; loopbee previews and checks it.
-import { ctx, t, T, esc, icon, btn, sec, empty, seg, cronText, sandboxLabel, agentLabel, hm, errText } from "./ui.js";
+import { ctx, t, T, esc, icon, btn, sec, empty, seg, cronText, sandboxLabel, agentLabel, hm, errText, pickBtn } from "./ui.js";
 import { flowState, renderFlow } from "./flow.js";
 import { gapsPanel, gaps, kindLabel } from "./forms.js";
 import { workSummary } from "./views.js";
@@ -41,7 +41,7 @@ export function chatPage(c) {
     ? `<div class="chat-intro"><div class="nm">${T(editing ? "Tell your agent what to change" : "Describe the Loop in your own words")}</div><div class="sub">${T("Your agent reads the project (read-only) to find your skills, scripts and conventions, then drafts the Loop. Nothing runs until you save and start it.")}</div>${editing ? "" : `<div class="examples">${EXAMPLES.map((e, i) => `<button type="button" class="ex" data-action="chat-example" data-i="${i}">${T(e)}</button>`).join("")}</div>`}</div>`
     : "";
   const quick = c.questions.length && !c.busy ? `<div class="quick">${c.questions.map((q, qi) => `<div class="q"><div class="sub t2">${esc(q.text)}</div><div class="chips">${(q.options || []).map((o) => `<button type="button" class="chip tgl" data-action="chat-quick" data-q="${qi}" data-text="${esc(o)}" aria-pressed="${c.picks[qi] === o}">${esc(o)}</button>`).join("")}</div></div>`).join("")}${c.questions.length > 1 ? `<div class="sub">${T("Pick an answer for each question; they are sent together once all have one, or press Send with what you picked and typed.")}</div>` : ""}</div>` : "";
-  const cfg = `<div class="chat-cfg">${available.length > 1 ? seg("agent", c.agent, available.map((a) => [a.name, agentLabel(a.name)]), { action: "chat-agent", label: t("Agent") }) : `<span class="chip">${esc(agentLabel(c.agent))}</span>`}<input class="inp mono" id="chat-dir" value="${esc(c.directory)}" placeholder="${T("Project folder (absolute path)")}" aria-label="${T("Project folder")}" ${editing ? "" : ""}></div>`;
+  const cfg = `<div class="chat-cfg">${available.length > 1 ? seg("agent", c.agent, available.map((a) => [a.name, agentLabel(a.name)]), { action: "chat-agent", label: t("Agent") }) : `<span class="chip">${esc(agentLabel(c.agent))}</span>`}<span class="pathpick"><input class="inp mono" id="chat-dir" value="${esc(c.directory)}" placeholder="${T("Project folder (absolute path)")}" aria-label="${T("Project folder")}">${pickBtn("#chat-dir")}</span></div>`;
   const noAgent = !available.length
     ? `<div class="card sm">${empty(T("No agent CLI detected"), T("Install Codex CLI or Claude Code, then detect again. You can still build the Loop with the form."), `${btn("Detect again", "detect", { cls: "sm" })}<a class="btn sm" href="#/new?form=1">${T("Use the form")}</a>`)}</div>`
     : "";
