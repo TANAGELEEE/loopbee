@@ -54,6 +54,13 @@ try {
   assert.match(await page.locator("#chat-input").inputValue(), /fix-prod-errors/);
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await page.locator(".chat-side h1", { hasText: "Fix production errors" }).waitFor();
+  // The agent's reply is a message bubble: name above the text, every line inside the box (a design-system class
+  // of the same name once made it a 64 px row, and long replies ran out of the bubble).
+  const bubble = await page.locator(".msgs .msg:not(.me)").last().evaluate((m) => {
+    const who = m.querySelector(".who").getBoundingClientRect(), txt = m.querySelector(".txt").getBoundingClientRect(), box = m.getBoundingClientRect();
+    return { stacked: who.bottom <= txt.top + 1, inside: txt.bottom <= box.bottom + 1 };
+  });
+  assert.deepEqual(bubble, { stacked: true, inside: true }, "the agent's reply runs out of its bubble");
   assert.equal(await page.locator(".chat-side .flow .node").count(), 2);
   assert.ok(await page.locator(".chat-side").getByText("Weekdays 09:00 · Asia/Taipei").isVisible());
   await page.getByRole("button", { name: "I do it myself" }).click();
