@@ -83,6 +83,10 @@ func run() error {
 		return desktop(url, a, shutdown)
 	} else {
 		a.EnableUpdates(nil) // headless: learns about new versions, never replaces itself
+		// Browser tests stand in for the desktop's chooser: every choice answers this path.
+		if stub := os.Getenv("LOOPBEE_PICK_STUB"); stub != "" {
+			a.SetPicker(func(string, string, bool) (string, error) { return stub, nil })
+		}
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		<-ctx.Done()
 		stop()

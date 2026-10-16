@@ -283,3 +283,10 @@ export const resultChip = (res) => {
   const [cls, label] = { done: ["ok", "Agent: done"], no_action: ["mut", "Agent: nothing to do"], blocked: ["warn", "Agent: blocked"], needs_approval: ["warn", "Agent: needs approval"] }[res.status] || ["mut", res.status];
   return `<span class="chip ${cls}">${T(label)}</span>`;
 };
+
+// A “Choose…” button beside a path field when the desktop app can open the system's chooser; mode "add" appends a
+// line to a list, files also allows files, relative="project" keeps the path relative to the Loop's folder.
+export const pickBtn = (target, { mode = "set", files = false, relative = "" } = {}) =>
+  ctx.state.info?.canPick
+    ? `<button type="button" class="btn sm" data-action="pick-path" data-target="${target}" data-mode="${mode}"${files ? ' data-files="1"' : ""}${relative ? ` data-relative="${relative}"` : ""}>${T(mode === "add" ? "Add…" : "Choose…")}</button>`
+    : "";

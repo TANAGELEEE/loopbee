@@ -1,6 +1,7 @@
 // Agent integration E2E: fake Codex and Claude Code CLIs drive chat authoring, execution, reports and gates.
 import { chromium } from "playwright";
-import { mkdir, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -9,7 +10,9 @@ import { startCore, waitFor } from "./demo.mjs";
 const EVIDENCE = process.env.LOOPBEE_EVIDENCE_DIR || "docs/evidence";
 
 const fake = (n) => resolve(`tests/fake-agent/${n}.mjs`);
-const core = await startCore(undefined, { LOOPBEE_CODEX_BIN: fake("codex"), LOOPBEE_CLAUDE_BIN: fake("claude"), LOOPBEE_GEMINI_BIN: fake("gemini"), LOOPBEE_OPENCODE_BIN: fake("opencode"), LOOPBEE_PI_BIN: fake("pi"), LOOPBEE_GH_BIN: fake("gh") });
+const chosen = await mkdtemp(join(tmpdir(), "loopbee-chosen-"));
+// LOOPBEE_PICK_STUB stands in for the desktop's folder chooser: it answers every choice with `chosen`.
+const core = await startCore(undefined, { LOOPBEE_PICK_STUB: chosen, LOOPBEE_CODEX_BIN: fake("codex"), LOOPBEE_CLAUDE_BIN: fake("claude"), LOOPBEE_GEMINI_BIN: fake("gemini"), LOOPBEE_OPENCODE_BIN: fake("opencode"), LOOPBEE_PI_BIN: fake("pi"), LOOPBEE_GH_BIN: fake("gh") });
 let browser;
 try {
   const s0 = await waitFor(core.api, (s) => s.agents.length === 5 && s.agents.every((a) => a.status === "available") && s);
@@ -266,6 +269,11 @@ try {
   assert.equal(await page.getByRole("button", { name: "Save as v3" }).isDisabled(), true);
   // Traditional Chinese screenshots of the chat (with history) and the agent settings for review.
   await core.api("/state").then((st) => core.api("/settings", { ...st.settings, language: "zh-TW" }));
+  // The project folder is chosen in the system's chooser, not typed.
+  await page.goto(core.base + "/#/new");
+  await page.reload();
+  await page.locator(".chat-cfg .pathpick button").click();
+  await page.waitForFunction((p) => document.querySelector("#chat-dir")?.value === p, chosen);
   // No project folder chosen, but the message names one: the draft and the folder field take it.
   await page.goto(core.base + "/#/new");
   await page.reload();
