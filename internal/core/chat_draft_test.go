@@ -72,3 +72,16 @@ func TestCleanTreeRequirementFitsTheFolder(t *testing.T) {
 		t.Fatalf("dirty repository: %q", r.Error)
 	}
 }
+
+// Agents without structured output (OpenCode) answer in the shape of the draft they are shown, not the schema. The
+// draft lacked "directory", so OpenCode never proposed the folder the person named while the others did: every field
+// of the answer schema must be in that draft.
+func TestTheDraftShownToAgentsHasEverySchemaField(t *testing.T) {
+	props := authorSchema()["properties"].(map[string]any)["loop"].(map[string]any)["properties"].(map[string]any)
+	shown := definitionForAgent(Loop{})
+	for name := range props {
+		if _, ok := shown[name]; !ok {
+			t.Errorf("the draft shown to agents has no %q", name)
+		}
+	}
+}

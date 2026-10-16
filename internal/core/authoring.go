@@ -207,7 +207,7 @@ func definitionForAgent(l Loop) map[string]any {
 		env = append(env, map[string]any{"name": e.Name, "secret": e.Secret, "value": value})
 	}
 	return map[string]any{
-		"name": l.Name, "description": l.Description, "cron": l.Cron, "timezone": l.Timezone, "sandbox": l.Sandbox,
+		"name": l.Name, "description": l.Description, "directory": l.Directory, "cron": l.Cron, "timezone": l.Timezone, "sandbox": l.Sandbox,
 		"workspace": orDefault(l.Workspace, "direct"), "baseRef": l.BaseRef, "branch": l.Branch, "lock": l.Lock, "maxRounds": l.MaxRounds,
 		"wallMinutes": l.WallMinutes, "stallRounds": l.StallRounds, "gateHours": l.GateHours, "doneWhen": l.DoneWhen,
 		"allowedTools": nonNil(l.AllowedTools), "steps": steps,
