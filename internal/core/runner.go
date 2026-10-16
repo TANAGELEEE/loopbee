@@ -301,8 +301,12 @@ func (a *App) execute(ctx context.Context, r Run) {
 		cctx, ccancel := context.WithTimeout(ctx, time.Minute)
 		out, err := runCommand(cctx, workdir, []string{"git", "status", "--porcelain"}, nil)
 		ccancel()
-		if err != nil || len(bytes.TrimSpace(out)) > 0 {
-			finish("blocked", errors.New("working tree must be a clean Git repository"))
+		if err != nil {
+			finish("blocked", errors.New("the working directory is not a Git repository; turn off “Require clean Git tree” or point the Loop at a repository"))
+			return
+		}
+		if len(bytes.TrimSpace(out)) > 0 {
+			finish("blocked", errors.New("the working directory has uncommitted changes; commit or stash them, or turn off “Require clean Git tree”"))
 			return
 		}
 	}

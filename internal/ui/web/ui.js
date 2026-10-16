@@ -108,6 +108,8 @@ const coreErrors = {
   "verification did not pass within the round limit": "Verification did not pass within the round limit",
   "verification output did not improve": "Verification results stopped improving",
   "working tree must be a clean Git repository": "The working tree must be a clean Git repository",
+  "the working directory is not a Git repository; turn off “Require clean Git tree” or point the Loop at a repository": "The working directory is not a Git repository. Turn off “Require clean Git tree” in the Loop, or point it at a repository.",
+  "the working directory has uncommitted changes; commit or stash them, or turn off “Require clean Git tree”": "The working directory has uncommitted changes. Commit or stash them, or turn off “Require clean Git tree” in the Loop.",
   "agent version unsupported; run detection first": "The agent was not detected. Run detection in Settings › Agents.",
   "Application stopped; review evidence before starting a new run": "loopbee stopped while this run was active; review the evidence before starting a new run",
   "agent reported turn.failed; inspect the captured evidence": "The agent reported a failed turn; inspect the captured evidence",

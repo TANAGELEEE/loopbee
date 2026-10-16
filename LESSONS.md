@@ -82,15 +82,6 @@ saved. The prompt states the limit and what loopbee does itself; a draft above i
 - Evidence: `TestAuthorFlagsPermissionAboveTheDeviceLimit`, `tests/agents-e2e.mjs#Raise the limit in Settings`
 - Seen: 2026-10-11
 
-### An error says how to fix it
-`beectl create` answered a too-high permission with “permission exceeds this device's limit” and nothing else; the
-user could not tell what to change. It now names the level the draft needs, the device's limit and where to raise it.
-On Windows every Claude Code Loop at a write level failed with the CLI's advice to set `sandbox.failIfUnavailable`,
-which loopbee overrides; the Run now says to use Codex, WSL2 or agent-config. A missing `env:` variable said
-“notification environment variable is not set”, also for Loop variables; it now names the variable and where to set it.
-- Evidence: `TestBeectlCreatesDisabledDraftAndRuns`, `TestClaudeSandboxUnavailableSaysHowToFix`, `TestEnvReferenceFallsBackToLoginShell`
-- Seen: 2026-10-12, 2026-10-13
-
 ### A Loop reaches what the agent uses in the developer's own sessions
 Workflows that worked in people's own agent sessions failed as Loops: Claude Code at read-only could not load skills,
 a worktree had no `.env` or `CLAUDE.local.md` and looked for the project's memory under another path, a skill's
@@ -536,3 +527,16 @@ Now the standard “One source for every list” in docs/development.md. On 10-1
 Claude Code as the default agent; they now ask the adapter registry.
 - Evidence: `tests/agents-e2e.mjs#Every step kind in the add menu has a label`, `TestEveryAdapterMeetsTheContract`, `TestDefaultAgentIsAnyAdapter`
 - Seen: 2026-10-11, 2026-10-12, 2026-10-13, 2026-10-14
+
+### An error says how to fix it
+`beectl create` answered a too-high permission with “permission exceeds this device's limit” and nothing else; the
+user could not tell what to change. It now names the level the draft needs, the device's limit and where to raise it.
+On Windows every Claude Code Loop at a write level failed with the CLI's advice to set `sandbox.failIfUnavailable`,
+which loopbee overrides; the Run now says to use Codex, WSL2 or agent-config. A missing `env:` variable said
+“notification environment variable is not set”, also for Loop variables; it now names the variable and where to set it.
+On 10-16 a Loop on a folder holding several repositories was blocked with “working tree must be a clean Git
+repository”, which hid that the folder was not a repository at all. The check now says which of the two it found and
+what to turn off, and chat drafts drop the requirement for a folder that is not a repository. Now the standard “An
+error says how to fix it” in docs/development.md.
+- Evidence: `TestBeectlCreatesDisabledDraftAndRuns`, `TestClaudeSandboxUnavailableSaysHowToFix`, `TestEnvReferenceFallsBackToLoginShell`, `TestCleanTreeRequirementFitsTheFolder`
+- Seen: 2026-10-12, 2026-10-13, 2026-10-16

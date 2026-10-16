@@ -489,6 +489,8 @@ const translations = {
   "Verification did not pass within the round limit": ["在輪數上限內驗證沒有通過", "在轮数上限内验证没有通过"],
   "Verification results stopped improving": ["驗證結果連續沒有改善", "验证结果连续没有改善"],
   "The working tree must be a clean Git repository": ["工作目錄必須是沒有未提交變更的 Git 倉庫", "工作目录必须是没有未提交变更的 Git 仓库"],
+  "The working directory is not a Git repository. Turn off “Require clean Git tree” in the Loop, or point it at a repository.": ["工作目錄不是 Git 倉庫。請在 Loop 裡關閉「要求乾淨的 Git 工作樹」，或把 Loop 指到某個倉庫。", "工作目录不是 Git 仓库。请在 Loop 里关闭「要求干净的 Git 工作树」，或把 Loop 指到某个仓库。"],
+  "The working directory has uncommitted changes. Commit or stash them, or turn off “Require clean Git tree” in the Loop.": ["工作目錄有未提交的修改。請先提交或暫存，或在 Loop 裡關閉「要求乾淨的 Git 工作樹」。", "工作目录有未提交的修改。请先提交或暂存，或在 Loop 里关闭「要求干净的 Git 工作树」。"],
   "loopbee stopped while this run was active; review the evidence before starting a new run": ["這個 Run 進行中時 loopbee 停止了；請先核對證據再開始新的 Run", "这个 Run 进行中时 loopbee 停止了；请先核对证据再开始新的 Run"],
   "The agent reported a failed turn; inspect the captured evidence": ["代理回報執行失敗，請查看已保存的證據", "代理报告执行失败，请查看已保存的证据"],
   "loopbee stopped before the delivery was confirmed": ["loopbee 在確認投遞前停止了", "loopbee 在确认投递前停止了"],
