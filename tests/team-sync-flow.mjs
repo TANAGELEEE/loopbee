@@ -43,6 +43,8 @@ export async function teamSyncFlow(page, core, env) {
       await setRemote(viewer.api, { language: "en", role: "viewer", teamRemote: remote });
       await waitFor(viewer.api, (st) => st.loops.some((l) => l.name === name));
       await page.goto(viewer.url);
+      // The app trades the token for a session and then moves to #/today: navigating before that is undone.
+      await page.waitForFunction(() => location.hash && !location.hash.includes("token="));
       await page.goto(viewer.base + "/#/settings/team");
       await page.locator("#team-status", { hasText: "Pulls by itself" }).waitFor();
       await page.locator("#team-status", { hasText: "last pulled" }).waitFor();
