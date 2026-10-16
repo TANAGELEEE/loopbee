@@ -79,6 +79,8 @@ export async function projectFlow(page, core, env) {
     await viewer.api("/settings", { ...st.settings, language: "en", role: "viewer", teamRemote: remote });
     await viewer.api("/sync", {});
     await page.goto(viewer.url);
+    // The app trades the token for a session and then moves to #/today: navigating before that is undone.
+    await page.waitForFunction(() => location.hash && !location.hash.includes("token="));
     await page.goto(viewer.base + "/#/today");
     await page.locator("#today-project").selectOption("acme/web");
     await done.getByText("Web nightly").first().waitFor();
