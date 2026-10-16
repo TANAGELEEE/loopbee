@@ -433,8 +433,10 @@ layout and states; component sizes, spacing and colours stay in `loop.css`.
 The person named the project folder in the chat but left the folder field empty. loopbee replaced whatever the
 designer proposed with the empty field, so the agent put the folder into read paths and the draft had no working
 directory. With no folder chosen, the designer may now propose one; loopbee keeps it only if it is an absolute folder
-that exists, and the chat's folder field takes it for the next messages.
-- Evidence: `TestChatDraftTakesTheFolderTheUserNamed`, `tests/agents-e2e.mjs#the folder named in the chat did not become the project folder`
+that exists, and the chat's folder field takes it for the next messages. The real CLIs then showed that OpenCode,
+which gets no JSON schema, answers in the shape of the draft it is shown, which had no `directory`: every schema field
+is now in that draft.
+- Evidence: `TestChatDraftTakesTheFolderTheUserNamed`, `TestTheDraftShownToAgentsHasEverySchemaField`, `tests/agents-e2e.mjs#the folder named in the chat did not become the project folder`
 - Seen: 2026-10-16
 
 ### Answering one question is not answering all of them
