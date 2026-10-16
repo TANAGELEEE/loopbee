@@ -2,7 +2,7 @@
 import { ctx, t, T, esc, $, $$, applyVars, btn, icon, icons, navIcons, active, hm, cronText, sandboxLabel, errText } from "./ui.js";
 import * as V from "./views.js";
 import { editorPage, gapsPanel, gaps, newDraft, definitionOnly, settingsPage, settingsTabs, onboardingPage, STEP_KINDS, kindLabel } from "./forms.js";
-import { chatPage, newChat, EXAMPLES } from "./chat.js";
+import { chatPage, newChat, EXAMPLES, chatAnswer } from "./chat.js";
 
 const ui = { node: undefined, events: false, step: 0, mode: "form", dirty: false, channel: "" };
 let route = { path: ["today"], q: {} };
@@ -303,6 +303,7 @@ async function chatSend(text) {
   chat.busy = true;
   chat.started = Date.now();
   chat.questions = [];
+  chat.picks = [];
   render();
   scrollChat();
   busyTimer = setInterval(() => {
@@ -324,6 +325,7 @@ async function chatSend(text) {
     current.messages.push({ role: "agent", agent: body.agent, text: [body.reply, ...questions.map((q) => "• " + q.text)].filter(Boolean).join("\n"), at: new Date().toISOString() });
     current.draft = { ...body.loop, directory: body.loop.directory || current.directory };
     current.questions = questions;
+    current.picks = [];
     current.problem = body.problem || "";
     if (current === chat) ui.dirty = true;
   } catch (e) {
@@ -868,7 +870,17 @@ const actions = {
     input.value = t(EXAMPLES[Number(b.dataset.i)]);
     input.focus();
   },
-  "chat-quick": (b) => chatSend(b.dataset.text),
+  "chat-quick": (b) => {
+    const i = Number(b.dataset.q);
+    chat.picks[i] = chat.picks[i] === b.dataset.text ? undefined : b.dataset.text;
+    for (const x of b.closest(".chips").querySelectorAll("button")) x.setAttribute("aria-pressed", String(chat.picks[i] === x.dataset.text));
+    if (chat.questions.every((_, qi) => chat.picks[qi])) {
+      const input = $("#chat-input");
+      const text = chatAnswer(chat, input?.value || "");
+      if (input) input.value = "";
+      chatSend(text);
+    }
+  },
   "chat-agent": (b) => {
     chat.agent = b.dataset.value;
     render();
@@ -1136,7 +1148,7 @@ document.addEventListener("submit", async (e) => {
       go(approve ? "#/run/" + route.path[1] : "#/today");
     } else if (form.id === "chat-form") {
       const input = $("#chat-input");
-      const text = input.value;
+      const text = chatAnswer(chat, input.value);
       input.value = "";
       if (submit) submit.disabled = false;
       chatSend(text);

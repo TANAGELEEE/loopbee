@@ -63,9 +63,14 @@ try {
   assert.deepEqual(bubble, { stacked: true, inside: true }, "the agent's reply runs out of its bubble");
   assert.equal(await page.locator(".chat-side .flow .node").count(), 2);
   assert.ok(await page.locator(".chat-side").getByText("Weekdays 09:00 · Asia/Taipei").isVisible());
+  // Two questions: picking one answer is not sending it; the message goes once every question has an answer.
   await page.getByRole("button", { name: "I do it myself" }).click();
+  assert.equal(await page.getByRole("button", { name: "I do it myself" }).getAttribute("aria-pressed"), "true");
+  assert.equal(await page.locator(".msg.me").count(), 1, "picking one of two answers sent the message");
+  await page.getByRole("button", { name: "Only in the app" }).click();
   await page.locator(".chat-side").getByText("Daily 02:00 · Asia/Taipei").waitFor();
   assert.equal(await page.locator(".msg.me").count(), 2);
+  assert.match(await page.locator(".msg.me .txt").last().textContent(), /Who merges to master after approval\? → I do it myself\nWhere should loopbee report\? → Only in the app/);
   await mkdir(`${EVIDENCE}/screens`, { recursive: true });
   await page.screenshot({ path: `${EVIDENCE}/screens/chat-authoring.en.light.png`, fullPage: true });
 

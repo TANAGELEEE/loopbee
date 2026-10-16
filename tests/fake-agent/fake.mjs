@@ -31,7 +31,7 @@ export async function main(name) {
     const turns = (prompt.match(/^\[user\]/gm) || []).length;
     const proposal = {
       reply: turns > 1 ? "Moved it to 02:00 and kept the gate before master." : "Drafted a weekday Loop that uses your fix-prod-errors skill and stops before master.",
-      questions: turns > 1 ? [] : [{ text: "Who merges to master after approval?", options: ["I do it myself", "loopbee continues after approval"] }],
+      questions: turns > 1 ? [] : [{ text: "Who merges to master after approval?", options: ["I do it myself", "loopbee continues after approval"] }, { text: "Where should loopbee report?", options: ["Telegram", "Only in the app"] }],
       loop: {
         name: "Fix production errors", description: "Check production errors, fix on a branch, deploy to test; stop before master.",
         cron: turns > 1 ? "0 2 * * *" : "0 9 * * 1-5", timezone: "Asia/Taipei", sandbox: network ? "workspace-network" : "read-only", workspace: network ? "worktree" : "direct", baseRef: network ? "origin/master" : "", branch: network ? "loopbee/fix-{date}" : "", lock: "env:test",

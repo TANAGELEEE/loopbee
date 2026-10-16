@@ -22,6 +22,7 @@ export function newChat(key, loop) {
     messages: loop?.conversation ? structuredClone(loop.conversation) : [],
     draft: loop ? structuredClone(loop) : null,
     questions: [],
+    picks: [], // the answer picked for each question, sent together once every question has one
     problem: "",
     busy: false,
     started: 0,
@@ -39,7 +40,7 @@ export function chatPage(c) {
   const intro = !c.messages.length
     ? `<div class="chat-intro"><div class="nm">${T(editing ? "Tell your agent what to change" : "Describe the Loop in your own words")}</div><div class="sub">${T("Your agent reads the project (read-only) to find your skills, scripts and conventions, then drafts the Loop. Nothing runs until you save and start it.")}</div>${editing ? "" : `<div class="examples">${EXAMPLES.map((e, i) => `<button type="button" class="ex" data-action="chat-example" data-i="${i}">${T(e)}</button>`).join("")}</div>`}</div>`
     : "";
-  const quick = c.questions.length && !c.busy ? `<div class="quick">${c.questions.map((q, qi) => `<div class="q"><div class="sub t2">${esc(q.text)}</div><div class="chips">${(q.options || []).map((o) => `<button type="button" class="chip tgl" data-action="chat-quick" data-q="${qi}" data-text="${esc(o)}">${esc(o)}</button>`).join("")}</div></div>`).join("")}</div>` : "";
+  const quick = c.questions.length && !c.busy ? `<div class="quick">${c.questions.map((q, qi) => `<div class="q"><div class="sub t2">${esc(q.text)}</div><div class="chips">${(q.options || []).map((o) => `<button type="button" class="chip tgl" data-action="chat-quick" data-q="${qi}" data-text="${esc(o)}" aria-pressed="${c.picks[qi] === o}">${esc(o)}</button>`).join("")}</div></div>`).join("")}${c.questions.length > 1 ? `<div class="sub">${T("Pick an answer for each question; they are sent together once all have one, or press Send with what you picked and typed.")}</div>` : ""}</div>` : "";
   const cfg = `<div class="chat-cfg">${available.length > 1 ? seg("agent", c.agent, available.map((a) => [a.name, agentLabel(a.name)]), { action: "chat-agent", label: t("Agent") }) : `<span class="chip">${esc(agentLabel(c.agent))}</span>`}<input class="inp mono" id="chat-dir" value="${esc(c.directory)}" placeholder="${T("Project folder (absolute path)")}" aria-label="${T("Project folder")}" ${editing ? "" : ""}></div>`;
   const noAgent = !available.length
     ? `<div class="card sm">${empty(T("No agent CLI detected"), T("Install Codex CLI or Claude Code, then detect again. You can still build the Loop with the form."), `${btn("Detect again", "detect", { cls: "sm" })}<a class="btn sm" href="#/new?form=1">${T("Use the form")}</a>`)}</div>`
@@ -84,4 +85,10 @@ function preview(c) {
   ${c.problem ? `<div class="bn err mt10">${icon("err")}<span>${c.problem === "permission exceeds this device's limit" ? `${T("This Loop needs “{need}”, but this device allows at most “{max}”.", { need: sandboxLabel(d.sandbox), max: sandboxLabel(S().settings.maxSandbox) })} <a href="#/settings">${T("Raise the limit in Settings")}</a>` : esc(errText(c.problem))}</span></div>` : ""}
   <div id="gaps">${gapsPanel(d)}</div>
   <div class="card sm mt10"><button type="button" class="btn pri wide" data-action="chat-save" ${blocking || c.busy ? "disabled" : ""}>${T(c.loop ? "Save as v{n}" : "Save as draft", { n: (c.loop?.version || 0) + 1 })}</button><div class="sub mt6">${T(c.loop ? "Saving creates a new version; the schedule setting is kept." : "Saved with the schedule off. Run it once, then enable the schedule.")}</div><button type="button" class="btn ghost wide mt6" data-action="chat-form">${T("Adjust in the form")}</button></div>`;
+}
+
+// The picked answers as "question → answer" lines, followed by what the person typed.
+export function chatAnswer(c, typed) {
+  const picked = c.questions.map((q, i) => (c.picks[i] ? `${q.text} → ${c.picks[i]}` : "")).filter(Boolean);
+  return [...picked, typed.trim()].filter(Boolean).join("\n");
 }
