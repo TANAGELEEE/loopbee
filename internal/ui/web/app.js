@@ -883,6 +883,37 @@ const actions = {
       chatSend(text);
     }
   },
+  // The system's chooser fills a path field; "add" appends a line, relative="project" keeps it inside the Loop's folder.
+  "pick-path": async (b) => {
+    const el = $(b.dataset.target);
+    if (!el) return;
+    const lines = el.value.split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+    const add = b.dataset.mode === "add";
+    const project = b.dataset.relative === "project" ? (draft?.directory || "").replace(/[\\/]+$/, "") : "";
+    if (b.dataset.relative === "project" && !project) return toast(t("Set the working directory first"), "err");
+    b.disabled = true;
+    try {
+      const res = await fetch("/api/pick", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: b.closest(".fld")?.querySelector(".lb")?.textContent || "", start: project || (add ? lines.at(-1) || "" : el.value), files: !!b.dataset.files }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || res.statusText);
+      let path = body.path;
+      if (!path) return;
+      if (project) {
+        if (!path.startsWith(project + "/") && !path.startsWith(project + "\\")) return toast(t("Choose a file inside the working directory"), "err");
+        path = path.slice(project.length + 1);
+      }
+      el.value = add ? [...new Set([...lines, path])].join("\n") : path;
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    } catch (e) {
+      toast(friendly(e.message), "err");
+    } finally {
+      b.disabled = false;
+    }
+  },
   "chat-agent": (b) => {
     chat.agent = b.dataset.value;
     render();

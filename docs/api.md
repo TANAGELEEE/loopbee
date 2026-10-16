@@ -18,6 +18,7 @@ The server listens only on numeric loopback addresses. Every `/api/*` route exce
 | POST | `/api/agents/detect` | `{}`; detect versions and capabilities |
 | POST | `/api/notify/{kind}/test` | `{}`; independently test an enabled channel |
 | POST | `/api/deliveries/{id}/retry` | `{}`; only failed/unknown deliveries, creates a new delivery |
+| POST | `/api/pick` | `{title, start, files}` → `{path}`: opens the desktop's system chooser at `start` (or the nearest folder that exists, or home); `""` when cancelled. `state.info.canPick` says whether there is one; without the desktop window (`-nogui`) the request fails and path fields stay typed |
 | POST | `/api/sync` | `{}`; executors publish, viewers pull. Both also happen by themselves once a team repository is set: an executor publishes when it is set and about 30 s after a Run ends or waits at a gate or a Loop changes; a viewer pulls when it is set, at start and every 5 minutes |
 | POST | `/api/prune` | `{}`; remove expired terminal Runs |
 | GET | `/api/export` | ZIP after sensitive-content checks |
