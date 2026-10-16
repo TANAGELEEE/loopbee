@@ -1,5 +1,5 @@
 // Real smoke test: the packaged loopbee binary + the real agent CLIs on this machine (Codex CLI, Claude Code,
-// Gemini CLI, OpenCode, pi).
+// OpenCode, pi).
 // It uses your agent subscription (a few short agent runs) and touches nothing outside a temp folder:
 // a throw-away sample Git repository with a bare "origin", and an isolated loopbee data directory.
 //
@@ -143,7 +143,7 @@ try {
   for (const a of s.agents) log(`agent ${a.name}: ${a.status} ${a.version || ""} caps ${(a.caps || []).join(",")} · levels ${(a.levels || []).join(",")}`);
   await core.api("/settings", { ...s.settings, maxSandbox: "workspace-write" });
   const wanted = (opt("agents", "") || s.agents.filter((a) => a.status === "available").map((a) => a.name).join(",")).split(",").filter(Boolean);
-  if (!wanted.length) throw new Error("no agent CLI detected; install one (Codex CLI, Claude Code, Gemini CLI, OpenCode, pi) and sign in");
+  if (!wanted.length) throw new Error("no agent CLI detected; install one (Codex CLI, Claude Code, OpenCode, pi) and sign in");
   for (const agent of wanted) {
     const levels = s.agents.find((a) => a.name === agent)?.levels || [];
     for (const name of scenarios) {

@@ -1086,7 +1086,6 @@ const translations = {
   "Not used by this Loop": ["此 Loop 未使用", "此 Loop 未使用"],
   "{n} tokens": ["{n} token", "{n} token"],
   "input {i} · cached {c} · output {o}": ["輸入 {i} · 快取 {c} · 輸出 {o}", "输入 {i} · 缓存 {c} · 输出 {o}"],
-  "Runs gemini with stream-json output; your skills, extensions and GEMINI.md apply. Its sandbox needs macOS or Docker/Podman.": ["以 stream-json 輸出執行 gemini；你的 skill、extension 與 GEMINI.md 都會生效。它的沙箱需要 macOS 或 Docker/Podman。", "以 stream-json 输出运行 gemini；你的 skill、extension 与 GEMINI.md 都会生效。它的沙箱需要 macOS 或 Docker/Podman。"],
   "Runs opencode run --format json; your skills, agents and AGENTS.md apply. OpenCode has no sandbox: loopbee offers read only or its own config.": ["執行 opencode run --format json；你的 skill、agent 與 AGENTS.md 都會生效。OpenCode 沒有沙箱：loopbee 只提供唯讀或它自己的設定。", "运行 opencode run --format json；你的 skill、agent 与 AGENTS.md 都会生效。OpenCode 没有沙箱：loopbee 只提供只读或它自己的配置。"],
   "Runs pi --mode json; your skills and AGENTS.md apply. pi has no sandbox: loopbee offers read only or its own config.": ["執行 pi --mode json；你的 skill 與 AGENTS.md 都會生效。pi 沒有沙箱：loopbee 只提供唯讀或它自己的設定。", "运行 pi --mode json；你的 skill 与 AGENTS.md 都会生效。pi 没有沙箱：loopbee 只提供只读或它自己的配置。"],
   "No description.": ["沒有說明。", "没有说明。"],

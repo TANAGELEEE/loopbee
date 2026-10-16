@@ -213,3 +213,29 @@ func TestDefaultAgentIsAnyAdapter(t *testing.T) {
 		t.Fatal("unknown agent accepted")
 	}
 }
+
+// Gemini CLI is no longer supported. A device whose default agent was Gemini would refuse every later settings save
+// ("unknown default agent"); loopbee clears a default agent it no longer knows when it starts.
+func TestAnUnsupportedDefaultAgentIsCleared(t *testing.T) {
+	dir := t.TempDir()
+	a, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := a.Settings()
+	c.DefaultAgent = "gemini"
+	if err = a.put("settings", "general", c); err != nil {
+		t.Fatal(err)
+	}
+	a.Close()
+	if a, err = Open(dir); err != nil {
+		t.Fatal(err)
+	}
+	defer a.Close()
+	if got := a.Settings().DefaultAgent; got != "" {
+		t.Fatalf("default agent %q survived", got)
+	}
+	if err = a.SaveSettings(a.Settings()); err != nil {
+		t.Fatalf("settings cannot be saved: %v", err)
+	}
+}

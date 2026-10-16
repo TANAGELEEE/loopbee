@@ -1,4 +1,4 @@
-// Fake agent CLIs (Codex, Claude Code, Gemini CLI, OpenCode, pi) for UI tests. Never contacts a model; answers
+// Fake agent CLIs (Codex, Claude Code, OpenCode, pi) for UI tests. Never contacts a model; answers
 // deterministically in each CLI's own event format, with the token usage each one reports.
 import { writeFileSync, appendFileSync } from "node:fs";
 
@@ -11,7 +11,6 @@ export async function main(name) {
     return console.log({
       codex: "--json --sandbox --output-last-message --output-schema --add-dir --skip-git-repo-check --model",
       claude: "--print --output-format stream-json --json-schema --add-dir --tools --settings --permission-mode --model",
-      gemini: "--output-format [choices: text, json, stream-json] --approval-mode --sandbox --policy --include-directories --skip-trust --model",
       opencode: "--format json --model --auto",
       pi: "--mode json --tools --exclude-tools --no-session --model",
     }[name]);
@@ -72,11 +71,6 @@ export async function main(name) {
     out({ type: "system", subtype: "init", model: model || "claude-fake" });
     out({ type: "assistant", message: { content: [{ type: "text", text }] } });
     out({ type: "result", subtype: "success", is_error: false, result: text, total_cost_usd: 0.0123, usage: { input_tokens: 1000, cache_read_input_tokens: 200, cache_creation_input_tokens: 0, output_tokens: 300 }, ...(structured ? { structured_output: structured } : {}) });
-  } else if (name === "gemini") {
-    const m = model || "gemini-fake";
-    out({ type: "init", timestamp: "t", session_id: "s", model: m });
-    out({ type: "message", timestamp: "t", role: "assistant", content: text, delta: true });
-    out({ type: "result", timestamp: "t", status: "success", stats: { total_tokens: 1500, input_tokens: 1200, output_tokens: 300, cached: 200, input: 1000, duration_ms: 1, tool_calls: 0, models: { [m]: {} } } });
   } else if (name === "opencode") {
     out({ type: "text", timestamp: 1, sessionID: "s", part: { type: "text", text } });
     out({ type: "step_finish", timestamp: 1, sessionID: "s", part: { type: "step-finish", cost: 0.01, tokens: { input: 1000, output: 300, reasoning: 0, cache: { read: 200, write: 0 } } } });
