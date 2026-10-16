@@ -159,7 +159,6 @@ func TestFakeAgent(t *testing.T) {
 var fakeHelp = map[string]string{
 	"codex":    "--json --sandbox --output-last-message --output-schema --add-dir --skip-git-repo-check --model",
 	"claude":   "--print --output-format stream-json --json-schema --add-dir --tools --settings --permission-mode --model",
-	"gemini":   "--output-format [choices: text, json, stream-json] --approval-mode --sandbox --policy --include-directories --skip-trust --model",
 	"pi":       "--mode json --tools --exclude-tools --no-session --model",
 	"opencode": "--format json --model --auto",
 }
@@ -168,7 +167,6 @@ var fakeHelp = map[string]string{
 var fakeFailure = map[string]string{
 	"codex":    `{"type":"turn.failed","error":{"message":"boom"}}`,
 	"claude":   `{"type":"result","subtype":"error_during_execution","is_error":true,"result":"boom"}`,
-	"gemini":   `{"type":"result","timestamp":"t","status":"error","error":{"type":"FatalError","message":"boom"}}`,
 	"pi":       `{"type":"message_end","message":{"role":"assistant","content":[],"stopReason":"error","errorMessage":"boom"}}` + "\n" + `{"type":"agent_end","willRetry":false,"messages":[{"role":"assistant","content":[],"stopReason":"error","errorMessage":"boom"}]}`,
 	"opencode": `{"type":"error","timestamp":1,"sessionID":"s","error":{"name":"UnknownError","data":{"message":"boom"}}}`,
 }
@@ -202,19 +200,6 @@ func fakeOutput(name string, args []string, text string, structured any) {
 			res["structured_output"] = structured
 		}
 		emit(res)
-	case "gemini":
-		m := orDefault(model, "gemini-fake")
-		emit(map[string]any{"type": "init", "timestamp": "t", "session_id": "s", "model": m})
-		emit(map[string]any{"type": "message", "timestamp": "t", "role": "user", "content": "prompt"})
-		emit(map[string]any{"type": "tool_use", "timestamp": "t", "tool_name": "read_file", "tool_id": "1", "parameters": map[string]any{}})
-		emit(map[string]any{"type": "message", "timestamp": "t", "role": "assistant", "content": "ignored before the tool call", "delta": true})
-		emit(map[string]any{"type": "tool_result", "timestamp": "t", "tool_id": "1", "status": "success"})
-		half := len(text) / 2
-		emit(map[string]any{"type": "message", "timestamp": "t", "role": "assistant", "content": text[:half], "delta": true})
-		emit(map[string]any{"type": "message", "timestamp": "t", "role": "assistant", "content": text[half:], "delta": true})
-		emit(map[string]any{"type": "result", "timestamp": "t", "status": "success", "stats": map[string]any{
-			"total_tokens": 1500, "input_tokens": 1200, "output_tokens": 300, "cached": 200, "input": 1000, "duration_ms": 10, "tool_calls": 1,
-			"models": map[string]any{m: map[string]any{"total_tokens": 1500, "input_tokens": 1200, "output_tokens": 300, "cached": 200, "input": 1000}}}})
 	case "pi":
 		m := orDefault(model, "fake-model")
 		emit(map[string]any{"type": "session", "version": 3, "id": "s", "cwd": "/"})

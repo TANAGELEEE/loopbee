@@ -81,7 +81,12 @@ func Open(dir string) (*App, error) {
 		a.Close()
 		return nil, err
 	}
-	if errors.Is(err, sql.ErrNoRows) {
+	// A default agent loopbee no longer supports (Gemini CLI) would refuse every later settings save.
+	_, known := adapterFor(a.config.DefaultAgent)
+	if stale := a.config.DefaultAgent != "" && !known; stale || errors.Is(err, sql.ErrNoRows) {
+		if stale {
+			a.config.DefaultAgent = ""
+		}
 		if err = a.put("settings", "general", a.config); err != nil {
 			a.Close()
 			return nil, err

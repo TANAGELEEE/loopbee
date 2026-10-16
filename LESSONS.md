@@ -103,7 +103,7 @@ those it can address.
 Adding Gemini CLI, OpenCode and pi showed that not every CLI can enforce every level: OpenCode and pi have no sandbox,
 and Gemini's sandbox cannot cut the network because the CLI itself needs it. Each adapter lists only the levels its CLI
 enforces; any other level is refused with the alternatives, never run with less protection, and Gemini's
-workspace-write denies the shell instead of pretending there is no network.
+workspace-write denied the shell instead of pretending there was no network (Gemini CLI was removed on 10-16).
 - Evidence: `TestEveryAdapterMeetsTheContract`, `TestAdapterPermissionFlags`, `tests/agents-e2e.mjs#pi cannot enforce`
 - Seen: 2026-10-13
 

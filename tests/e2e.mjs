@@ -23,7 +23,7 @@ await new Promise((ok) => releases.listen(0, "127.0.0.1", ok));
 process.env.LOOPBEE_UPDATE_FEED = `http://127.0.0.1:${releases.address().port}/latest`;
 // Real agent CLIs on this machine are ignored so the test never calls a model. OpenCode is installed but broken.
 const chosen = await mkdtemp(join(tmpdir(), "loopbee-chosen-"));
-const agentEnv = { LOOPBEE_PICK_STUB: chosen, LOOPBEE_CODEX_BIN: "/nonexistent/codex", LOOPBEE_CLAUDE_BIN: "/nonexistent/claude", LOOPBEE_GEMINI_BIN: "/nonexistent/gemini", LOOPBEE_OPENCODE_BIN: new URL("./fake-agent/broken.mjs", import.meta.url).pathname, LOOPBEE_PI_BIN: "/nonexistent/pi", LOOPBEE_GH_BIN: "/nonexistent/gh" };
+const agentEnv = { LOOPBEE_PICK_STUB: chosen, LOOPBEE_CODEX_BIN: "/nonexistent/codex", LOOPBEE_CLAUDE_BIN: "/nonexistent/claude", LOOPBEE_OPENCODE_BIN: new URL("./fake-agent/broken.mjs", import.meta.url).pathname, LOOPBEE_PI_BIN: "/nonexistent/pi", LOOPBEE_GH_BIN: "/nonexistent/gh" };
 const core = await startCore(undefined, agentEnv);
 let browser;
 let projects;
