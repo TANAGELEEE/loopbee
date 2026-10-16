@@ -201,6 +201,7 @@ const translations = {
   Source: ["來源", "来源"],
   "Loop: all": ["Loop：全部", "Loop：全部"],
   "Project: all": ["專案：全部", "项目：全部"],
+  "Pick an answer for each question; they are sent together once all have one, or press Send with what you picked and typed.": ["每個問題選一個答案，全部選好後會一起送出；也可以只選一部分，加上自己輸入的內容後按「送出」。", "每个问题选一个答案，全部选好后会一起发送；也可以只选一部分，加上自己输入的内容后按「发送」。"],
   Project: ["專案", "项目"],
   "No project": ["未分類", "未分类"],
   "{n} Loop|{n} Loops": ["{n} 個 Loop", "{n} 个 Loop"],

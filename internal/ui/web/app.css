@@ -375,3 +375,4 @@ details summary{cursor:pointer;padding:6px 0;font-weight:550}
 @media (max-width:640px){.board{grid-template-columns:minmax(0,1fr)}}
 .run-usage,.tok{white-space:nowrap}
 .step-usage .sub{margin-top:2px}
+.chip.tgl[aria-pressed="true"]{border-color:var(--fg);background:var(--acc-bg)}

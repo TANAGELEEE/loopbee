@@ -438,6 +438,13 @@ layout and states; component sizes, spacing and colours stay in `loop.css`.
 - Evidence: `tests/screens.mjs`
 - Seen: 2026-10-11
 
+### Answering one question is not answering all of them
+When the designer asked two questions, clicking an answer to the first sent it at once, and the second question was
+gone. Answers are now picked per question and sent together as “question → answer” lines once every question has
+one; Send also takes what was picked so far plus the typed text.
+- Evidence: `tests/agents-e2e.mjs#picking one of two answers sent the message`
+- Seen: 2026-10-16
+
 ### A component's class must not reuse a design-system class
 The chat marked the agent's replies `msg ag`, and `loop.css` styles `.ag` as the topology's agent card: a 64 px flex
 row. Every reply became a fixed-height row with the name beside the text, and longer replies ran out of the bubble.
