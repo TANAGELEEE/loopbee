@@ -39,6 +39,7 @@ type App struct {
 	teamClosed  bool
 	awakeCancel context.CancelFunc
 	upd         *updater
+	picker      Picker // the desktop's folder chooser; nil without a window
 }
 
 func Open(dir string) (*App, error) {
@@ -495,7 +496,7 @@ func (a *App) State() (State, error) {
 	a.mu.Lock()
 	s.Agents = append([]Agent{}, a.agents...)
 	s.GitHub = a.github
-	s.Info = Info{Version: Version, OS: runtime.GOOS, Arch: runtime.GOARCH, DataDir: a.Dir, Active: len(a.active)}
+	s.Info = Info{Version: Version, OS: runtime.GOOS, Arch: runtime.GOARCH, DataDir: a.Dir, Active: len(a.active), CanPick: a.picker != nil}
 	a.mu.Unlock()
 	s.Update = a.UpdateState()
 	s.Team = a.teamStatus()

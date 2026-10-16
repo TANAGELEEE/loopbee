@@ -1,12 +1,15 @@
 // Browser E2E against the real nogui core (HTTP + SQLite). Run `go build -tags nogui -o bin/loopbee ./cmd/loopbee` first.
 import { chromium } from "playwright";
-import { mkdir, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import assert from "node:assert/strict";
 import { startCore, waitFor } from "./demo.mjs";
 import { uiFlow } from "./ui-flow.mjs";
 import { sidebarFlow } from "./sidebar-flow.mjs";
 import { projectFlow } from "./project-flow.mjs";
 import { teamSyncFlow } from "./team-sync-flow.mjs";
+import { pickFlow } from "./pick-flow.mjs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 // CI sets LOOPBEE_EVIDENCE_DIR to a fresh directory so uploaded screenshots always come from this run.
 const EVIDENCE = process.env.LOOPBEE_EVIDENCE_DIR || "docs/evidence";
 
@@ -19,7 +22,8 @@ const releases = createServer((req, res) => {
 await new Promise((ok) => releases.listen(0, "127.0.0.1", ok));
 process.env.LOOPBEE_UPDATE_FEED = `http://127.0.0.1:${releases.address().port}/latest`;
 // Real agent CLIs on this machine are ignored so the test never calls a model. OpenCode is installed but broken.
-const agentEnv = { LOOPBEE_CODEX_BIN: "/nonexistent/codex", LOOPBEE_CLAUDE_BIN: "/nonexistent/claude", LOOPBEE_GEMINI_BIN: "/nonexistent/gemini", LOOPBEE_OPENCODE_BIN: new URL("./fake-agent/broken.mjs", import.meta.url).pathname, LOOPBEE_PI_BIN: "/nonexistent/pi", LOOPBEE_GH_BIN: "/nonexistent/gh" };
+const chosen = await mkdtemp(join(tmpdir(), "loopbee-chosen-"));
+const agentEnv = { LOOPBEE_PICK_STUB: chosen, LOOPBEE_CODEX_BIN: "/nonexistent/codex", LOOPBEE_CLAUDE_BIN: "/nonexistent/claude", LOOPBEE_GEMINI_BIN: "/nonexistent/gemini", LOOPBEE_OPENCODE_BIN: new URL("./fake-agent/broken.mjs", import.meta.url).pathname, LOOPBEE_PI_BIN: "/nonexistent/pi", LOOPBEE_GH_BIN: "/nonexistent/gh" };
 const core = await startCore(undefined, agentEnv);
 let browser;
 let projects;
@@ -34,6 +38,7 @@ try {
   await sidebarFlow(page, core.base, core.api);
   projects = await projectFlow(page, core, agentEnv);
   await teamSyncFlow(page, core, agentEnv);
+  await pickFlow(page, core.base, chosen);
 
   // An agent that is installed but cannot start says why, instead of “Not detected”.
   await page.goto(core.base + "/#/settings/agents");
@@ -120,4 +125,5 @@ try {
   releases.close();
   await rm(core.data, { recursive: true, force: true });
   if (projects) await rm(projects.root, { recursive: true, force: true });
+  await rm(chosen, { recursive: true, force: true });
 }
