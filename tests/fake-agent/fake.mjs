@@ -34,6 +34,7 @@ export async function main(name) {
       questions: turns > 1 ? [] : [{ text: "Who merges to master after approval?", options: ["I do it myself", "loopbee continues after approval"] }, { text: "Where should loopbee report?", options: ["Telegram", "Only in the app"] }],
       loop: {
         name: "Fix production errors", description: "Check production errors, fix on a branch, deploy to test; stop before master.",
+        directory: (prompt.match(/FOLDER=(.+?)\s*$/m) || [])[1] || "",
         cron: turns > 1 ? "0 2 * * *" : "0 9 * * 1-5", timezone: "Asia/Taipei", sandbox: network ? "workspace-network" : "read-only", workspace: network ? "worktree" : "direct", baseRef: network ? "origin/master" : "", branch: network ? "loopbee/fix-{date}" : "", lock: "env:test",
         maxRounds: 1, wallMinutes: 90, stallRounds: 2, gateHours: 48, doneWhen: "verify.passed", allowedTools: [],
         steps: [

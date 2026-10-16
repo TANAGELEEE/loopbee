@@ -266,6 +266,14 @@ try {
   assert.equal(await page.getByRole("button", { name: "Save as v3" }).isDisabled(), true);
   // Traditional Chinese screenshots of the chat (with history) and the agent settings for review.
   await core.api("/state").then((st) => core.api("/settings", { ...st.settings, language: "zh-TW" }));
+  // No project folder chosen, but the message names one: the draft and the folder field take it.
+  await page.goto(core.base + "/#/new");
+  await page.reload();
+  assert.equal(await page.locator("#chat-dir").inputValue(), "");
+  await page.locator("#chat-input").fill(`Sync the repositories in FOLDER=${project}`);
+  await page.locator("#chat-form button").click();
+  await page.locator(".chat-side h1", { hasText: "Fix production errors" }).waitFor();
+  assert.equal(await page.locator("#chat-dir").inputValue(), project, "the folder named in the chat did not become the project folder");
   for (const [name, hash] of [["chat-authoring.zh-TW.light", `#/loop/${loop.id}/chat`], ["settings-agents.zh-TW.light", "#/settings/agents"], ["run-report.zh-TW.light", `#/run/${run.id}`]]) {
     await page.goto(core.base + "/" + hash);
     await page.reload();
