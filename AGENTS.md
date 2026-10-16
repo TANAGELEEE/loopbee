@@ -1,6 +1,6 @@
 # Notes for coding agents
 
-loopbee is a local desktop scheduler that runs agent CLIs (Codex CLI, Claude Code, Gemini CLI, OpenCode, pi — one
+loopbee is a local desktop scheduler that runs agent CLIs (Codex CLI, Claude Code, OpenCode, pi — one
 adapter each in `internal/core/agent_*.go`) headlessly, records evidence and stops at human gates. Go core
 (`internal/core`), loopback HTTP API (`internal/httpapi`), vanilla JS UI (`internal/ui/web`), Wails desktop shell
 (`cmd/loopbee`) and the `beectl` CLI (`cmd/beectl`). Keep those three layers; do not add a

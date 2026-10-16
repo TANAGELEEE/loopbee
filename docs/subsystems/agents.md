@@ -1,13 +1,13 @@
 # Local agents
 
 loopbee drives local agent CLIs headlessly through **adapters**, one Go file per CLI (`internal/core/agent_*.go`,
-registry in `adapter.go`): **Codex CLI**, **Claude Code**, **Gemini CLI**, **OpenCode** and **pi**. Adapters are
+registry in `adapter.go`): **Codex CLI**, **Claude Code**, **OpenCode** and **pi** (Gemini CLI was supported from 2026-10-13 and removed on 2026-10-16). Adapters are
 compiled in; there is no plugin host. Each is detected at start-up and on demand (Settings › Agents › Detect again)
 through PATH, `LOOPBEE_<NAME>_BIN` (an executable or a `.js`/`.mjs`/`.cjs` entry point) or, on Windows, the npm `.cmd`
 wrapper's `node_modules` entry point. Before detection loopbee merges the PATH of the user's login shell
 (`$SHELL -ilc`), so agents installed through nvm or Homebrew are found when the app starts from the Dock or Finder.
 
-Detection runs `--version` and the adapter's help command (`codex exec --help`, `claude --help`, `gemini --help`,
+Detection runs `--version` and the adapter's help command (`codex exec --help`, `claude --help`,
 `opencode run --help`, `pi --help`) and records capabilities. Optional flags are only passed when the help text lists
 them. `available` means the headless flags exist; it does not prove that a model, account or quota is usable. When a
 CLI is found but a detection command fails or times out, the agent is `unavailable` with a `problem` that names the
@@ -28,14 +28,8 @@ levels it does offer — never run with less protection.
 |---|---|---|
 | Codex CLI | all four | its OS sandbox (`--sandbox`) |
 | Claude Code | all four | tool limits at read-only; its OS sandbox for Bash at write levels (macOS, Linux, WSL2) |
-| Gemini CLI | all four | policy engine (headless turns every “ask” into “deny”) and `--sandbox` (macOS sandbox-exec, else Docker/Podman; it refuses to start without one) |
 | OpenCode | read-only, agent-config | its permission settings via `OPENCODE_CONFIG_CONTENT`; no sandbox exists |
 | pi | read-only, agent-config | the read tools alone (`--tools read,grep,find,ls`); pi has no sandbox or prompts |
-
-Gemini CLI runs the whole CLI inside its sandbox and the CLI itself needs the network for its model, so the sandbox
-cannot cut network off. At workspace-write loopbee therefore denies the shell (`auto_edit`: edit tools allowed,
-`run_shell_command` denied in headless mode); workspace-network (`yolo`) allows commands and network while writes stay
-inside the project. The designer and the editor say so.
 
 ## Invocation
 
@@ -49,17 +43,12 @@ any) and the result contract below.
 | workspace-network | `--sandbox workspace-write -c sandbox_workspace_write.network_access=true` | as above with `"allowedDomains":["*"]` |
 | agent-config | no sandbox flags (config.toml / `--profile` decide) | no permission flags (settings.json decides) |
 
-| Permission level | Gemini CLI (`--output-format stream-json`) | OpenCode (`run --format json`) | pi (`--mode json --no-session`) |
-|---|---|---|---|
-| read-only | `--skip-trust --approval-mode default --policy <file> --include-directories <read paths>` | `OPENCODE_CONFIG_CONTENT={"permission":{"edit":"deny","bash":"deny","webfetch":"deny","websearch":"deny","codesearch":"deny","task":"deny","external_directory":{"*":"deny","<read path>/**":"allow"}}}` | `--tools read,grep,find,ls` |
-| workspace-write | `--skip-trust --approval-mode auto_edit --sandbox --policy <file> --include-directories <read paths>` | refused | refused |
-| workspace-network | `--skip-trust --approval-mode yolo --sandbox`, read paths as `SANDBOX_MOUNTS=<p>:<p>:ro` | refused | refused |
-| agent-config | no permission flags | no permission settings (non-interactive “ask” is rejected by OpenCode) | no tool flags |
-
-Gemini's policy file (written to the Run's folder) allows `activate_skill`, which headless mode would otherwise deny,
-and at workspace-write denies `write_file`/`replace` whose arguments name a read path (read paths are workspace
-directories for the read tools only). `--skip-trust` is needed because every fresh worktree is an untrusted folder,
-where Gemini silently falls back to “default” approval.
+| Permission level | OpenCode (`run --format json`) | pi (`--mode json --no-session`) |
+|---|---|---|
+| read-only | `OPENCODE_CONFIG_CONTENT={"permission":{"edit":"deny","bash":"deny","webfetch":"deny","websearch":"deny","codesearch":"deny","task":"deny","external_directory":{"*":"deny","<read path>/**":"allow"}}}` | `--tools read,grep,find,ls` |
+| workspace-write | refused | refused |
+| workspace-network | refused | refused |
+| agent-config | no permission settings (non-interactive “ask” is rejected by OpenCode) | no tool flags |
 
 Codex also gets `-C <workdir>`, `--skip-git-repo-check`, `--output-last-message <report file>` and, for worktrees, `--add-dir <git common dir>` so commits from the worktree can be written. Claude Code gets `--add-dir` likewise. The device ceiling (`settings.maxSandbox`) caps every Loop; raising it needs a typed confirmation.
 
@@ -110,8 +99,8 @@ system through their agent's MCP tools. loopbee brings no browser or tools of it
 up with. What breaks is the approval: in their own session a person answers the CLI's prompt, in an unattended Run
 nobody can. `codex exec` always runs with `approval_policy=never`, which refuses every MCP call that needs approval
 (“MCP tool call requires approval, but approval policy is never”; `-c approval_policy=on-request` does not change
-that). Claude Code's `-p` denies tools without an allow rule, Gemini CLI's headless mode refuses every “ask”, and
-OpenCode's `run` rejects them.
+that). Claude Code's `-p` denies tools without an allow rule, and OpenCode's `run`
+rejects them.
 
 One switch per Loop, `agentMcp` (“Use the agent's own MCP tools”), approves every MCP tool of the agent's own setup
 in advance, at any level. These tools run outside the agent's sandbox with the user's rights, so the editor asks for
@@ -123,7 +112,6 @@ decide, as for everything else there.
 |---|---|---|
 | Codex | for each server `codex mcp list --json` reports enabled in the run's folder: `-c mcp_servers.<s>.default_tools_approval_mode="approve"` when it is defined in `~/.codex/config.toml`, or `-c plugins.<plugin@marketplace>.mcp_servers.<s>…` when an installed plugin provides it (`plugins/cache/<marketplace>/<plugin>/<version>/`: `.codex-plugin/plugin.json` `mcpServers` or `.mcp.json`) | the same keys with `enabled=false` |
 | Claude Code | `--settings` `permissions.allow: ["mcp__*"]`, `enableAllProjectMcpServers: true`; in a worktree `--mcp-config` with the project's local-scope servers, which `~/.claude.json` keeps under the checkout's path | `permissions.deny: ["mcp__*"]` |
-| Gemini CLI | `--policy` rule `toolName = "*"`, `mcpName = "*"`, `allow` (at agent-config next to `~/.gemini/policies`, because `--policy` replaces the user's policy folder) | the same rule with `deny` |
 | OpenCode | `OPENCODE_CONFIG_CONTENT` `"<server>_*": "allow"` for each server in `opencode.json(c)` | read-only: `"*_*": "deny"` (MCP tool names are `<server>_<tool>`) |
 | pi | no approvals in pi; in a worktree of a project trusted in pi (`~/.pi/agent/trust.json`), `--approve`, so `.pi/mcp.json` loads | `--no-mcp`, or `--exclude-tools mcp__*,list_mcp_resources,…` |
 
@@ -172,7 +160,6 @@ reports a cost. loopbee never estimates prices.
 |---|---|
 | Codex | `turn.completed.usage` (`input_tokens` includes `cached_input_tokens`); the model is not in the events, so the Loop's model or `model =` in `~/.codex/config.toml` |
 | Claude Code | `result.usage`, `result.total_cost_usd`, `result.modelUsage`; model also in the `system` init event |
-| Gemini CLI | `result.stats` (`input_tokens` includes `cached`), `stats.models`, `init.model` |
 | OpenCode | every `step_finish.part.tokens` (`input`, `output`, `reasoning`, `cache.read/write`) and `.cost`; the model is not in the events (the Loop's model, if set) |
 | pi | every assistant `message_end.message.usage` (`input`, `output`, `cacheRead`, `cacheWrite`, `cost.total`) and `provider/model` |
 
@@ -222,7 +209,7 @@ Subscription limits surface as readable errors: Claude Code reports `is_error` w
 ## Not verified on real CLIs
 
 The MCP switch of 2026-10-14 was built from the CLIs' source (Codex `mcp_tool_call.rs` and `config/src/overrides.rs`,
-Claude Code 2.1.299's bundled permission matcher, gemini-cli `policy/config.ts`, OpenCode's permission docs, pi-mono
+Claude Code 2.1.299's bundled permission matcher, OpenCode's permission docs, pi-mono
 `mcp-servers.ts` and `trust-manager.ts`) and is covered by fakes only. On 2026-10-14 the real Codex 0.162.1
 accepted the `-c` keys for user and plugin servers (`codex mcp list` with them: approve and disable both took effect;
 it also showed that an approval key re-enables a disabled plugin server and that a key for a server from another
@@ -231,10 +218,9 @@ from `--settings`, that OpenCode 1.x matches `"*_*"` against MCP tools, and that
 Codex issue #10390 reports that on macOS `sandbox_workspace_write.network_access=true` is ignored; check whether
 workspace-network has network with Codex there.
 
-Gemini CLI, OpenCode and pi (added 2026-10-13) were implemented from their current source and documentation
-(gemini-cli, opencode and pi-mono main branches of 2026-10-12/13) and are covered by fakes only. Before relying on them,
-run each real CLI once per level: Gemini's stdin prompt without `-p`, the policy file and `--skip-trust`, its sandbox
-on macOS and with Docker; OpenCode's `OPENCODE_CONFIG_CONTENT` precedence and the older `opencode-ai` event format; pi's
+OpenCode and pi (added 2026-10-13) were implemented from their current source and documentation (opencode and
+pi-mono main branches of 2026-10-12/13) and are covered by fakes only. Before relying on them, run each real CLI once
+per level: OpenCode's `OPENCODE_CONFIG_CONTENT` precedence and the older `opencode-ai` event format; pi's
 `--tools`/`--exclude-tools` and failure reporting.
 
 The agent-context changes of 2026-10-13 (read rules in `--settings`, the `Skill` tool at read-only, the memory
