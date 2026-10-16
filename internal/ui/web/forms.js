@@ -235,13 +235,12 @@ function updates(c) {
 }
 // The agents the core has adapters for, in its order; a definition's own agent is kept even if unknown here.
 const agentNames = (current) => {
-  const names = S().agents.length ? S().agents.map((a) => a.name) : ["codex", "claude", "gemini", "opencode", "pi"];
+  const names = S().agents.length ? S().agents.map((a) => a.name) : ["codex", "claude", "opencode", "pi"];
   return current && !names.includes(current) ? [...names, current] : names;
 };
 const agentNote = {
   codex: "Runs codex exec --json; skills and AGENTS.md from your Codex setup apply.",
   claude: "Runs claude -p with stream-json output; your skills, plugins and CLAUDE.md apply.",
-  gemini: "Runs gemini with stream-json output; your skills, extensions and GEMINI.md apply. Its sandbox needs macOS or Docker/Podman.",
   opencode: "Runs opencode run --format json; your skills, agents and AGENTS.md apply. OpenCode has no sandbox: loopbee offers read only or its own config.",
   pi: "Runs pi --mode json; your skills and AGENTS.md apply. pi has no sandbox: loopbee offers read only or its own config.",
 };
