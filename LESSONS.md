@@ -419,9 +419,11 @@ sometimes still saw the bee fly. A poll sent before a save and answered after it
 up to three seconds. Polls now drop answers older than the last state change, and tests wait for what the page shows
 (a class, a text) before moving on, never for the click alone or a fixed delay. What they wait for must not be on
 the page already: after “Save as draft” the chat already showed the draft's title, so the test read the state before
-the save had answered once saving took a little longer; it now waits for the saved Loop's own page.
-- Evidence: `tests/e2e.mjs#an older poll switched the animation back on`, `tests/agents-e2e.mjs#wait for the saved Loop's own page`
-- Seen: 2026-10-15
+the save had answered once saving took a little longer; it now waits for the saved Loop's own page. On 10-16 the
+team test opened a viewer's launch URL and went straight to Settings › Team; the app, still trading the token for a
+session, then moved to #/today and the test timed out once in five runs. Tests wait until the token is gone first.
+- Evidence: `tests/e2e.mjs#an older poll switched the animation back on`, `tests/agents-e2e.mjs#wait for the saved Loop's own page`, `tests/team-sync-flow.mjs#navigating before that is undone`, `tests/project-flow.mjs#navigating before that is undone`
+- Seen: 2026-10-15, 2026-10-16
 
 ### Do not override the design system from the app stylesheet
 Copying the design CSS and overriding it changed header height, title size and buttons. `app.css` only adds
