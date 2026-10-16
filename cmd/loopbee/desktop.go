@@ -42,6 +42,12 @@ func desktop(url string, lb *core.App, shutdown func()) error {
 			application.PermissionClipboardRead: application.PermissionDeny,
 		},
 	})
+	// Paths are chosen in the system's own chooser instead of typed. Windows picks either folders or files.
+	lb.SetPicker(func(title, start string, files bool) (string, error) {
+		d := app.Dialog.OpenFile().SetTitle(title).SetDirectory(start).AttachToWindow(window).
+			CanChooseFiles(files).CanChooseDirectories(!files || runtime.GOOS != "windows").CanCreateDirectories(!files)
+		return d.PromptForSingleSelection()
+	})
 	remember := func() {
 		if window.IsMinimised() {
 			return

@@ -376,3 +376,5 @@ details summary{cursor:pointer;padding:6px 0;font-weight:550}
 .run-usage,.tok{white-space:nowrap}
 .step-usage .sub{margin-top:2px}
 .chip.tgl[aria-pressed="true"]{border-color:var(--fg);background:var(--acc-bg)}
+.pathpick{display:flex;gap:6px;align-items:flex-start;flex:1;min-width:0}
+.pathpick>.inp{flex:1;min-width:0}

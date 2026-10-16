@@ -261,6 +261,7 @@ type Info struct {
 	Arch    string `json:"arch"`
 	DataDir string `json:"dataDir"`
 	Active  int    `json:"active"`
+	CanPick bool   `json:"canPick"` // the desktop app can open the system's folder chooser
 }
 
 type Evidence struct {

@@ -252,6 +252,24 @@ func (s *Server) Handler() http.Handler {
 		}
 		s.state(w)
 	})
+	// The system's folder chooser, so nobody has to type a full path; "" when the person cancelled.
+	mux.HandleFunc("POST /api/pick", func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			Title string `json:"title"`
+			Start string `json:"start"`
+			Files bool   `json:"files"`
+		}
+		if err := decode(w, r, &in); err != nil {
+			fail(w, err)
+			return
+		}
+		path, err := s.App.PickPath(in.Title, in.Start, in.Files)
+		if err != nil {
+			fail(w, err)
+			return
+		}
+		jsonResponse(w, map[string]string{"path": path})
+	})
 	mux.HandleFunc("POST /api/sync", func(w http.ResponseWriter, r *http.Request) {
 		if err := s.App.SyncTeam(); err != nil {
 			fail(w, err)
