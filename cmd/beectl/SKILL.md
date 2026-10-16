@@ -5,7 +5,7 @@ description: Turn a workflow into a scheduled loopbee loop, or inspect and run e
 
 # loopbee loops
 
-loopbee is a desktop app on this computer that owns scheduling. It runs agent CLIs (Codex CLI, Claude Code, Gemini CLI, OpenCode, pi) headlessly
+loopbee is a desktop app on this computer that owns scheduling. It runs agent CLIs (Codex CLI, Claude Code, OpenCode, pi) headlessly
 on a cron schedule, records every step as evidence, pauses at human gates, and sends notifications.
 You talk to it with `beectl` (installed next to the loopbee app). loopbee must be running.
 
@@ -66,7 +66,7 @@ Rules:
   needed by exit code. For both, `argv[0]` must be listed in `allowedTools`.
 - `project` (optional): the name the boards group this loop under. Leave it out: loopbee uses the owner/repo of
   the directory's Git origin, or else the folder name.
-- `agent`: `codex`, `claude`, `gemini`, `opencode` or `pi` (see `beectl status` for what is installed). OpenCode and
+- `agent`: `codex`, `claude`, `opencode` or `pi` (see `beectl status` for what is installed). OpenCode and
   pi have no sandbox: loopbee runs them only at `read-only` or `agent-config`. `model` is optional (empty = the
   agent's own default).
 - `sandbox`: the lowest that works — `read-only`, `workspace-write` (no network), `workspace-network` (git push,

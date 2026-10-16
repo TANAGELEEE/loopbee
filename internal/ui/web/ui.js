@@ -251,10 +251,10 @@ export const sandboxHelp = (s) => t({
   "agent-config": "loopbee adds no sandbox flags; the agent's own config, profile or settings decide.",
 }[s] || "");
 // Agents come from the core (one adapter per CLI); these fallbacks cover a viewer without detection data.
-const AGENT_FALLBACK = { codex: "Codex CLI", claude: "Claude Code", gemini: "Gemini CLI", opencode: "OpenCode", pi: "pi" };
+const AGENT_FALLBACK = { codex: "Codex CLI", claude: "Claude Code", opencode: "OpenCode", pi: "pi" };
 export const agentLabel = (n) => ctx.state?.agents?.find((a) => a.name === n)?.label || AGENT_FALLBACK[n] || n || "—";
-export const agentColor = (n) => ({ codex: "#5b8def", claude: "#c95b9a", gemini: "#2f9e8f", opencode: "#8a6fe0", pi: "#d0892e" })[n] || "#76767f";
-export const agentCmd = (n) => ({ codex: "codex exec", claude: "claude -p", gemini: "gemini -o stream-json", opencode: "opencode run", pi: "pi --mode json" })[n] || n;
+export const agentColor = (n) => ({ codex: "#5b8def", claude: "#c95b9a", opencode: "#8a6fe0", pi: "#d0892e" })[n] || "#76767f";
+export const agentCmd = (n) => ({ codex: "codex exec", claude: "claude -p", opencode: "opencode run", pi: "pi --mode json" })[n] || n;
 // The permission levels an agent enforces itself (always includes agent-config).
 export const agentLevels = (n) => ctx.state?.agents?.find((a) => a.name === n)?.levels || ["read-only", "workspace-write", "workspace-network", "agent-config"];
 // Token counts as 950, 12.3k, 1.2M.

@@ -8,7 +8,7 @@ import { startCore, seed } from "./demo.mjs";
 
 const out = process.argv[2] || (process.env.LOOPBEE_EVIDENCE_DIR ? process.env.LOOPBEE_EVIDENCE_DIR + "/screens" : "docs/evidence/screens");
 await mkdir(out, { recursive: true });
-const core = await startCore(undefined, { LOOPBEE_CODEX_BIN: "/nonexistent/codex", LOOPBEE_CLAUDE_BIN: "/nonexistent/claude", LOOPBEE_GEMINI_BIN: "/nonexistent/gemini", LOOPBEE_OPENCODE_BIN: "/nonexistent/opencode", LOOPBEE_PI_BIN: "/nonexistent/pi", LOOPBEE_GH_BIN: "/nonexistent/gh" });
+const core = await startCore(undefined, { LOOPBEE_CODEX_BIN: "/nonexistent/codex", LOOPBEE_CLAUDE_BIN: "/nonexistent/claude", LOOPBEE_OPENCODE_BIN: "/nonexistent/opencode", LOOPBEE_PI_BIN: "/nonexistent/pi", LOOPBEE_GH_BIN: "/nonexistent/gh" });
 let browser;
 try {
   const ids = await seed(core.api, join(core.data, "work"));

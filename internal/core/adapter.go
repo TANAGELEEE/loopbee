@@ -75,7 +75,7 @@ func registerAdapter(a *adapter) {
 }
 
 func adapterRank(name string) int {
-	if i := slices.Index([]string{"codex", "claude", "gemini", "opencode", "pi"}, name); i >= 0 {
+	if i := slices.Index([]string{"codex", "claude", "opencode", "pi"}, name); i >= 0 {
 		return i
 	}
 	return 100

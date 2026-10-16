@@ -12,7 +12,7 @@ import (
 // Every agent CLI meets the same contract with its own fake: detection, a run at each level it enforces, the four
 // outcomes, the model and tokens it reports, and a refusal (not a silent downgrade) at levels it cannot enforce.
 func TestEveryAdapterMeetsTheContract(t *testing.T) {
-	if got := AgentNames(); !slices.Equal(got, []string{"codex", "claude", "gemini", "opencode", "pi"}) {
+	if got := AgentNames(); !slices.Equal(got, []string{"codex", "claude", "opencode", "pi"}) {
 		t.Fatalf("adapters %v", got)
 	}
 	for _, name := range AgentNames() {
@@ -102,10 +102,6 @@ func TestAdapterPermissionFlags(t *testing.T) {
 		name, level string
 		want, not   []string
 	}{
-		{"gemini", "read-only", []string{"--output-format stream-json", "--skip-trust", "--approval-mode default", "--include-directories " + reads[0], "--policy"}, []string{"--sandbox", "yolo"}},
-		{"gemini", "workspace-write", []string{"--approval-mode auto_edit --sandbox", "--include-directories"}, []string{"yolo"}},
-		{"gemini", "workspace-network", []string{"--approval-mode yolo --sandbox"}, []string{"--include-directories"}},
-		{"gemini", "agent-config", []string{"--output-format stream-json"}, []string{"--approval-mode", "--sandbox", "--skip-trust", "--policy"}},
 		{"pi", "read-only", []string{"--mode json", "--no-session", "--tools read,grep,find,ls", "--exclude-tools mcp__*"}, []string{"bash"}},
 		{"pi", "agent-config", []string{"--mode json"}, []string{"--tools"}},
 		{"opencode", "read-only", []string{"run --format json"}, []string{"--auto"}},
@@ -124,10 +120,6 @@ func TestAdapterPermissionFlags(t *testing.T) {
 			}
 		}
 		switch {
-		case c.name == "gemini" && c.level == "workspace-network":
-			if len(env) != 1 || env[0] != "SANDBOX_MOUNTS="+reads[0]+":"+reads[0]+":ro" {
-				t.Errorf("gemini network mounts: %v", env)
-			}
 		case c.name == "opencode" && c.level == "read-only":
 			if len(env) != 1 || !strings.Contains(env[0], `"edit":"deny"`) || !strings.Contains(env[0], `"bash":"deny"`) || !strings.Contains(env[0], `"websearch":"deny"`) || !strings.Contains(env[0], filepath.ToSlash(reads[0])+`/**":"allow"`) {
 				t.Errorf("opencode read-only config: %v", env)
@@ -137,16 +129,6 @@ func TestAdapterPermissionFlags(t *testing.T) {
 				t.Errorf("opencode agent-config adds config: %v", env)
 			}
 		}
-	}
-	// At workspace-write Gemini's edit tools may not write the read paths, though they are workspace directories.
-	argsFor("gemini", "workspace-write")
-	policy, _ := os.ReadFile(filepath.Join(dir, "gemini-policy.toml"))
-	if !strings.Contains(string(policy), `toolName = "activate_skill"`) || !strings.Contains(string(policy), `decision = "deny"`) || !strings.Contains(string(policy), "skills") {
-		t.Fatalf("policy: %s", policy)
-	}
-	argsFor("gemini", "read-only")
-	if policy, _ := os.ReadFile(filepath.Join(dir, "gemini-policy.toml")); strings.Contains(string(policy), "write_file") {
-		t.Fatalf("read-only has no edit tools to deny: %s", policy)
 	}
 }
 
@@ -187,7 +169,7 @@ func TestAuthorLowersALevelTheAgentCannotEnforce(t *testing.T) {
 	if reply.Loop.Sandbox != "read-only" || reply.Problem != "" || !strings.Contains(reply.Reply, "pi 無法強制執行「workspace-network」") {
 		t.Fatalf("sandbox %q problem %q reply %q", reply.Loop.Sandbox, reply.Problem, reply.Reply)
 	}
-	if fallbackLevel("gemini", "agent-config") != "workspace-network" || fallbackLevel("opencode", "workspace-network") != "read-only" {
+	if fallbackLevel("opencode", "workspace-network") != "read-only" {
 		t.Fatal("fallback levels")
 	}
 	if p := authorPrompt(AuthorRequest{}, "/x", "en", "UTC", "pi", "workspace-write", Loop{}); !strings.Contains(p, "For pi ONLY these are possible: read-only, agent-config") {

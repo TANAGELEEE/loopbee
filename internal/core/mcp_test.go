@@ -30,8 +30,6 @@ func mcpHome(t *testing.T, project string) string {
 	write(".codex/plugins/cache/openai-curated/browser-use/1.0.0/.codex-plugin/plugin.json", `{"name":"browser-use","mcpServers":"./.mcp.json"}`)
 	write(".codex/plugins/cache/openai-curated/browser-use/1.0.0/.mcp.json", `{"mcpServers":{"browser":{"command":"node"}}}`)
 	write(".claude.json", `{"mcpServers":{"pg":{"command":"pg-mcp"}},"projects":{`+jsonString(project)+`:{"mcpServers":{"k8s-console":{"command":"console-mcp","env":{"TOKEN":"t"}}}}}}`)
-	write(".gemini/settings.json", `{"mcpServers":{"grafana":{"command":"g"}}}`)
-	write(".gemini/extensions/jira/gemini-extension.json", `{"name":"jira","mcpServers":{"jira":{"command":"j"}}}`)
 	write(".config/opencode/opencode.jsonc", "{\n  // my servers\n  \"mcp\": {\n    \"chrome-devtools\": {\"type\": \"local\", \"command\": [\"npx\", \"x\"]}, /* trailing */\n  },\n}\n")
 	write(".pi/agent/mcp.json", `{"mcpServers":{"playwright":{"command":"npx"}}}`)
 	write(".pi/agent/trust.json", `{`+jsonString(filepath.Clean(project))+`:true}`)
@@ -50,7 +48,7 @@ func TestAgentMCPToolsPerCLI(t *testing.T) {
 	worktree := t.TempDir()
 	scratch := t.TempDir()
 	for agent, want := range map[string][]string{
-		"codex": {"browser", "chrome", "db", "my.server"}, "claude": {"k8s-console", "pg", "project-api"}, "gemini": {"grafana", "jira"},
+		"codex": {"browser", "chrome", "db", "my.server"}, "claude": {"k8s-console", "pg", "project-api"},
 		"opencode": {"chrome-devtools"}, "pi": {"playwright"},
 	} {
 		if got := agentMCPServers(agent, home, project); !slices.Equal(got, want) {
@@ -156,25 +154,6 @@ func TestAgentMCPToolsPerCLI(t *testing.T) {
 		t.Fatalf("claude agent-config adds only the MCP approval: %v", s)
 	}
 
-	// Gemini CLI: one policy rule for every MCP tool; at agent-config the user's own policies stay in force.
-	policy := func() string { b, _ := os.ReadFile(filepath.Join(scratch, "gemini-policy.toml")); return string(b) }
-	args("gemini", "read-only", false, project)
-	if p := policy(); !strings.Contains(p, "mcpName = \"*\"\ndecision = \"deny\"") {
-		t.Fatalf("gemini off: %s", p)
-	}
-	args("gemini", "workspace-network", true, project)
-	if p := policy(); !strings.Contains(p, "mcpName = \"*\"\ndecision = \"allow\"") {
-		t.Fatalf("gemini on: %s", p)
-	}
-	os.MkdirAll(filepath.Join(home, ".gemini", "policies"), 0700)
-	got, _ = args("gemini", "agent-config", true, project)
-	if !strings.Contains(got, "--policy "+filepath.Join(home, ".gemini", "policies")+" --policy "+filepath.Join(scratch, "gemini-policy.toml")) || strings.Contains(policy(), "activate_skill") {
-		t.Fatalf("gemini agent-config: %s\n%s", got, policy())
-	}
-	if got, _ := args("gemini", "agent-config", false, project); strings.Contains(got, "--policy") {
-		t.Fatal("gemini agent-config without MCP adds a policy")
-	}
-
 	// OpenCode: MCP tools are named <server>_<tool> and allowed by default, so read-only denies "*_*".
 	_, env := args("opencode", "read-only", false, project)
 	if len(env) != 1 || !strings.Contains(env[0], `"*_*":"deny"`) || !strings.Contains(env[0], `"codesearch":"deny"`) {
@@ -251,10 +230,6 @@ func TestRefusedMCPToolReachesTheRunAndTheSwitchFixesIt(t *testing.T) {
 func TestMCPHelpers(t *testing.T) {
 	if got := sandboxBlocked([]byte("[pid] bootstrap_check_in org.chromium.Chromium.MachPortRendezvousServer.1: Permission denied (1100)")); len(got) != 1 || !strings.Contains(got[0], "agent-config") {
 		t.Fatal(got)
-	}
-	gem := mcpRefused("gemini", []byte(`{"type":"tool_result","status":"error","error":{"message":"Tool execution for \"navigate (chrome MCP Server)\" requires user confirmation, which is not supported in non-interactive mode."}}`), false)
-	if len(gem) != 1 || !strings.Contains(gem[0], "navigate (chrome MCP Server)") || !strings.Contains(gem[0], "turn on") {
-		t.Fatal(gem)
 	}
 	// With the switch on, a refusal means the server is defined where loopbee cannot approve it.
 	cx := mcpRefused("codex", []byte(`{"type":"item.completed","item":{"type":"mcp_tool_call","server":"nexscope","tool":"query","status":"failed","error":{"message":"MCP tool call requires approval, but approval policy is never"}}}`), true)

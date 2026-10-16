@@ -9,11 +9,11 @@ import { startCore, waitFor } from "./demo.mjs";
 const EVIDENCE = process.env.LOOPBEE_EVIDENCE_DIR || "docs/evidence";
 
 const fake = (n) => resolve(`tests/fake-agent/${n}.mjs`);
-const core = await startCore(undefined, { LOOPBEE_CODEX_BIN: fake("codex"), LOOPBEE_CLAUDE_BIN: fake("claude"), LOOPBEE_GEMINI_BIN: fake("gemini"), LOOPBEE_OPENCODE_BIN: fake("opencode"), LOOPBEE_PI_BIN: fake("pi"), LOOPBEE_GH_BIN: fake("gh") });
+const core = await startCore(undefined, { LOOPBEE_CODEX_BIN: fake("codex"), LOOPBEE_CLAUDE_BIN: fake("claude"), LOOPBEE_OPENCODE_BIN: fake("opencode"), LOOPBEE_PI_BIN: fake("pi"), LOOPBEE_GH_BIN: fake("gh") });
 let browser;
 try {
-  const s0 = await waitFor(core.api, (s) => s.agents.length === 5 && s.agents.every((a) => a.status === "available") && s);
-  assert.deepEqual(s0.agents.map((a) => a.name), ["codex", "claude", "gemini", "opencode", "pi"]);
+  const s0 = await waitFor(core.api, (s) => s.agents.length === 4 && s.agents.every((a) => a.status === "available") && s);
+  assert.deepEqual(s0.agents.map((a) => a.name), ["codex", "claude", "opencode", "pi"]);
   assert.deepEqual(s0.agents.find((a) => a.name === "pi").levels, ["read-only", "agent-config"], "pi has no sandbox: only read-only and its own config");
   assert.equal(s0.settings.defaultAgent, "codex", "first available agent becomes the default");
   await core.api("/settings", { ...s0.settings, language: "en" });
@@ -39,8 +39,7 @@ try {
   await waitFor(core.api, (s) => s.settings.defaultAgent === "claude");
   assert.ok(await page.getByText("--sandbox workspace-write -c sandbox_workspace_write.network_access=true").isVisible());
   // Every adapter is listed with what it enforces; a level an agent cannot enforce is not offered.
-  for (const name of ["Gemini CLI", "OpenCode", "pi"]) await page.locator(`[data-agent] .nm`, { hasText: name }).first().waitFor();
-  assert.ok(await page.getByText("Gemini CLI: --approval-mode auto_edit --sandbox (edits, no shell)").isVisible());
+  for (const name of ["OpenCode", "pi"]) await page.locator(`[data-agent] .nm`, { hasText: name }).first().waitFor();
   assert.ok((await page.getByText("pi: not offered: this agent cannot enforce it").count()) >= 2);
   // How each CLI's own MCP tools are approved in advance (an unattended run cannot answer a prompt) or disabled.
   await page.getByText("MCP tools allowed", { exact: true }).waitFor();
@@ -282,7 +281,7 @@ try {
     await page.screenshot({ path: `${EVIDENCE}/screens/${name}.png`, fullPage: true });
   }
   assert.deepEqual(errors, [], "browser errors");
-  console.log("PASS: agent detection and default, chat authoring with follow-up, draft save with conversation, Claude-run agent step with report and gate, no_action outcome, what a blocked agent could not get, five agent adapters, model and token usage, Today board, form fields for permissions, read paths, copied files, worktree, branch, command steps and secrets, device-limit and usage-limit messages");
+  console.log("PASS: agent detection and default, chat authoring with follow-up, draft save with conversation, Claude-run agent step with report and gate, no_action outcome, what a blocked agent could not get, four agent adapters, model and token usage, Today board, form fields for permissions, read paths, copied files, worktree, branch, command steps and secrets, device-limit and usage-limit messages");
 } finally {
   await browser?.close();
   await core.stop();

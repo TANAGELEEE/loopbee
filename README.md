@@ -56,7 +56,7 @@ including what a malicious issue could try.
 
 ## Your first Loop
 
-1. Open Settings → Agents → Detect agents. Codex CLI, Claude Code, Gemini CLI, OpenCode and pi are supported; each enforces only the permission levels listed there (OpenCode and pi have no sandbox, so they run read-only or with their own configuration).
+1. Open Settings → Agents → Detect agents. Codex CLI, Claude Code, OpenCode and pi are supported; each enforces only the permission levels listed there (OpenCode and pi have no sandbox, so they run read-only or with their own configuration).
 2. Create a Loop with an absolute working directory, prompt, steps, and limits. Defaults are read-only, private, disabled, and Require clean Git tree.
 3. Steps can be observe / act / verify / gate / summarize. A verify step's `argv` is a JSON array of strings whose first entry must be allowlisted; commands are never assembled as shell strings. Approval at a gate requires a review note.
 4. Run manually, or enter a five-field Cron expression and IANA timezone, then enable the Loop. After sleep, optionally catch up on the latest missed run; the app does not replay every missed occurrence.
