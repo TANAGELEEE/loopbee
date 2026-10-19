@@ -382,6 +382,21 @@ try {
   assert.deepEqual(deliveredDefinition.steps[4].pullRequest, { mode: "after-review", base: "test", merge: "after-checks" });
   assert.deepEqual(deliveredDefinition.steps.slice(0, 3).map((step) => step.id), reviewLoop.steps.map((step) => step.id));
 
+  // Automatic delivery is step-only; review paths survive a real API save and reopen.
+  await page.goto(core.base + "/#/loop/" + reviewLoop.id + "/edit");
+  await page.locator('[data-action="select-step"][data-i="4"]').click();
+  await page.locator(".step-edit").getByRole("radio", { name: "Automatically when checks pass", exact: true }).click();
+  const reviewPaths = page.getByRole("textbox", { name: "Stop for my review when these paths change", exact: true });
+  await reviewPaths.fill("deploy/k8s/**\n**/configmap*.yaml");
+  await page.getByRole("button", { name: "Save as v3", exact: true }).click();
+  await page.locator(".hd .chip", { hasText: "Version v3" }).waitFor();
+  const automaticDefinition = (await core.api("/state")).loops.find((l) => l.id === reviewLoop.id);
+  assert.equal(automaticDefinition.pullRequest, undefined);
+  assert.deepEqual(automaticDefinition.steps[4].pullRequest, { mode: "automatic", base: "test", merge: "after-checks", reviewPaths: ["deploy/k8s/**", "**/configmap*.yaml"] });
+  await page.goto(core.base + "/#/loop/" + reviewLoop.id + "/edit");
+  await page.locator('[data-action="select-step"][data-i="4"]').click();
+  assert.equal(await reviewPaths.inputValue(), "deploy/k8s/**\n**/configmap*.yaml");
+
   // Traditional Chinese screenshots of the chat (with history) and the agent settings for review.
   await core.api("/state").then((st) => core.api("/settings", { ...st.settings, language: "zh-TW" }));
   // The project folder is chosen in the system's chooser, not typed.

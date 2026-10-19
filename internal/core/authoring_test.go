@@ -91,6 +91,73 @@ func TestAuthorReviewSchemaAndNestedDraft(t *testing.T) {
 	}
 }
 
+func TestAuthorAutomaticDeliverySchemaAndDraft(t *testing.T) {
+	props := authorSchema()["properties"].(map[string]any)["loop"].(map[string]any)["properties"].(map[string]any)
+	prSchema := props["pullRequest"].(map[string]any)
+	fields := prSchema["properties"].(map[string]any)
+	if !slices.Contains(fields["mode"].(map[string]any)["enum"].([]string), "automatic") {
+		t.Error("pull request schema lacks automatic mode")
+	}
+	if !reflect.DeepEqual(fields["reviewPaths"], map[string]any{"type": "array", "items": map[string]any{"type": "string"}}) || !slices.Contains(prSchema["required"].([]string), "reviewPaths") {
+		t.Error("strict pull request schema must require reviewPaths as a string array")
+	}
+	p := authorReviewDraft()
+	p.Steps = append(p.Steps[:2], p.Steps[3])
+	p.Steps[2].PullRequest = &PullRequest{Mode: "automatic", Base: "test", Merge: "after-checks", ReviewPaths: []string{"deploy/k8s/**"}}
+	b, err := json.Marshal(definitionForAgent(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var roundTrip Loop
+	if err := json.Unmarshal(b, &roundTrip); err != nil {
+		t.Fatal(err)
+	}
+	got := normalizeDraft(roundTrip, Loop{}, "codex")
+	if !reflect.DeepEqual(got.Steps, p.Steps) || got.PullRequest != nil {
+		t.Fatalf("automatic delivery fields lost: %+v", got)
+	}
+	got.Directory = t.TempDir()
+	if err := Validate(got); err != nil {
+		t.Fatal(err)
+	}
+	for _, pr := range []*PullRequest{{}, {ReviewPaths: []string{}}, {ReviewPaths: []string{"deploy/k8s/**"}}} {
+		p := Loop{PullRequest: pr, Steps: []Step{{Kind: "deliver", PullRequest: pr}}}
+		got := normalizeDraft(p, Loop{}, "codex")
+		for _, normalized := range []*PullRequest{got.PullRequest, got.Steps[0].PullRequest} {
+			if len(pr.ReviewPaths) == 0 && normalized != nil || len(pr.ReviewPaths) != 0 && !reflect.DeepEqual(normalized, pr) {
+				t.Fatalf("normalization must preserve nonempty reviewPaths and drop only empty placeholders: %+v", normalized)
+			}
+		}
+	}
+}
+
+func TestAuthorNormalizesEmptyReviewPathsWithoutMutatingProposal(t *testing.T) {
+	pr := &PullRequest{Mode: "draft", ReviewPaths: []string{}}
+	got := normalizeDraft(Loop{PullRequest: pr, Steps: []Step{{Kind: "deliver", PullRequest: pr}}}, Loop{}, "codex")
+	for _, normalized := range []*PullRequest{got.PullRequest, got.Steps[0].PullRequest} {
+		if normalized == nil || normalized.Mode != "draft" || normalized.ReviewPaths != nil {
+			t.Fatalf("empty reviewPaths should normalize to nil without dropping configured PR: %+v", normalized)
+		}
+	}
+	if pr.ReviewPaths == nil {
+		t.Fatal("normalization mutated the caller's pull request")
+	}
+}
+
+func TestAuthorAutomaticDeliveryPrompt(t *testing.T) {
+	prompt := authorPrompt(AuthorRequest{}, "", "en", "UTC", "codex", "workspace-write", Loop{})
+	for _, want := range []string{
+		`"automatic" is allowed only on a deliver step`, `explicit non-default test branch`, `merge "after-checks" is mandatory`,
+		`default branch is never an automatic target`, `reviewPaths`, `repository-root-relative`, `* and ? match within one path segment`, `** matches zero or more path segments`,
+		`Confirm the ConfigMap YAML paths with the person`, `SQL migrations`, `repository's existing CI/CD`,
+		`Changes under .github/ are still refused`, `never authorizes local run/verify commands to execute agent-changed files`,
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Errorf("prompt lacks %q", want)
+		}
+	}
+}
+
 func TestAuthorReviewNormalizesOnlyLeftovers(t *testing.T) {
 	base := Loop{Directory: t.TempDir()}
 	for _, kind := range []string{"act", "observe", "summarize", "review", "run", "verify", "gate", "deliver"} {

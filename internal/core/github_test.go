@@ -663,6 +663,236 @@ func TestDraftPullRequestAndNoAutomaticCIChanges(t *testing.T) {
 	}
 }
 
+// Automatic delivery uses a real local test branch and fake GitHub checks/merges, never the developer's remote.
+func automaticDeliverySetup(t *testing.T, mode string, paths []string, edit func(*Loop)) (*App, Loop, string, string, string) {
+	t.Helper()
+	a, l, log, state, origin := issueSetup(t, mode, nil, func(l *Loop) {
+		l.Intake, l.PullRequest = nil, nil
+		l.BaseRef, l.Branch = "origin/test", "loopbee/automatic-{run}"
+		l.Steps = []Step{
+			{ID: "code", Kind: "act", Name: "Code", Prompt: "write"},
+			{ID: "deliver", Kind: "deliver", Name: "Deliver", PullRequest: &PullRequest{Mode: "automatic", Base: "test", Merge: "after-checks", ReviewPaths: paths}},
+		}
+		if edit != nil {
+			edit(l)
+		}
+	})
+	if out, err := exec.Command("git", "-C", origin, "branch", "test", "master").CombinedOutput(); err != nil {
+		t.Fatalf("create test base: %v: %s", err, out)
+	}
+	t.Setenv("LOOPBEE_FAKE_GH_MERGE_REMOTE", origin)
+	st := readFakeGitHub(t, state)
+	st.Checks = []map[string]string{{"name": "core", "bucket": "pass"}}
+	b, err := json.Marshal(st)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(state, b, 0600); err != nil {
+		t.Fatal(err)
+	}
+	return a, l, log, state, origin
+}
+
+func TestAutomaticDeliveryWithoutMatchingPathsMerges(t *testing.T) {
+	a, l, log, state, origin := automaticDeliverySetup(t, "edit", []string{"deploy/k8s/**"}, nil)
+	master := gitOutput(t, origin, "rev-parse", "master")
+	r, err := a.Start(l.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitStatus(t, a, r.ID, "completed") // No decision is supplied: an unexpected gate times out this test.
+	r, _ = a.Run(r.ID)
+	st := readFakeGitHub(t, state)
+	assertFakePRCommitCounts(t, st, 1)
+	if !r.Merged || len(st.Merged) != 1 || st.PRs[0]["base"] != "test" || st.PRs[0]["draft"] != "false" || len(fakeCalls(t, log)) != 1 {
+		t.Fatalf("automatic delivery: run=%+v GitHub=%+v", r, st)
+	}
+	if len(r.Trace) != 2 || r.Trace[1].Kind != "deliver" || r.Trace[1].Status != "ok" {
+		t.Fatalf("unexpected gate or delivery trace: %+v", r.Trace)
+	}
+	if got := gitOutput(t, origin, "show", "test:fixed.txt"); got != "fixed by the agent" {
+		t.Fatalf("test branch did not receive the change: %q", got)
+	}
+	if got := gitOutput(t, origin, "rev-parse", "master"); got != master {
+		t.Fatal("automatic delivery changed the default branch")
+	}
+	if got := gitOutput(t, r.Workdir, "rev-parse", "HEAD"); got != gitOutput(t, origin, "rev-parse", "test") {
+		t.Fatal("worktree was not reset to the merged test base")
+	}
+}
+
+func TestAutomaticDeliveryMatchingPathRequiresDecision(t *testing.T) {
+	for _, approve := range []bool{true, false} {
+		t.Run(fmt.Sprintf("approve=%t", approve), func(t *testing.T) {
+			a, l, _, state, origin := automaticDeliverySetup(t, "edit", []string{"**/fixed.*"}, nil)
+			r, err := a.Start(l.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			waitStatus(t, a, r.ID, "waiting")
+			r, _ = a.Run(r.ID)
+			if len(r.Trace) != 2 || r.Trace[1].Kind != "deliver" || r.Trace[1].Status != "waiting" || !strings.Contains(r.Trace[1].Note, "fixed.txt") {
+				t.Fatalf("path review must name the file: %+v", r.Trace)
+			}
+			if st := readFakeGitHub(t, state); len(st.PRs) != 0 || len(st.Merged) != 0 || gitOutput(t, origin, "branch", "--list", r.Branch) != "" {
+				t.Fatal("protected change was pushed before approval")
+			}
+			if err := a.Decide(r.ID, approve, "path reviewed"); err != nil {
+				t.Fatal(err)
+			}
+			status := "rejected"
+			if approve {
+				status = "completed"
+			}
+			waitStatus(t, a, r.ID, status)
+			r, _ = a.Run(r.ID)
+			st := readFakeGitHub(t, state)
+			if approve {
+				assertFakePRCommitCounts(t, st, 1)
+				if !r.Merged || len(st.Merged) != 1 || r.Trace[1].Status != "ok" || !strings.Contains(st.PRs[0]["body"], "Review note: path reviewed") {
+					t.Fatalf("approved delivery did not merge: run=%+v GitHub=%+v", r, st)
+				}
+			} else if r.Merged || len(st.PRs) != 0 || len(st.Merged) != 0 || gitOutput(t, origin, "branch", "--list", r.Branch) != "" {
+				t.Fatal("rejected delivery was pushed or merged")
+			}
+		})
+	}
+}
+
+func TestAutomaticDeliveryRefusesDefaultBranchBeforePush(t *testing.T) {
+	a, l, _, state, origin := automaticDeliverySetup(t, "edit", nil, nil)
+	// A repository may call its default branch "test": do not hard-code main/master.
+	st := readFakeGitHub(t, state)
+	st.DefaultBranch = "test"
+	b, err := json.Marshal(st)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(state, b, 0600); err != nil {
+		t.Fatal(err)
+	}
+	base := gitOutput(t, origin, "rev-parse", "test")
+	r, err := a.Start(l.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitStatus(t, a, r.ID, "failed")
+	r, _ = a.Run(r.ID)
+	if !strings.Contains(r.Error, "default branch") || !strings.Contains(r.Error, "test") {
+		t.Fatalf("default branch refusal: %q", r.Error)
+	}
+	st = readFakeGitHub(t, state)
+	if len(st.PRs) != 0 || len(st.Merged) != 0 || gitOutput(t, origin, "branch", "--list", r.Branch) != "" || gitOutput(t, origin, "rev-parse", "test") != base {
+		t.Fatal("default branch refusal happened after a push")
+	}
+}
+
+func TestAutomaticDeliveryDoesNotApproveChangedCommands(t *testing.T) {
+	a, l, _, state, origin := automaticDeliverySetup(t, "tamper", nil, func(l *Loop) {
+		l.AllowedTools = []string{os.Args[0]}
+		l.Steps = append(l.Steps, Step{Kind: "run", Name: "Use the tool", Argv: []string{os.Args[0], "-test.run=^TestHelperProcess$", "tool.txt"}})
+	})
+	t.Setenv("LOOPBEE_HELPER", "success")
+	r, err := a.Start(l.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitStatus(t, a, r.ID, "blocked")
+	r, _ = a.Run(r.ID)
+	assertFakePRCommitCounts(t, readFakeGitHub(t, state), 1)
+	if !r.Merged || !strings.Contains(r.Error, "would run tool.txt, which the agent changed") {
+		t.Fatalf("merge is not human approval: merged=%t error=%q", r.Merged, r.Error)
+	}
+	if got := gitOutput(t, r.Workdir, "rev-parse", "HEAD"); got != gitOutput(t, origin, "rev-parse", "test") {
+		t.Fatal("test did not exercise the post-merge base reset")
+	}
+	if len(r.Trace) != 3 || r.Trace[2].Status != "failed" || !strings.Contains(r.Trace[2].Note, "refused: tool.txt") || r.Trace[2].Artifact != "" {
+		t.Fatalf("changed command ran after the base reset: %+v", r.Trace)
+	}
+}
+
+func TestAutomaticDeliveryStillRefusesCIChanges(t *testing.T) {
+	for _, approvePath := range []bool{false, true} {
+		t.Run(fmt.Sprintf("approvePath=%t", approvePath), func(t *testing.T) {
+			paths := []string{"deploy/**"}
+			if approvePath {
+				paths = []string{".github/**"}
+			}
+			a, l, _, state, origin := automaticDeliverySetup(t, "ci", paths, nil)
+			r, err := a.Start(l.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if approvePath {
+				waitStatus(t, a, r.ID, "waiting")
+				if err := a.Decide(r.ID, true, "reviewed the workflow"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			waitStatus(t, a, r.ID, "failed")
+			r, _ = a.Run(r.ID)
+			if !strings.Contains(r.Error, "touches .github/workflows/x.yml; loopbee does not push changes to CI configuration") {
+				t.Fatal(r.Error)
+			}
+			if st := readFakeGitHub(t, state); len(st.PRs) != 0 || len(st.Merged) != 0 || gitOutput(t, origin, "branch", "--list", r.Branch) != "" {
+				t.Fatal("a CI change was pushed")
+			}
+		})
+	}
+}
+
+func TestAutomaticDeliveryRechecksPathsAfterSendBack(t *testing.T) {
+	a, l, log, state, origin := automaticDeliverySetup(t, "redelivery", []string{"fixed.txt"}, func(l *Loop) {
+		l.Steps = append(l.Steps, Step{ID: "qa", Kind: "review", Name: "QA", Prompt: "QA review", SendBackTo: "code", MaxAttempts: 1})
+	})
+	t.Setenv("LOOPBEE_FAKE_REVIEW_COUNT", filepath.Join(t.TempDir(), "reviews"))
+	r, err := a.Start(l.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for attempt := 1; attempt <= 2; attempt++ {
+		deadline := time.Now().Add(60 * time.Second)
+		for {
+			r, _ = a.Run(r.ID)
+			if r.Status == "waiting" && len(r.Trace) > 0 && r.Trace[len(r.Trace)-1].Attempt == attempt {
+				break
+			}
+			if r.Finished != nil || time.Now().After(deadline) {
+				t.Fatalf("did not review delivery attempt %d: %+v", attempt, r)
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		record := r.Trace[len(r.Trace)-1]
+		if record.Kind != "deliver" || !strings.Contains(record.Note, "fixed.txt") {
+			t.Fatalf("redelivery gate did not recheck paths: %+v", record)
+		}
+		if st := readFakeGitHub(t, state); len(st.PRs) != attempt-1 || len(st.Merged) != attempt-1 || gitOutput(t, origin, "branch", "--list", r.Branch) != "" {
+			t.Fatalf("attempt %d pushed before its own approval: %+v", attempt, st)
+		}
+		if err := a.Decide(r.ID, true, fmt.Sprintf("reviewed attempt %d", attempt)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	waitStatus(t, a, r.ID, "completed")
+	r, _ = a.Run(r.ID)
+	st := readFakeGitHub(t, state)
+	assertFakePRCommitCounts(t, st, 1, 1)
+	if !r.Merged || len(st.Merged) != 2 || len(fakeCalls(t, log)) != 4 || len(r.Trace) != 6 {
+		t.Fatalf("redelivery: run=%+v GitHub=%+v", r, st)
+	}
+	for _, pr := range st.PRs {
+		checks := false
+		for _, call := range st.Calls {
+			if len(call) >= 4 && call[1] == "pr" && call[2] == "checks" && call[3] == pr["url"] {
+				checks = true
+			}
+		}
+		if !checks {
+			t.Fatalf("redelivery reused previous checks: %+v", st.Calls)
+		}
+	}
+}
+
 func TestIntakeWithoutGitHubCLIIsBlocked(t *testing.T) {
 	a, l, _, _, _ := issueSetup(t, "edit", []fakeIssue{trustedIssue()}, nil)
 	ghOverride = nil

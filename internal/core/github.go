@@ -332,6 +332,15 @@ func issuePrompt(it *issueItem) string {
 	return b.String()
 }
 
+// deliveryFiles includes both sides of renames, so moving a protected file cannot bypass review.
+func (w *workspace) deliveryFiles(ctx context.Context) ([]string, error) {
+	out, err := w.git(ctx, "diff", "--no-ext-diff", "--no-renames", "--name-only", "-z", w.Base, "HEAD", "--")
+	if err != nil {
+		return nil, fmt.Errorf("git diff: %s", strings.TrimSpace(string(out)))
+	}
+	return strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00"), nil
+}
+
 // deliverPullRequest pushes the Run's branch and opens a pull request (or finds the open one). It runs after the
 // Run's steps succeeded; in after-review mode that includes the gate.
 func deliverPullRequest(ctx context.Context, l Loop, r Run, ws *workspace, reviewNote string) (string, error) {
@@ -349,12 +358,12 @@ func deliverPullRequest(ctx context.Context, l Loop, r Run, ws *workspace, revie
 		return "", errors.New("the agent committed nothing, so there is no pull request to open")
 	}
 	// Workflow files run with the repository's token as soon as they are pushed: never push those automatically.
-	out, err = ws.git(ctx, "diff", "--no-ext-diff", "--name-only", ws.Base, "HEAD")
+	files, err := ws.deliveryFiles(ctx)
 	if err != nil {
-		return "", fmt.Errorf("git diff: %s", strings.TrimSpace(string(out)))
+		return "", err
 	}
 	var ci []string
-	for _, f := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+	for _, f := range files {
 		if strings.HasPrefix(f, ".github/") {
 			ci = append(ci, f)
 		}
@@ -376,6 +385,23 @@ func deliverPullRequest(ctx context.Context, l Loop, r Run, ws *workspace, revie
 			return "", errors.New("could not find the repository's default branch; set the pull request base")
 		}
 		baseBranch = v.DefaultBranchRef.Name
+	}
+	if pr.Mode == "automatic" {
+		out, err := gh(ctx, l.Directory, repo, "repo", "view", "--json", "defaultBranchRef")
+		if err != nil {
+			return "", err
+		}
+		var v struct {
+			DefaultBranchRef struct {
+				Name string `json:"name"`
+			} `json:"defaultBranchRef"`
+		}
+		if json.Unmarshal(out, &v) != nil || v.DefaultBranchRef.Name == "" {
+			return "", errors.New("could not determine the repository's default branch; set a test branch or use after my review")
+		}
+		if strings.TrimPrefix(baseBranch, "refs/heads/") == v.DefaultBranchRef.Name {
+			return "", fmt.Errorf("automatic delivery will not merge the default branch %q; use a test branch or after my review", baseBranch)
+		}
 	}
 	remoteURL, _ := ws.git(ctx, "remote", "get-url", remote)
 	credArgs, credEnv := pushCredentials(strings.TrimSpace(string(remoteURL)))
@@ -414,6 +440,11 @@ func deliverPullRequest(ctx context.Context, l Loop, r Run, ws *workspace, revie
 	if pr.Mode == "draft" {
 		fmt.Fprintf(&body, "\nPrepared by loopbee (run %s). Not reviewed yet: this draft is the review.\n", r.ID)
 		args = append(args, "--draft")
+	} else if pr.Mode == "automatic" {
+		fmt.Fprintf(&body, "\nPrepared by loopbee (run %s) for automatic delivery to the test branch.\n", r.ID)
+		if reviewNote != "" {
+			fmt.Fprintf(&body, "Review note: %s\n", reviewNote)
+		}
 	} else {
 		fmt.Fprintf(&body, "\nPrepared by loopbee (run %s) and approved in loopbee before this pull request was opened.", r.ID)
 		if reviewNote != "" {

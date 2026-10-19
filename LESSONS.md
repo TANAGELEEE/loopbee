@@ -154,8 +154,9 @@ credentials. Now agents get no Git access, loopbee's Git runs without hooks and 
 files the agent changed, the editor warns about commands between an agent and a gate, and the example has none.
 After a person approved the change at a gate, later commands may run it (a reviewed migration or deploy script):
 refusing those too made “merge → review → migrate → deploy” impossible in one Loop.
-An agent review is not a person's approval: a command after a review step still refuses files an agent changed.
-- Evidence: `TestHostileReviewCannotRunChangedCommand`, `TestHostileAgentCannotEscapeThroughLoopbee`, `TestSelfImproveExampleIsValid`, `tests/agents-e2e.mjs#runs after the agent and before any review`
+An agent review or automatic delivery is not a person's approval: commands still refuse agent-changed files,
+even after delivery resets the workspace to the merged base.
+- Evidence: `TestAutomaticDeliveryDoesNotApproveChangedCommands`, `TestHostileReviewCannotRunChangedCommand`, `TestHostileAgentCannotEscapeThroughLoopbee`, `TestSelfImproveExampleIsValid`, `tests/agents-e2e.mjs#runs after the agent and before any review`
 - Seen: 2026-10-12
 
 ### The gate shows what will be pushed
@@ -198,7 +199,7 @@ removes the label when a Run ends before an agent started; after that, the label
 
 ### Changes to CI configuration are never pushed automatically
 A pushed workflow file runs with the repository's token before anyone merges it.
-- Evidence: `TestDraftPullRequestAndNoAutomaticCIChanges`
+- Evidence: `TestDraftPullRequestAndNoAutomaticCIChanges`, `TestAutomaticDeliveryStillRefusesCIChanges`
 - Seen: 2026-10-12
 
 ## Runs, schedules and gates

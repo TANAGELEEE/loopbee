@@ -531,7 +531,9 @@ export function gatePage(id) {
   const r = S().runs.find((x) => x.id === id);
   if (!r) return notFound(t("This run no longer exists."));
   const l = r.definition;
-  const gate = (r.trace || []).filter((x) => x.kind === "gate").at(-1);
+  const gate = (r.trace || []).filter((x) => x.kind === "gate" || x.kind === "deliver" && x.status === "waiting").at(-1);
+  const reviewPrefix = "These changes need your review before they are merged: ";
+  const reviewFiles = gate?.note?.startsWith(reviewPrefix) ? gate.note.slice(reviewPrefix.length) : "";
   const open = r.status === "waiting";
   // What the reviewer acts on comes first: the committed change, then the agent's report, then raw output.
   const tag = `round-${String(r.round).padStart(2, "0")}-`;
@@ -549,6 +551,7 @@ export function gatePage(id) {
     <div class="hd">${dot(r.loopId, "lg")}<h1 class="ell">${esc(gate?.name || stepName(r))}</h1><span class="mono muted">${esc(short(r.id))}</span>${open ? `<span class="chip warn">${icon("warn")}${T("Waiting at human gate")}</span>` : `<span class="chip mut">${T("Gate closed")}</span>`}<span class="chip mut hd-r">${T(ro ? "Only the executor can decide" : "Executor · this device")}</span></div>
     <div class="kv mt10"><span><b>${T("Opened")}</b>${esc(gate ? `${hm(gate.started)} (${t("waited {d}", { d: duration(ctx.now - toDate(gate.started)) })})` : "—")}</span><span><b>Loop</b>${esc(l.name)} · v${l.version}</span><span><b>${T("Round")}</b>${r.round} / ${l.maxRounds}</span><span><b>${T("Expires")}</b>${esc(gate ? when(new Date(toDate(gate.started).getTime() + (l.gateHours || 72) * 3600e3).toISOString()) : "—")}</span></div>
   </div>
+  ${reviewFiles ? `<div class="bn warn mt10"><span>${T("These changes need your review before they are merged:")} <span class="mono">${esc(reviewFiles)}</span></span></div>` : ""}
   ${r.result ? `<div class="bn mt10">${resultChip(r.result)}<span class="grow">${esc(r.result.summary || "")}${(r.result.links || []).map((u) => ` <span class="mono">${esc(u)}</span>`).join("")}</span></div>` : ""}
   <div class="bn mt10">${icon("idle")}<span>${T("Approving lets loopbee continue with the next step. Sending back ends this run as “Sent back”; nothing is reverted. Your note is stored with the decision.")}</span></div>
   <div class="cols">

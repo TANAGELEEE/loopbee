@@ -119,12 +119,14 @@ type Intake struct {
 // PullRequest delivers the Run's branch: Mode "after-review" opens a pull request when the Run completes, which
 // requires a gate after the agent; "draft" opens a draft pull request without a gate in loopbee (the draft is the
 // review). Changes to .github/ are never pushed automatically.
-// Merge "after-checks" (only with after-review) then waits for the pull request's checks and squash-merges it when
+// Mode "automatic" is deliver-only, requires an explicit test base and after-checks, and gates ReviewPaths.
+// Merge "after-checks" (with after-review or automatic) then waits for the pull request's checks and squash-merges it when
 // all of them pass; with failing, missing or unfinished checks, or a conflict, it leaves the pull request open.
 type PullRequest struct {
-	Mode  string `json:"mode"`
-	Base  string `json:"base,omitempty"`  // target branch; default: the branch of baseRef, else the default branch
-	Merge string `json:"merge,omitempty"` // "" (a person merges) or "after-checks"
+	Mode        string   `json:"mode"`
+	Base        string   `json:"base,omitempty"`  // target branch; default: the branch of baseRef, else the default branch
+	Merge       string   `json:"merge,omitempty"` // "" (a person merges) or "after-checks"
+	ReviewPaths []string `json:"reviewPaths,omitempty"`
 }
 
 func (i Intake) label() string        { return orDefault(i.Label, "agent-ready") }
@@ -461,7 +463,7 @@ func Validate(l Loop) error {
 				return errors.New("use at most one deliver step and remove Loop.pullRequest when using deliver")
 			}
 			if s.PullRequest == nil {
-				return fmt.Errorf("step %q: deliver requires pullRequest; set its mode to draft or after-review", s.Name)
+				return fmt.Errorf("step %q: deliver requires pullRequest; set its mode to draft, after-review or automatic", s.Name)
 			}
 			delivery := l
 			delivery.PullRequest = s.PullRequest
@@ -518,6 +520,43 @@ func Validate(l Loop) error {
 
 var envName = regexp.MustCompile(`^[A-Z_][A-Z0-9_]{0,63}$`)
 
+// reviewPathMatch matches repository-relative paths; * and ? stay within one segment, ** crosses segments.
+func reviewPathMatch(pattern, name string) bool {
+	var expression strings.Builder
+	expression.WriteString("(?s)^")
+	segments := strings.Split(pattern, "/")
+	for i, segment := range segments {
+		if segment == "**" {
+			if i == len(segments)-1 {
+				expression.WriteString(".*")
+			} else {
+				expression.WriteString("(?:[^/]+/)*")
+			}
+			continue
+		}
+		for _, c := range segment {
+			switch c {
+			case '*':
+				expression.WriteString("[^/]*")
+			case '?':
+				expression.WriteString("[^/]")
+			default:
+				expression.WriteString(regexp.QuoteMeta(string(c)))
+			}
+		}
+		if i == len(segments)-2 && segments[i+1] == "**" {
+			expression.WriteString("(?:/.*)?")
+			break
+		}
+		if i < len(segments)-1 {
+			expression.WriteByte('/')
+		}
+	}
+	expression.WriteByte('$')
+	matched, _ := regexp.MatchString(expression.String(), name)
+	return matched
+}
+
 func terminal(s string) bool { return s != "running" && s != "waiting" && s != "queued" }
 func language(s string) bool { return s == "en" || s == "zh-TW" || s == "zh-CN" }
 
@@ -528,6 +567,9 @@ var (
 )
 
 func validateIntakeAndDelivery(l Loop) error {
+	if l.PullRequest != nil && l.PullRequest.Mode == "automatic" {
+		return errors.New("automatic delivery is only allowed on a deliver step; remove Loop.pullRequest")
+	}
 	if strings.Contains(l.Branch, "{issue}") && l.Intake == nil {
 		return errors.New("{issue} in the branch name needs GitHub issues as the work source")
 	}
@@ -575,8 +617,20 @@ func validatePullRequest(l Loop) error {
 		if pr.Base != "" && (strings.HasPrefix(pr.Base, "-") || strings.ContainsAny(pr.Base, " \t\n;&|$`~^:?*[\\")) {
 			return errors.New("invalid pull request base branch; use a branch name without spaces or revision/shell metacharacters")
 		}
+		for _, pattern := range pr.ReviewPaths {
+			if strings.TrimSpace(pattern) == "" || strings.HasPrefix(pattern, "/") || strings.ContainsAny(pattern, "\\:\x00\r\n") || slices.Contains(strings.Split(pattern, "/"), "..") {
+				return fmt.Errorf("invalid review path %q; use a non-empty repository-relative pattern without ..", pattern)
+			}
+		}
+		if pr.Mode != "automatic" && len(pr.ReviewPaths) > 0 {
+			return errors.New("reviewPaths apply only to automatic delivery; choose automatic or remove them")
+		}
 		switch pr.Mode {
 		case "draft":
+		case "automatic":
+			if pr.Merge != "after-checks" || strings.TrimSpace(pr.Base) == "" {
+				return errors.New("automatic delivery needs merge after-checks and a non-empty test base; set both before saving")
+			}
 		case "after-review":
 			lastAgent, lastGate := -1, -1
 			for i, s := range l.Steps {
@@ -591,13 +645,13 @@ func validatePullRequest(l Loop) error {
 				return errors.New("a pull request after review needs a gate after the last agent step")
 			}
 		default:
-			return errors.New("pull request mode must be after-review or draft")
+			return errors.New("pull request mode must be after-review, automatic or draft")
 		}
 		switch pr.Merge {
 		case "":
 		case "after-checks":
-			if pr.Mode != "after-review" {
-				return errors.New("merging automatically needs “after my review”: a draft has not been reviewed")
+			if pr.Mode != "after-review" && pr.Mode != "automatic" {
+				return errors.New("merging automatically needs “after my review” or “automatic when checks pass”: a draft has not been reviewed")
 			}
 		default:
 			return errors.New("pull request merge must be empty or after-checks")

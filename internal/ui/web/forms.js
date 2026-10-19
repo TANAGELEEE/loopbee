@@ -110,8 +110,23 @@ export function gaps(d) {
   const deliveries = d.steps.map((s, i) => ({ s, i })).filter(({ s }) => s.kind === "deliver");
   const hasDelivery = !!d.pullRequest || deliveries.length > 0;
   if (deliveries.length > 1 || (deliveries.length && d.pullRequest)) add("block", t("Use one deliver step or Loop delivery, not both."), "pr");
+  const checkReviewPaths = (pr, field, deliver) => {
+    if (!pr) return;
+    if (pr.mode === "automatic") {
+      if (!deliver) add("block", t("Automatic delivery is only available on a deliver step."), field);
+      if (!pr.base?.trim()) add("block", t("Automatic delivery needs an explicit test branch."), field);
+      if (pr.merge !== "after-checks") add("block", t("Automatic delivery must merge after all checks pass."), field);
+    } else if (pr.reviewPaths?.length) add("block", t("Review paths apply only to automatic delivery."), field);
+    for (const path of pr.reviewPaths || []) {
+      if (typeof path !== "string" || !path.trim() || path.startsWith("/") || /[\\:\0\r\n]/.test(path) || path.split("/").includes("..")) {
+        add("block", t("Review path “{path}” must be non-empty and repository-relative, without .. segments, backslashes, colons or line breaks.", { path: String(path) }), field);
+      }
+    }
+  };
+  checkReviewPaths(d.pullRequest, "pr", false);
   for (const { s, i } of deliveries) {
     if (!s.pullRequest) add("block", t("Choose a pull request mode for the deliver step."), `step-${i}`);
+    checkReviewPaths(s.pullRequest, `step-${i}`, true);
     if (s.pullRequest?.mode === "after-review") {
       const prior = d.steps.slice(0, i);
       if (prior.map((x) => x.kind === "gate").lastIndexOf(true) <= prior.map((x) => AGENT_KINDS.includes(x.kind)).lastIndexOf(true)) add("block", t("Add a gate after the agent step: the pull request opens after your review"), `step-${i}`);
@@ -226,9 +241,10 @@ function workSection(d) {
 function pullRequestFields(owner, index = "") {
   const mode = owner.pullRequest?.mode || "none";
   const options = [["after-review", t("After my review")], ["draft", t("Draft, review on GitHub")]];
-  if (index === "") options.unshift(["none", t("No, keep the branch")]);
-  return `<div data-pr-owner="${index}">${fld(T("Pull request"), `<span${index === "" ? ' id="f-pr"' : ""}>${seg("prmode", mode, options, { action: "ed-pr", label: t("Pull request") })}</span>`, T(mode === "after-review" ? "You review the diff at the gate; then loopbee pushes the branch and opens the pull request. The link is sent with the notification." : mode === "draft" ? "loopbee pushes the branch and opens a draft pull request right away; you review it on GitHub. The link is sent with the notification." : "The branch stays local; push it yourself."))}
-  ${owner.pullRequest ? fld(T("Target branch"), `<input class="inp mono narrowi" data-pr="base" value="${esc(owner.pullRequest.base || "")}" placeholder="${T("from the base ref")}" aria-label="${T("Target branch")}">`) : ""}${mode === "after-review" ? fld(T("Merge"), seg("prmerge", owner.pullRequest.merge || "", [["", t("I merge on GitHub")], ["after-checks", t("When all checks pass")]], { action: "ed-merge", label: t("Merge") }), T(owner.pullRequest.merge ? "After your approval loopbee waits for the pull request's checks and squash-merges it when all pass. Failing or missing checks leave it open and tell you why." : "The pull request stays open for you to merge.")) : ""}</div>`;
+  if (index !== "") options.push(["automatic", t("Automatically when checks pass")]);
+  else options.unshift(["none", t("No, keep the branch")]);
+  return `<div data-pr-owner="${index}">${fld(T("Pull request"), `<span${index === "" ? ' id="f-pr"' : ""}>${seg("prmode", mode, options, { action: "ed-pr", label: t("Pull request") })}</span>`, T(mode === "after-review" ? "You review the diff at the gate; then loopbee pushes the branch and opens the pull request. The link is sent with the notification." : mode === "draft" ? "loopbee pushes the branch and opens a draft pull request right away; you review it on GitHub. The link is sent with the notification." : mode === "automatic" ? "Opens a pull request on a test branch and merges after checks pass. Changes matching review paths stop for your review; the default branch is never merged automatically." : "The branch stays local; push it yourself."))}
+  ${owner.pullRequest ? fld(T("Target branch"), `<input class="inp mono narrowi" data-pr="base" value="${esc(owner.pullRequest.base || "")}" placeholder="${mode === "automatic" ? "test" : T("from the base ref")}" aria-label="${T("Target branch")}">`) : ""}${mode === "automatic" ? fld(T("Merge"), `<span class="chip ok">${T("After all checks pass (required)")}</span>`) + fld(T("Stop for my review when these paths change"), `<textarea class="inp mono" data-pr="reviewPaths" rows="2" spellcheck="false" aria-label="${T("Stop for my review when these paths change")}">${esc((owner.pullRequest.reviewPaths || []).join("\n"))}</textarea>`, T("One repository-relative pattern per line; use / separators and no absolute paths or .. segments.")) : mode === "after-review" ? fld(T("Merge"), seg("prmerge", owner.pullRequest.merge || "", [["", t("I merge on GitHub")], ["after-checks", t("When all checks pass")]], { action: "ed-merge", label: t("Merge") }), T(owner.pullRequest.merge ? "After your approval loopbee waits for the pull request's checks and squash-merges it when all pass. Failing or missing checks leave it open and tell you why." : "The pull request stays open for you to merge.")) : ""}</div>`;
 }
 
 export function definitionOnly(d) {

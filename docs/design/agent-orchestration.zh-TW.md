@@ -167,15 +167,19 @@ adapter registry（`internal/core/adapter.go`）新增：
 
 ### 自動合併到測試環境與 QA 驗收
 
-這個流程可以全自動，不需要人工關卡，前提是「合併」和「部署」由 Git 平台和專案的 CI/CD 完成：
+這個流程可以自動交付到測試環境：只有 `deliver` 步驟可以使用 `pullRequest.mode: "automatic"`，不能放在 Loop 層級。必須明確指定非預設分支的測試目標（例如 `base: "test"`），並設定 `merge: "after-checks"`。儲存庫的預設分支永遠不能作為 `automatic` 的目標，即使人工核准了路徑變更也不例外；交付到預設分支應使用 `after-review`。
+
+`reviewPaths` 僅適用於 `automatic`。變更命中其中任一路徑模式時，交付前暫停，等待人工核准；未命中的變更可直接交付。模式從儲存庫根目錄起算，以 `/` 分隔，不能使用絕對路徑或 `..` 路徑片段。`*`、`?` 只比對單一路徑片段；獨立的 `**` 比對零個或多個路徑片段。ConfigMap YAML 的位置必須先由使用者確認，再加入 `reviewPaths`；不可自行把所有 YAML 都視為需要人工核准。
+
+合併和部署由 Git 平台與專案既有的 CI/CD 完成：
 
 1. **合併**由 loopbee 的 `deliver` 步驟完成，不是由 agent 執行 `git merge`。agent 沒有 Git 權限（LESSONS「Agents do not write Git metadata; loopbee commits for them」）；loopbee 推送分支、開 PR，等 PR 的檢查全部通過後合併到測試分支（例如 `test`）。
-2. **部署到測試環境**由專案原本的 CI/CD 在合併後完成，loopbee 不負責部署。
+2. **部署到測試環境**由專案原本的 CI/CD 在合併後完成，loopbee 不負責部署。SQL migration 也可以透過這條 CI/CD 流程自動交付；若其路徑命中 `reviewPaths`，仍須先取得人工核准。
 3. **等待部署完成**：在 `deliver` 之後放一個 `run` 步驟，執行使用者在 Loop 定義裡寫好的指令，例如反覆查詢測試環境的版本，直到出現剛合併的提交。這個指令不是 agent 寫的，所以可以直接執行。
 4. **QA 驗收**是一個 `review` 步驟，`sendBackTo` 指向寫程式的步驟。QA agent 回報 `changes_requested` 時，摘要就是整理好的問題清單；寫程式的 agent 在提示裡收到這份清單後修正。
 5. **複測**：修正後依序重跑程式審查、`deliver`、等待部署、QA 驗收，直到 QA 通過或達到 `MaxAttempts`。
 
-需要人工關卡的情況只有一種：合併或部署是在使用者電腦上執行指令，而且會執行 agent 改過的檔案（例如本機的部署腳本，或 agent 改過的 migration）。現有安全規則要求這種指令前面要有人工審核關卡，因為 agent 審查不能取代人工審核，被提示注入的 agent 也可能讓另一個 agent 的審查通過。這條規則不變（LESSONS「Code the agent wrote never runs as you before review」）。
+除了命中 `reviewPaths` 的變更，如果合併或部署是在使用者電腦上執行指令，而且會執行 agent 改過的檔案（例如本機部署腳本或 migration），仍須先經人工核准。`automatic` 和 agent 審查都不會放寬本機 `run`／`verify` 的安全限制；被提示注入的 agent 也可能讓另一個 agent 的審查通過。這條規則不變（LESSONS「Code the agent wrote never runs as you before review」）。CI 設定的拒絕規則也不變：`.github/` 下的變更即使經人工核准，loopbee 仍不會自動推送。
 
 QA agent 要連到測試環境，需要 `workspace-network` 等級，或使用 agent 自己的 MCP 工具（例如瀏覽器）。
 
@@ -194,7 +198,7 @@ QA agent 要連到測試環境，需要 `workspace-network` 等級，或使用 a
     { "id": "code", "kind": "act", "name": "依方案實作", "agent": "codex", "inputs": ["plan"], "prompt": "…" },
     { "id": "code-review", "kind": "review", "name": "審查程式", "agent": "claude", "sandbox": "read-only",
       "inputs": ["plan", "code"], "sendBackTo": "code", "maxAttempts": 3, "prompt": "…" },
-    { "id": "deliver", "kind": "deliver", "name": "合併到 test（檢查通過後）", "pullRequest": { "base": "test", "merge": "after-checks" } },
+    { "id": "deliver", "kind": "deliver", "name": "合併到 test（檢查通過後）", "pullRequest": { "mode": "automatic", "base": "test", "merge": "after-checks", "reviewPaths": ["deploy/k8s/**"] } },
     { "id": "deployed", "kind": "run", "name": "等待 test 環境部署完成", "argv": ["sh", "scripts/wait-for-test-deploy.sh"] },
     { "id": "qa", "kind": "review", "name": "QA 驗收 test 環境", "agent": "claude", "sandbox": "workspace-network",
       "inputs": ["plan"], "sendBackTo": "code", "maxAttempts": 3, "prompt": "…" }
@@ -202,7 +206,7 @@ QA agent 要連到測試環境，需要 `workspace-network` 等級，或使用 a
 }
 ```
 
-`<模型 A>`、`<模型 B>` 是佔位符，實際值取自階段一的模型列表。`scripts/wait-for-test-deploy.sh` 代表專案自己的等待部署指令。
+`<模型 A>`、`<模型 B>` 是佔位符，實際值取自階段一的模型列表。範例假設 `test` 不是預設分支，而且使用者已確認 ConfigMap YAML 位於 `deploy/k8s/**`；命中這個範圍時，交付步驟會等待人工核准。`scripts/wait-for-test-deploy.sh` 代表專案自己的等待部署指令，必須保持未被 agent 修改，並在 `allowedTools` 中允許 `sh`。
 
 QA 退回時的執行順序：`qa` → `code`（帶著 QA 的問題清單）→ `code-review` → `deliver` → `deployed` → `qa`。程式審查也可能在這之中把 `code` 再退回，兩個審查各自計算退回次數。
 

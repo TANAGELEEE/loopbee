@@ -81,7 +81,8 @@ Rules:
   and `"branch": "loopbee/issue-{issue}"`. loopbee picks one issue per run and gives it to the agent.
 - To get a pull request, set `"pullRequest": {"mode": "after-review"}` with a `gate` after the agent step, or
   `{"mode": "draft"}` without one. loopbee pushes and opens it; never script that yourself. Add
-  `"merge": "after-checks"` (after-review only) when the user wants it merged once CI is green. Use
+  `"merge": "after-checks"` with `after-review` when the user wants it merged once CI is green; deliver-only
+  `automatic` mode requires it (see below). Use
   `"notify": {"channels": ["telegram"]}` to receive the link on the user's phone.
 - Every run has the agent's own context: the user's skills, plugins, subagents, commands, CLAUDE.md / AGENTS.md and
   the project's memory. A skill that runs scripts needs at least `workspace-write`; one that calls services
@@ -134,5 +135,7 @@ delivery. Commands still cannot run agent-changed files before human approval.
 
 Use at most one `deliver` step and omit Loop-level `pullRequest` when using it. It opens the pull request at
 that point, then continues with the following steps. Delivery needs a worktree and branch; `draft` mode needs
-no gate. `merge: "after-checks"` requires `after-review`: it waits for passing checks and squash-merges before
-continuing.
+no gate and cannot merge. `merge: "after-checks"` supports `after-review` or `automatic`: it waits for passing
+checks and squash-merges before continuing.
+
+Deliver-only `{"mode":"automatic","base":"test","merge":"after-checks","reviewPaths":["deploy/k8s/**"]}` merges a non-default test branch without a gate unless changed paths match `reviewPaths` (root-relative `*`, `?`, `**`); put person-confirmed ConfigMap YAML paths there, while SQL migrations may ship through CI/CD; CI-file refusal and local command safety still apply.
