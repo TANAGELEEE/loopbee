@@ -69,8 +69,9 @@ Rules:
 - `agent`: `codex`, `claude`, `opencode` or `pi` (see `beectl status` for what is installed). OpenCode and
   pi have no sandbox: loopbee runs them only at `read-only` or `agent-config`. `model` is optional (empty = the
   agent's own default). Loop `effort` is optional too (empty = CLI default); use a level the agent offers.
-  Agent steps (`act`, `observe`, `summarize`) may set `model` and `effort` independently to override the Loop;
-  empty step fields inherit the Loop, then the CLI default.
+  Agent steps (`act`, `observe`, `summarize`, `review`) may override `agent`, `sandbox`, `model` and `effort`;
+  empty step fields inherit the Loop, then the CLI default for model/effort. The effective agent must enforce
+  the effective permission, and step permissions must stay within the device ceiling.
 - `sandbox`: the lowest that works — `read-only`, `workspace-write` (no network), `workspace-network` (git push,
   deploys, databases, APIs), `agent-config` (the agent's own configuration decides; only when asked). The device has
   a ceiling set in loopbee; drafts above it are rejected.
@@ -97,3 +98,41 @@ Rules:
 - Never put secrets in the definition. Declare `"env": [{"name": "DB_PASSWORD", "secret": true}]` and tell the user to
   fill the value in loopbee (stored in the system keychain).
 - `cron` is five fields in `timezone`; empty means manual only.
+
+## Act, review and deliver
+
+Use unique step `id` values (1–40 lowercase letters, digits or hyphens). `inputs` names earlier agent/review
+steps whose latest reports are needed. A `review` returns `done` to pass or `changes_requested` with feedback;
+`sendBackTo` must name an earlier `act`, `observe` or `summarize` step. `maxAttempts` bounds send-backs: 1–10
+(omitted or 0 = 3). Writing steps need an agent enforcing the requested write level: Codex or Claude Code for
+`workspace-write` / `workspace-network`, not pi/OpenCode at `read-only`.
+An agent review is not a human approval: keep a `gate` after the last agent/review step before `after-review`
+delivery. Commands still cannot run agent-changed files before human approval.
+
+```json
+{
+  "name": "Fix, review and deliver",
+  "directory": "/absolute/path/to/repo",
+  "agent": "codex",
+  "sandbox": "workspace-write",
+  "workspace": "worktree",
+  "branch": "loopbee/fix-{run}",
+  "cron": "",
+  "timezone": "UTC",
+  "maxRounds": 1,
+  "wallMinutes": 60,
+  "stallRounds": 2,
+  "doneWhen": "verify.passed",
+  "steps": [
+    {"id": "fix", "kind": "act", "name": "Fix", "prompt": "Follow AGENTS.md to fix the requested defect and test it. Do not branch, commit or push."},
+    {"id": "review", "kind": "review", "name": "Review", "sandbox": "read-only", "inputs": ["fix"], "sendBackTo": "fix", "maxAttempts": 3, "prompt": "Review the changes and report actionable defects or pass."},
+    {"id": "approve", "kind": "gate", "name": "Approve changes"},
+    {"id": "deliver", "kind": "deliver", "name": "Open pull request", "pullRequest": {"mode": "after-review"}}
+  ]
+}
+```
+
+Use at most one `deliver` step and omit Loop-level `pullRequest` when using it. It opens the pull request at
+that point, then continues with the following steps. Delivery needs a worktree and branch; `draft` mode needs
+no gate. `merge: "after-checks"` requires `after-review`: it waits for passing checks and squash-merges before
+continuing.

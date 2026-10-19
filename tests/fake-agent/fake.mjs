@@ -1,6 +1,7 @@
 // Fake agent CLIs (Codex, Claude Code, OpenCode, pi) for UI tests. Never contacts a model; answers
 // deterministically in each CLI's own event format, with the token usage each one reports.
-import { writeFileSync, appendFileSync } from "node:fs";
+import { writeFileSync, appendFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
 
 export async function main(name) {
   const args = process.argv.slice(2);
@@ -63,6 +64,17 @@ export async function main(name) {
     };
     text = JSON.stringify(proposal);
     if (has("--json-schema")) structured = proposal;
+  } else if (prompt.startsWith("REVIEW_ONCE")) {
+    const counter = join(process.env.LOOPBEE_RUN_DIR, "fake-review-once");
+    const reviewed = existsSync(counter);
+    writeFileSync(counter, "reviewed");
+    text = reviewed
+      ? 'Review passed.\nLOOPBEE_RESULT {"status":"done","summary":"Review passed"}'
+      : 'Please clarify the plan.\nLOOPBEE_RESULT {"status":"changes_requested","summary":"Clarify the plan"}';
+  } else if (prompt.startsWith("REPORT_FEEDBACK")) {
+    // Echo the received feedback into registered report evidence, without a separate prompt artifact.
+    const feedback = prompt.match(/Reviewer feedback \(send-back [^\n]+/)?.[0] || "First plan";
+    text = feedback + '\nLOOPBEE_RESULT {"status":"done","summary":"Plan ready"}';
   } else if (prompt.includes("EDIT_FILE")) {
     writeFileSync("fixed.txt", "edited by the fake agent\n");
     text = 'Changed fixed.txt.\nLOOPBEE_RESULT {"status":"done","summary":"Fixes #1: edited fixed.txt"}';

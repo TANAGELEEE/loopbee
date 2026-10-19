@@ -52,8 +52,10 @@ func authorSchema() map[string]any {
 		}
 		return map[string]any{"type": "object", "additionalProperties": false, "properties": props, "required": req}
 	}
+	pr := obj(map[string]any{"mode": map[string]any{"type": "string", "enum": []string{"", "after-review", "draft"}}, "base": str, "merge": map[string]any{"type": "string", "enum": []string{"", "after-checks"}}})
 	step := obj(map[string]any{
-		"kind": map[string]any{"type": "string", "enum": []string{"act", "observe", "summarize", "run", "verify", "gate"}},
+		"kind": map[string]any{"type": "string", "enum": []string{"act", "observe", "summarize", "review", "run", "verify", "gate", "deliver"}},
+		"id":   str, "agent": str, "sandbox": str, "inputs": strs, "sendBackTo": str, "maxAttempts": integer, "pullRequest": pr,
 		"name": str, "prompt": str, "argv": strs, "metric": str, "metricPath": str, "continueOnError": map[string]any{"type": "boolean"},
 		"model": str, "effort": str,
 	})
@@ -66,9 +68,9 @@ func authorSchema() map[string]any {
 		"steps": map[string]any{"type": "array", "items": step},
 		"notify": obj(map[string]any{"events": strs, "includeReport": map[string]any{"type": "boolean"},
 			"channels": map[string]any{"type": "array", "items": map[string]any{"type": "string", "enum": []string{"desktop", "telegram", "feishu", "bark"}}}}),
-		// Strict schemas have no optional objects: an empty kind / mode means "not used".
+		// Strict schemas have no optional objects: unused objects carry empty fields.
 		"intake":      obj(map[string]any{"kind": map[string]any{"type": "string", "enum": []string{"", "github-issues"}}, "repo": str, "label": str, "trustedUsers": strs}),
-		"pullRequest": obj(map[string]any{"mode": map[string]any{"type": "string", "enum": []string{"", "after-review", "draft"}}, "base": str, "merge": map[string]any{"type": "string", "enum": []string{"", "after-checks"}}}),
+		"pullRequest": pr,
 		"env":         map[string]any{"type": "array", "items": obj(map[string]any{"name": str, "secret": map[string]any{"type": "boolean"}, "value": str})},
 		"readPaths":   strs, "copyFiles": strs, "model": str, "effort": str, "agentMcp": map[string]any{"type": "boolean"},
 	})
@@ -128,6 +130,26 @@ team's existing skills, slash commands and scripts by their real names. Do not m
 Design rules:
 - Teams already have complete development and verification workflows in their agents. Prefer ONE agent
   step (kind "act") whose prompt says which skill/workflow to use, what to do, and when to stop.
+- For an agent review loop, give referenced steps unique id values (1–40 lowercase letters, digits or hyphens).
+  A "review" step is an agent with a prompt: it reports LOOPBEE_RESULT status "done" to pass or
+  "changes_requested" with actionable feedback to retry. Its sendBackTo must be the id of an earlier observe, act or summarize
+  step, never a review, gate or command. maxAttempts is 1–10 (0 or omitted = default 3); it bounds send-backs.
+  inputs lists ids of earlier agent or review steps whose latest reports the step needs; no forward or command references.
+  Keep inputs empty when no reports are needed. A review is not a human approval: it never replaces a gate or
+  permits run/verify commands to execute agent-changed files before a person approves them.
+- Agent and review steps may override agent, sandbox, model and effort; empty fields inherit the Loop
+  (model/effort: step → Loop → CLI default). Choose a detected available agent that enforces the effective sandbox,
+  including an inherited sandbox; all step permissions remain subject to this device's ceiling. agent-config
+  still requires the user's explicit request. A step that writes files needs an agent whose enforced levels (listed
+  under "Detected agents" below) include the write level it asks for. Reviewers normally use read-only; never
+  increase permissions to pass a review.
+- Use at most one deliver step to deliver at a specific point, with pullRequest {mode, base, merge}; it runs
+  loopbee's delivery, not an agent. When using deliver, leave Loop.pullRequest empty (all its fields empty).
+  A deliver step opens the pull request at that point in the flow, then continues with the following steps.
+  Both delivery forms need workspace "worktree" and a branch. mode "after-review" requires a human gate after
+  the last agent/review step and before delivery; "draft" does not. merge "after-checks" requires "after-review"
+  and waits for passing checks, then squash-merges the pull request before continuing.
+  Leave each non-deliver step's pullRequest fields empty; sendBackTo and maxAttempts apply only to review.
 - Put a "gate" step before anything irreversible or shared: merging to the main branch, production deploys,
   sending e-mail to customers, running SQL on shared databases — unless the user says otherwise. A gate as
   the last step means a person takes over from there.
@@ -216,13 +238,16 @@ func definitionForAgent(l Loop) map[string]any {
 	if l.Intake != nil {
 		intake = map[string]any{"kind": l.Intake.Kind, "repo": l.Intake.Repo, "label": l.Intake.Label, "trustedUsers": nonNil(l.Intake.TrustedUsers)}
 	}
-	pr := map[string]any{"mode": "", "base": "", "merge": ""}
-	if l.PullRequest != nil {
-		pr = map[string]any{"mode": l.PullRequest.Mode, "base": l.PullRequest.Base, "merge": l.PullRequest.Merge}
+	pr := func(p *PullRequest) map[string]any {
+		if p == nil {
+			p = &PullRequest{}
+		}
+		return map[string]any{"mode": p.Mode, "base": p.Base, "merge": p.Merge}
 	}
 	steps := []map[string]any{}
 	for _, s := range l.Steps {
-		steps = append(steps, map[string]any{"kind": s.Kind, "name": s.Name, "prompt": s.Prompt, "argv": nonNil(s.Argv), "metric": s.Metric, "metricPath": s.MetricPath, "continueOnError": s.ContinueOnError, "model": s.Model, "effort": s.Effort})
+		steps = append(steps, map[string]any{"kind": s.Kind, "name": s.Name, "prompt": s.Prompt, "argv": nonNil(s.Argv), "metric": s.Metric, "metricPath": s.MetricPath, "continueOnError": s.ContinueOnError, "model": s.Model, "effort": s.Effort,
+			"id": s.ID, "agent": s.Agent, "sandbox": s.Sandbox, "inputs": nonNil(s.Inputs), "sendBackTo": s.SendBackTo, "maxAttempts": s.MaxAttempts, "pullRequest": pr(s.PullRequest)})
 	}
 	env := []map[string]any{}
 	for _, e := range l.Env {
@@ -238,7 +263,7 @@ func definitionForAgent(l Loop) map[string]any {
 		"wallMinutes": l.WallMinutes, "stallRounds": l.StallRounds, "gateHours": l.GateHours, "doneWhen": l.DoneWhen,
 		"allowedTools": nonNil(l.AllowedTools), "steps": steps,
 		"notify": map[string]any{"events": nonNil(l.Notify.Events), "includeReport": l.Notify.IncludeReport, "channels": nonNil(l.Notify.Channels)}, "env": env,
-		"intake": intake, "pullRequest": pr, "readPaths": nonNil(l.ReadPaths), "copyFiles": nonNil(l.CopyFiles), "model": l.Model, "effort": l.Effort, "agentMcp": l.AgentMCP,
+		"intake": intake, "pullRequest": pr(l.PullRequest), "readPaths": nonNil(l.ReadPaths), "copyFiles": nonNil(l.CopyFiles), "model": l.Model, "effort": l.Effort, "agentMcp": l.AgentMCP,
 	}
 }
 func nonNil(s []string) []string {
@@ -318,7 +343,7 @@ func (a *App) Author(ctx context.Context, req AuthorRequest) (AuthorReply, error
 	if tz == "" {
 		tz = c.DigestTimezone
 	}
-	prompt := authorPrompt(req, dir, c.Language, tz, name, c.MaxSandbox, draft) + designerContext(agentCtx) + designerMCP(name, home, draft.Directory)
+	prompt := authorPrompt(req, dir, c.Language, tz, name, c.MaxSandbox, draft) + a.designerAgents() + designerContext(agentCtx) + designerMCP(name, home, draft.Directory)
 	ctx, cancel := context.WithTimeout(ctx, 4*time.Minute)
 	defer cancel()
 	out, runErr := runCommandEnv(ctx, dir, argv, nil, strings.NewReader(prompt), agentEnv)
@@ -364,6 +389,8 @@ func (a *App) Author(ctx context.Context, req AuthorRequest) (AuthorReply, error
 	}
 	if !sandboxWithin(reply.Loop.Sandbox, c.MaxSandbox) {
 		reply.Problem = "permission exceeds this device's limit"
+	} else if err := validateStepSandboxCeilings(reply.Loop, c.MaxSandbox); err != nil {
+		reply.Problem = err.Error()
 	}
 	return reply, nil
 }
@@ -443,7 +470,16 @@ func normalizeDraft(p, base Loop, agent string) Loop {
 			p.AllowedTools = append(p.AllowedTools, s.Argv[0])
 		}
 	}
+	p.Steps = append([]Step(nil), p.Steps...)
 	for i := range p.Steps {
+		// Strict-schema placeholders are not configured delivery or report inputs. Keep nonempty values so
+		// Validate can reject malformed references and fields used on the wrong step kind.
+		if pr := p.Steps[i].PullRequest; pr != nil && *pr == (PullRequest{}) {
+			p.Steps[i].PullRequest = nil
+		}
+		if len(p.Steps[i].Inputs) == 0 {
+			p.Steps[i].Inputs = nil
+		}
 		if p.Steps[i].Kind != "run" && p.Steps[i].Kind != "verify" {
 			p.Steps[i].Argv = nil
 		}
@@ -455,14 +491,14 @@ func normalizeDraft(p, base Loop, agent string) Loop {
 		if p.Steps[i].Kind != "run" {
 			p.Steps[i].ContinueOnError = false
 		}
-		if p.Steps[i].Kind == "run" || p.Steps[i].Kind == "verify" || p.Steps[i].Kind == "gate" {
+		if !isAgentStep(p.Steps[i].Kind) {
 			p.Steps[i].Prompt = "" // only agent steps have prompts
 		}
 	}
 	if p.Intake != nil && p.Intake.Kind == "" {
 		p.Intake = nil
 	}
-	if p.PullRequest != nil && p.PullRequest.Mode == "" {
+	if p.PullRequest != nil && *p.PullRequest == (PullRequest{}) {
 		p.PullRequest = nil
 	}
 	if p.Intake != nil {
@@ -515,6 +551,18 @@ func platformName() string {
 		return "Windows"
 	}
 	return runtime.GOOS
+}
+
+// designerAgents uses the cached detection result, without running another CLI turn.
+func (a *App) designerAgents() string {
+	var note strings.Builder
+	note.WriteString("\n\nDetected agents for step overrides (only available agents may be chosen):\n")
+	for _, name := range adapterOrder {
+		if ag, ok := a.agentInfo(name); ok {
+			fmt.Fprintf(&note, "- %s (%s): %s; enforces: %s.\n", ag.Name, ag.Label, ag.Status, strings.Join(ag.Levels, ", "))
+		}
+	}
+	return note.String()
 }
 
 // designerContext tells the designer where the user's own skills, plugins and memory are.

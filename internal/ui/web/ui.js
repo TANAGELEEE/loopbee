@@ -257,7 +257,7 @@ export const agentColor = (n) => ({ codex: "#5b8def", claude: "#c95b9a", opencod
 export const agentCmd = (n) => ({ codex: "codex exec", claude: "claude -p", opencode: "opencode run", pi: "pi --mode json" })[n] || n;
 // The permission levels an agent enforces itself (always includes agent-config).
 export const agentLevels = (n) => ctx.state?.agents?.find((a) => a.name === n)?.levels || ["read-only", "workspace-write", "workspace-network", "agent-config"];
-export const AGENT_KINDS = ["act", "observe", "summarize"];
+export const AGENT_KINDS = ["act", "observe", "summarize", "review"];
 export const agentEfforts = (n) => ctx.state?.agents?.find((a) => a.name === n)?.efforts || [];
 export const agentModels = (n) => ctx.state?.agents?.find((a) => a.name === n)?.models || [];
 export const agentModelHint = (n) => ctx.state?.agents?.find((a) => a.name === n)?.modelHint || [];

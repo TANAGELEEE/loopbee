@@ -297,13 +297,90 @@ try {
   // Changing to Codex clears both unsupported efforts, and explains why.
   await page.goto(core.base + "/#/loop/" + modelLoop.id + "/edit");
   await page.locator("#f-agent").selectOption("codex");
-  await page.getByText("The effort was cleared", { exact: false }).waitFor();
+  await page.getByText("Cleared unsupported options for Codex CLI:", { exact: false }).waitFor();
   assert.equal(await page.locator('#f-effort, [data-sf="effort"]').count(), 0);
   await page.getByRole("button", { name: "Save as v3" }).click();
   await page.locator(".hd .chip", { hasText: "Version v3" }).waitFor();
   const clearedModel = (await core.api("/state")).loops.find((l) => l.id === modelLoop.id);
   assert.equal(clearedModel.effort || "", "");
   assert.equal(clearedModel.steps[0].effort || "", "");
+
+  // Build a mixed-agent review loop in the editor; references use stable IDs, never positions or names.
+  await page.goto(core.base + "/#/new?form=1");
+  await page.locator("#f-name").fill("Review send-back");
+  await page.locator("#f-directory").fill(project);
+  await page.locator("#f-agent").selectOption("codex");
+  await page.locator('[data-sf="name"]').fill("Write plan");
+  await page.locator('[data-sf="prompt"]').fill("REPORT_FEEDBACK");
+  await page.getByRole("button", { name: /Add step/ }).click();
+  await page.locator('#menu [role=menuitem]', { hasText: "(review)" }).click();
+  await page.locator('[data-sf="name"]').fill("Review plan");
+  await page.locator('[data-sf="prompt"]').fill("REVIEW_ONCE");
+  await page.locator('[data-sf="agent"]').selectOption("claude");
+  await page.locator('[data-sf="model"]').fill("sonnet");
+  await page.locator('[data-sf="effort"]').selectOption("high");
+  await page.locator('[data-sf="sandbox"]').selectOption("workspace-write");
+  await page.locator('[data-sf="agent"]').selectOption("pi");
+  await page.getByText("Cleared unsupported options for pi:", { exact: false }).waitFor();
+  assert.equal(await page.locator('[data-sf="model"]').inputValue(), "");
+  assert.equal(await page.locator('[data-sf="sandbox"]').inputValue(), "");
+  assert.equal(await page.locator('[data-sf="effort"]').inputValue(), "high");
+  assert.deepEqual(await page.locator('[data-sf="sandbox"] option').evaluateAll((options) => options.map((o) => o.value)), ["", "read-only", "agent-config"]);
+  await page.locator('[data-sf="agent"]').selectOption("codex");
+  assert.equal(await page.locator('[data-sf="effort"]').count(), 0);
+  await page.locator('[data-sf="agent"]').selectOption("claude");
+  await page.locator('[data-sf="maxAttempts"]').fill("2");
+  const backTo = page.locator('[data-sf="sendBackTo"]');
+  await backTo.selectOption({ label: "Write plan" });
+  const planID = await backTo.inputValue();
+  assert.match(planID, /^[a-z0-9-]{1,40}$/);
+  await page.locator('[data-sf="inputs"][value="' + planID + '"]').check();
+  await page.getByRole("button", { name: /Add step/ }).click();
+  await page.locator('#menu [role=menuitem]', { hasText: "(act)" }).click();
+  await page.locator('[data-sf="name"]').fill("Later task");
+  await page.locator('[data-sf="prompt"]').fill("Report completion");
+  await page.locator('[data-action="select-step"][data-i="1"]').click();
+  assert.deepEqual(await backTo.locator('option').evaluateAll((options) => options.filter((o) => o.value).map((o) => o.textContent)), ["Write plan"], "Send back to must not list itself or later steps");
+  await page.getByRole("button", { name: "Save Loop", exact: true }).click();
+  // Wait for the saved Loop's own page, not text already visible in the editor.
+  await page.waitForFunction(() => /^#\/loop\/[0-9a-f]{24}$/.test(location.hash));
+  await page.locator(".hd h1", { hasText: "Review send-back" }).waitFor();
+  const reviewLoop = (await core.api("/state")).loops.find((l) => l.name === "Review send-back");
+  assert.equal(reviewLoop.steps[0].id, planID);
+  assert.equal(new Set(reviewLoop.steps.map((step) => step.id)).size, 3);
+  assert.ok(reviewLoop.steps.every((step) => /^[a-z0-9-]{1,40}$/.test(step.id)));
+  assert.equal(reviewLoop.steps[1].sendBackTo, planID);
+  assert.deepEqual(reviewLoop.steps[1].inputs, [planID]);
+  assert.equal(reviewLoop.steps[1].agent, "claude");
+  assert.equal(reviewLoop.steps[1].maxAttempts, 2);
+  await page.getByRole("button", { name: "Run now" }).first().click();
+  await page.waitForURL(/#\/run\//);
+  const reviewRun = await waitFor(core.api, (st) => st.runs.find((r) => r.loopId === reviewLoop.id && r.status === "completed"));
+  assert.deepEqual(reviewRun.trace.map((step) => [step.step, step.attempt]), [[0, 1], [1, 1], [0, 2], [1, 2], [2, 1]]);
+  assert.deepEqual(reviewRun.trace.slice(0, 4).map((step) => step.agent), ["codex", "claude", "codex", "claude"]);
+  const feedbackReport = "round-01-step-01-attempt-02.report.md";
+  assert.ok(reviewRun.artifacts.includes(feedbackReport));
+  const feedbackText = await page.evaluate(async ({ id, name }) => (await fetch(`/api/artifacts/${id}/${name}?inline=1`)).text(), { id: reviewRun.id, name: feedbackReport });
+  assert.match(feedbackText, /Reviewer feedback \(send-back 1 of/);
+
+  // Deliver reuses the Loop pull-request controls and saves its settings on the step, not the Loop.
+  await page.goto(core.base + "/#/loop/" + reviewLoop.id + "/edit");
+  await page.locator('[data-action="select-step"][data-i="2"]').click();
+  await page.getByRole("button", { name: /Add step/ }).click();
+  await page.locator('#menu [role=menuitem]', { hasText: "(gate)" }).click();
+  await page.getByRole("button", { name: /Add step/ }).click();
+  await page.locator('#menu [role=menuitem]', { hasText: "(deliver)" }).click();
+  const deliveryEditor = page.locator(".step-edit");
+  assert.equal(await deliveryEditor.locator('[data-sf="prompt"], [data-sf="agent"]').count(), 0);
+  await deliveryEditor.getByRole("radio", { name: "After my review", exact: true }).click();
+  await deliveryEditor.locator('[data-pr="base"]').fill("test");
+  await deliveryEditor.getByRole("radio", { name: "When all checks pass", exact: true }).click();
+  await page.getByRole("button", { name: "Save as v2", exact: true }).click();
+  await page.locator(".hd .chip", { hasText: "Version v2" }).waitFor();
+  const deliveredDefinition = (await core.api("/state")).loops.find((l) => l.id === reviewLoop.id);
+  assert.equal(deliveredDefinition.pullRequest, undefined);
+  assert.deepEqual(deliveredDefinition.steps[4].pullRequest, { mode: "after-review", base: "test", merge: "after-checks" });
+  assert.deepEqual(deliveredDefinition.steps.slice(0, 3).map((step) => step.id), reviewLoop.steps.map((step) => step.id));
 
   // Traditional Chinese screenshots of the chat (with history) and the agent settings for review.
   await core.api("/state").then((st) => core.api("/settings", { ...st.settings, language: "zh-TW" }));
