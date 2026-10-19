@@ -382,7 +382,11 @@ function pullRequestOwner(el) {
 }
 function prepareDelivery(owner, mode = "after-review") {
   owner.pullRequest = { ...(owner.pullRequest || {}), mode };
-  if (mode !== "after-review") delete owner.pullRequest.merge;
+  if (mode === "automatic") owner.pullRequest.merge = "after-checks";
+  else {
+    delete owner.pullRequest.reviewPaths;
+    if (mode !== "after-review") delete owner.pullRequest.merge;
+  }
   draft.workspace = "worktree";
   draft.requireClean = false;
   draft.branch ||= "loopbee/change-{date}-{run}";
@@ -1109,7 +1113,8 @@ document.addEventListener("input", (e) => {
   }
   if (el.dataset.pr) {
     const owner = pullRequestOwner(el);
-    if (el.value.trim()) owner.pullRequest.base = el.value.trim();
+    if (el.dataset.pr === "reviewPaths") owner.pullRequest.reviewPaths = el.value.split(/\r?\n/).map((p) => p.trim()).filter(Boolean);
+    else if (el.value.trim()) owner.pullRequest.base = el.value.trim();
     else delete owner.pullRequest.base;
     refreshGaps();
     return;

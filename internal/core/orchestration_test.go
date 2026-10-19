@@ -106,6 +106,68 @@ func TestOrchestrationValidation(t *testing.T) {
 	}
 }
 
+func TestReviewPathMatch(t *testing.T) {
+	for _, tc := range []struct {
+		pattern, file string
+		want          bool
+	}{
+		{"deploy/k8s/**", "deploy/k8s/configmap.yaml", true},
+		{"deploy/k8s/**", "deploy/k8s", true},
+		{"deploy/k8s/**", "deploy/k8s/nested/a.yaml", true},
+		{"deploy/k8s/**", "deploy/other/a.yaml", false},
+		{"**/configmap*.yaml", "configmap.yaml", true},
+		{"**/configmap*.yaml", "a/b/configmap-prod.yaml", true},
+		{"**/configmap*.yaml", "a/configmap/x.yaml", false},
+		{"a/*.yaml", "a/b/c.yaml", false},
+		{"a/?.yaml", "a/中.yaml", true},
+		{"a/?.yaml", "a/ab.yaml", false},
+		{"a/**/b", "a/b", true},
+		{"a/**/b", "a/x/y/b", true},
+		{"a/[x].yaml", "a/[x].yaml", true},
+	} {
+		t.Run(tc.pattern+":"+tc.file, func(t *testing.T) {
+			if got := reviewPathMatch(tc.pattern, tc.file); got != tc.want {
+				t.Fatalf("got %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestAutomaticDeliveryValidation(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		edit func(*Loop)
+		want string
+	}{
+		{"valid", func(l *Loop) {}, ""},
+		{"Loop PR", func(l *Loop) { l.PullRequest = l.Steps[1].PullRequest; l.Steps = l.Steps[:1] }, "only allowed on a deliver step"},
+		{"merge", func(l *Loop) { l.Steps[1].PullRequest.Merge = "" }, "merge after-checks"},
+		{"base", func(l *Loop) { l.Steps[1].PullRequest.Base = "" }, "non-empty test base"},
+		{"draft paths", func(l *Loop) { l.Steps[1].PullRequest.Mode = "draft" }, "only to automatic"},
+		{"review paths", func(l *Loop) { l.Steps[1].PullRequest.Mode = "after-review" }, "only to automatic"},
+		{"empty", func(l *Loop) { l.Steps[1].PullRequest.ReviewPaths = []string{""} }, "repository-relative"},
+		{"absolute", func(l *Loop) { l.Steps[1].PullRequest.ReviewPaths = []string{"/deploy/**"} }, "repository-relative"},
+		{"parent", func(l *Loop) { l.Steps[1].PullRequest.ReviewPaths = []string{"deploy/../k8s"} }, "repository-relative"},
+		{"drive", func(l *Loop) { l.Steps[1].PullRequest.ReviewPaths = []string{"C:/deploy/**"} }, "repository-relative"},
+		{"backslash", func(l *Loop) { l.Steps[1].PullRequest.ReviewPaths = []string{`deploy\k8s`} }, "repository-relative"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			l := testLoop(t)
+			l.Workspace, l.Branch = "worktree", "loopbee/test"
+			l.Steps = []Step{{Name: "Code", Kind: "act", Prompt: "work"}, {Name: "Deliver", Kind: "deliver", PullRequest: &PullRequest{Mode: "automatic", Base: "test", Merge: "after-checks", ReviewPaths: []string{"deploy/k8s/**"}}}}
+			tc.edit(&l)
+			err := Validate(l)
+			if tc.want == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("got %v; want %q", err, tc.want)
+			}
+		})
+	}
+}
+
 func TestDeliverValidation(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -118,7 +180,7 @@ func TestDeliverValidation(t *testing.T) {
 		{"legacy conflict", func(l *Loop) { l.PullRequest = &PullRequest{Mode: "draft"} }, "remove Loop.pullRequest"},
 		{"workspace", func(l *Loop) { l.Workspace = "direct"; l.Branch = "" }, "set workspace"},
 		{"branch", func(l *Loop) { l.Branch = "" }, "provide branch"},
-		{"mode", func(l *Loop) { l.Steps[1].PullRequest.Mode = "bad" }, "must be after-review or draft"},
+		{"mode", func(l *Loop) { l.Steps[1].PullRequest.Mode = "bad" }, "must be after-review, automatic or draft"},
 		{"base", func(l *Loop) { l.Steps[1].PullRequest.Base = "bad branch" }, "use a branch name"},
 		{"merge", func(l *Loop) { l.Steps[1].PullRequest.Merge = "bad" }, "must be empty or after-checks"},
 		{"draft merge", func(l *Loop) { l.Steps[1].PullRequest.Merge = "after-checks" }, "needs “after my review”"},

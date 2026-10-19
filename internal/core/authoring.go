@@ -52,7 +52,7 @@ func authorSchema() map[string]any {
 		}
 		return map[string]any{"type": "object", "additionalProperties": false, "properties": props, "required": req}
 	}
-	pr := obj(map[string]any{"mode": map[string]any{"type": "string", "enum": []string{"", "after-review", "draft"}}, "base": str, "merge": map[string]any{"type": "string", "enum": []string{"", "after-checks"}}})
+	pr := obj(map[string]any{"mode": map[string]any{"type": "string", "enum": []string{"", "after-review", "draft", "automatic"}}, "base": str, "merge": map[string]any{"type": "string", "enum": []string{"", "after-checks"}}, "reviewPaths": strs})
 	step := obj(map[string]any{
 		"kind": map[string]any{"type": "string", "enum": []string{"act", "observe", "summarize", "review", "run", "verify", "gate", "deliver"}},
 		"id":   str, "agent": str, "sandbox": str, "inputs": strs, "sendBackTo": str, "maxAttempts": integer, "pullRequest": pr,
@@ -143,12 +143,22 @@ Design rules:
   still requires the user's explicit request. A step that writes files needs an agent whose enforced levels (listed
   under "Detected agents" below) include the write level it asks for. Reviewers normally use read-only; never
   increase permissions to pass a review.
-- Use at most one deliver step to deliver at a specific point, with pullRequest {mode, base, merge}; it runs
+- Use at most one deliver step to deliver at a specific point, with pullRequest {mode, base, merge, reviewPaths}; it runs
   loopbee's delivery, not an agent. When using deliver, leave Loop.pullRequest empty (all its fields empty).
   A deliver step opens the pull request at that point in the flow, then continues with the following steps.
   Both delivery forms need workspace "worktree" and a branch. mode "after-review" requires a human gate after
-  the last agent/review step and before delivery; "draft" does not. merge "after-checks" requires "after-review"
-  and waits for passing checks, then squash-merges the pull request before continuing.
+  the last agent/review step and before delivery; "draft" does not. merge "after-checks" is allowed with
+  "after-review" or "automatic": it waits for passing checks, then squash-merges the pull request before continuing.
+  "automatic" is allowed only on a deliver step, never Loop.pullRequest. It needs an explicit non-default test branch
+  in base (e.g. "test"); merge "after-checks" is mandatory. The default branch is never an automatic target,
+  even after a person approves matching review paths. Leave mode "after-review" for default-branch delivery.
+  reviewPaths applies only to automatic delivery: matching changed paths pause for human approval before delivery;
+  unmatched changes can ship without a gate. Patterns are repository-root-relative, use / separators, and cannot
+  contain .. segments or absolute paths: * and ? match within one path segment; ** matches zero or more path segments.
+  Confirm the ConfigMap YAML paths with the person and put them in reviewPaths (e.g. ["deploy/k8s/**"]);
+  do not guess that all YAML needs review. SQL migrations may ship automatically through the repository's existing CI/CD.
+  Changes under .github/ are still refused, even with approval. Automatic delivery or an agent review
+  never authorizes local run/verify commands to execute agent-changed files before human approval.
   Leave each non-deliver step's pullRequest fields empty; sendBackTo and maxAttempts apply only to review.
 - Put a "gate" step before anything irreversible or shared: merging to the main branch, production deploys,
   sending e-mail to customers, running SQL on shared databases — unless the user says otherwise. A gate as
@@ -169,7 +179,8 @@ Design rules:
   the person reviews the diff in loopbee, then loopbee pushes and opens the pull request) or "draft" (no gate; a
   draft pull request is the review, e.g. when the user wants to review on GitHub or the phone). Never put push or
   pull-request commands in steps or prompts. Leave mode empty when a branch is enough. When the user wants the
-  reviewed change merged without merging by hand, set pullRequest.merge "after-checks" (only with "after-review"):
+  reviewed change merged without merging by hand, set pullRequest.merge "after-checks" with "after-review"
+  (or the deliver-only "automatic" mode described above):
   loopbee waits for the pull request's checks and squash-merges it when all pass, otherwise leaves it open.
 - notify.channels: the channels the user names (telegram, feishu, bark, desktop); empty means all configured.
 - loopbee hands the output of earlier run/verify steps to later agent steps of the same round. Set
@@ -242,7 +253,7 @@ func definitionForAgent(l Loop) map[string]any {
 		if p == nil {
 			p = &PullRequest{}
 		}
-		return map[string]any{"mode": p.Mode, "base": p.Base, "merge": p.Merge}
+		return map[string]any{"mode": p.Mode, "base": p.Base, "merge": p.Merge, "reviewPaths": nonNil(p.ReviewPaths)}
 	}
 	steps := []map[string]any{}
 	for _, s := range l.Steps {
@@ -474,8 +485,14 @@ func normalizeDraft(p, base Loop, agent string) Loop {
 	for i := range p.Steps {
 		// Strict-schema placeholders are not configured delivery or report inputs. Keep nonempty values so
 		// Validate can reject malformed references and fields used on the wrong step kind.
-		if pr := p.Steps[i].PullRequest; pr != nil && *pr == (PullRequest{}) {
-			p.Steps[i].PullRequest = nil
+		if pr := p.Steps[i].PullRequest; pr != nil && len(pr.ReviewPaths) == 0 {
+			if pr.Mode == "" && pr.Base == "" && pr.Merge == "" {
+				p.Steps[i].PullRequest = nil
+			} else {
+				copy := *pr
+				copy.ReviewPaths = nil
+				p.Steps[i].PullRequest = &copy
+			}
 		}
 		if len(p.Steps[i].Inputs) == 0 {
 			p.Steps[i].Inputs = nil
@@ -498,8 +515,14 @@ func normalizeDraft(p, base Loop, agent string) Loop {
 	if p.Intake != nil && p.Intake.Kind == "" {
 		p.Intake = nil
 	}
-	if p.PullRequest != nil && *p.PullRequest == (PullRequest{}) {
-		p.PullRequest = nil
+	if pr := p.PullRequest; pr != nil && len(pr.ReviewPaths) == 0 {
+		if pr.Mode == "" && pr.Base == "" && pr.Merge == "" {
+			p.PullRequest = nil
+		} else {
+			copy := *pr
+			copy.ReviewPaths = nil
+			p.PullRequest = &copy
+		}
 	}
 	if p.Intake != nil {
 		p.Intake.Label = strings.TrimSpace(p.Intake.Label)

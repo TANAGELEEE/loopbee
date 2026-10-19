@@ -282,7 +282,8 @@ func (a *App) execute(ctx context.Context, r Run) {
 	workdir := ws.Dir
 	r.Workdir = workdir
 	r.Branch = ws.Branch
-	agentRan := false // after an agent step, commands must not run files the agent changed (see below)
+	agentRan := false                    // after an agent step, commands must not run files the agent changed (see below)
+	unreviewedFiles := map[string]bool{} // survives delivery resetting the workspace base
 	env, err := loopEnv(l)
 	if err != nil {
 		finish("blocked", err)
@@ -380,7 +381,32 @@ func (a *App) execute(ctx context.Context, r Run) {
 				finish("failed", err)
 				return
 			}
-			if s.Kind == "gate" {
+			needsReview := false
+			if s.Kind == "deliver" && s.PullRequest.Mode == "automatic" {
+				files, err := ws.deliveryFiles(ctx)
+				if err != nil {
+					finish("failed", err)
+					return
+				}
+				var matches []string
+				for _, file := range files {
+					for _, pattern := range s.PullRequest.ReviewPaths {
+						if reviewPathMatch(pattern, file) {
+							matches = append(matches, file)
+							break
+						}
+					}
+				}
+				needsReview = len(matches) > 0
+				if needsReview {
+					r.Trace[len(r.Trace)-1].Note = "These changes need your review before they are merged: " + strings.Join(matches, ", ")
+					a.event(r.ID, "delivery.review_required", r.Trace[len(r.Trace)-1].Note)
+				} else {
+					r.Trace[len(r.Trace)-1].Note = "No review paths matched; delivering automatically"
+					a.event(r.ID, "delivery.automatic", r.Trace[len(r.Trace)-1].Note)
+				}
+			}
+			if s.Kind == "gate" || needsReview {
 				gate := make(chan gateDecision, 1)
 				a.mu.Lock()
 				a.gates[r.ID] = gate
@@ -407,10 +433,11 @@ func (a *App) execute(ctx context.Context, r Run) {
 					// A person reviewed what the agent changed: later commands may run those files (a migration,
 					// a deploy script). A later agent step makes the rule apply again.
 					agentRan = false
+					clear(unreviewedFiles)
 					// Save the decision now: the page must stop offering the gate while later steps or the
 					// delivery run, and a crash must not lose the approval.
 					r.Status = "running"
-					if l.PullRequest != nil && i == len(l.Steps)-1 {
+					if s.Kind == "deliver" || l.PullRequest != nil && i == len(l.Steps)-1 {
 						r.Phase = "delivering"
 					}
 					if err := a.saveRun(r); err != nil {
@@ -429,9 +456,24 @@ func (a *App) execute(ctx context.Context, r Run) {
 					return
 				}
 				r.Status = "running"
-				continue
+				if s.Kind == "gate" {
+					continue
+				}
+				// The decision is persisted; the delivery itself still has to finish.
+				r.Trace[len(r.Trace)-1].Finished = nil
+				r.Trace[len(r.Trace)-1].Status = "running"
 			}
 			if s.Kind == "deliver" {
+				if agentRan {
+					changed, err := ws.changed(ctx)
+					if err != nil {
+						finish("failed", err)
+						return
+					}
+					for file := range changed {
+						unreviewedFiles[file] = true
+					}
+				}
 				// Like a gate, waiting for checks before a merge does not use the Run's time limit.
 				if err := a.runDeliveryStep(ctx, &r, l, s.PullRequest, ws, reviewerNote, true); err != nil {
 					mark("failed", err.Error())
@@ -444,7 +486,7 @@ func (a *App) execute(ctx context.Context, r Run) {
 					}
 					return
 				}
-				mark("ok", r.PRURL)
+				mark("ok", strings.TrimSpace(r.Trace[len(r.Trace)-1].Note+"\n"+r.PRURL))
 				a.event(r.ID, "step.completed", s.Name)
 				continue
 			}
@@ -460,6 +502,9 @@ func (a *App) execute(ctx context.Context, r Run) {
 					if err != nil {
 						finish("failed", err)
 						return
+					}
+					for file := range unreviewedFiles {
+						changed[file] = true
 					}
 					if f := ws.changedFileIn(argv, changed); f != "" {
 						mark("failed", "refused: "+f+" was changed by the agent")
