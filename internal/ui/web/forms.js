@@ -4,11 +4,39 @@ import { flowState, renderFlow } from "./flow.js";
 import { viewer, runsSorted } from "./views.js";
 
 const S = () => ctx.state;
-export const STEP_KINDS = [...AGENT_KINDS, "run", "verify", "gate"];
-export const kindLabel = (k) => t({ observe: "Observe", act: "Agent task", verify: "Verify", gate: "Human gate", summarize: "Summarize", run: "Command" }[k] || k);
+export const STEP_KINDS = [...AGENT_KINDS, "run", "verify", "gate", "deliver"];
+export const kindLabel = (k) => t({ observe: "Observe", act: "Agent task", verify: "Verify", gate: "Human gate", summarize: "Summarize", run: "Command", review: "Review", deliver: "Deliver" }[k] || k);
+
+// Match SaveLoop: reserve all existing IDs before naming missing steps. Names and order may change later.
+export function assignStepIDs(steps) {
+  const used = new Set(steps.map((s) => s.id).filter(Boolean));
+  steps.forEach((s, i) => {
+    if (s.id) return;
+    let id = s.name.trim().toLowerCase().split(/\s+/).join("-");
+    if (!/^[a-z0-9-]{1,40}$/.test(id) || used.has(id)) {
+      let n = i + 1;
+      do { id = `step-${n++}`; } while (used.has(id));
+    }
+    s.id = id;
+    used.add(id);
+  });
+}
+
+// Only reset overrides on steps whose effective agent changed; other explicit agents keep their choices.
+export function clearUnsupportedAgentOptions(target, agent, loop = false) {
+  const cleared = [];
+  const models = [...agentModels(agent).map((m) => m.id), ...agentModelHint(agent)];
+  if (target.model && !models.includes(target.model)) { target.model = ""; cleared.push(t("Model")); }
+  if (target.effort && !agentEfforts(agent).includes(target.effort)) { target.effort = ""; cleared.push(t("Effort")); }
+  if (!loop && target.sandbox && !agentLevels(agent).includes(target.sandbox)) {
+    target.sandbox = "";
+    cleared.push(t("Permission"));
+  }
+  return cleared;
+}
 
 export function newDraft(base = {}) {
-  return {
+  const draft = {
     id: "", version: 0, name: "", description: "", directory: "", agent: S().settings.defaultAgent || "codex", sandbox: "read-only",
     cron: "", timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, catchUp: true, enabled: false,
     private: true, requireClean: true, lock: "", doneWhen: "verify.passed", maxRounds: 1, wallMinutes: 60,
@@ -17,6 +45,9 @@ export function newDraft(base = {}) {
     next: "0001-01-01T00:00:00Z", updated: "0001-01-01T00:00:00Z",
     ...base,
   };
+  draft.steps = structuredClone(draft.steps);
+  assignStepIDs(draft.steps);
+  return draft;
 }
 
 // Client-side gap check mirroring core.Validate, plus advisory suggestions. The server remains
@@ -30,10 +61,21 @@ export function gaps(d) {
   d.steps.forEach((s, i) => {
     if (!s.name.trim()) add("block", t("Step {n} needs a name", { n: i + 1 }), `step-${i}`);
     if (AGENT_KINDS.includes(s.kind) && !(s.prompt || "").trim()) add("block", t("Step “{name}” needs a prompt", { name: s.name || i + 1 }), `step-${i}`);
+    if (AGENT_KINDS.includes(s.kind)) {
+      const agent = s.agent || d.agent;
+      const level = s.sandbox || d.sandbox;
+      if ((s.agent || s.sandbox) && !agentLevels(agent).includes(level)) add("block", t("{agent} cannot enforce “{level}” on its own; choose {levels}, or another agent", { agent: agentLabel(agent), level: sandboxLabel(level), levels: agentLevels(agent).map(sandboxLabel).join(" / ") }), `step-${i}`);
+      if (s.sandbox && sandboxRank(level) > sandboxRank(S().settings.maxSandbox)) add("block", t("Permission exceeds this device’s limit"), `step-${i}`, t("Raise it in Settings › General first"));
+      if ((s.inputs || []).some((id) => !d.steps.slice(0, i).some((x) => x.id === id && AGENT_KINDS.includes(x.kind)))) add("block", t("Inputs must name earlier agent or review steps; update the selection."), `step-${i}`);
+    }
+    if (s.kind === "review") {
+      if (!d.steps.slice(0, i).some((x) => x.id === s.sendBackTo && AGENT_KINDS.includes(x.kind) && x.kind !== "review")) add("block", t("Choose an earlier observe, act or summarize step to send back to."), `step-${i}`);
+      if (s.maxAttempts != null && s.maxAttempts !== 0 && (!Number.isInteger(s.maxAttempts) || s.maxAttempts < 1 || s.maxAttempts > 10)) add("block", t("1–10 attempts; empty uses 3."), `step-${i}`);
+    }
     if (s.kind === "verify" || s.kind === "run") {
       if (!s.argv?.length) add("block", t("Verify step “{name}” needs a command", { name: s.name || i + 1 }), `step-${i}`);
       else if (!d.allowedTools.includes(s.argv[0])) add("block", t("“{cmd}” is not on the allowed tools list", { cmd: s.argv[0] }), "allowedTools", `flow[${i}].argv[0]`);
-      if (!!s.metric !== !!s.metricPath) add("block", t("Metric name and JSON path go together"), `step-${i}`);
+      if (s.kind === "verify" && (!!s.metric !== !!s.metricPath)) add("block", t("Metric name and JSON path go together"), `step-${i}`);
     }
   });
   if (!(d.maxRounds >= 1 && d.maxRounds <= 20)) add("block", t("Rounds must be 1–20"), "maxRounds");
@@ -41,7 +83,7 @@ export function gaps(d) {
   if (!(d.stallRounds >= 1 && d.stallRounds <= 20)) add("block", t("Stall rounds must be 1–20"), "stallRounds");
   if (d.cron && d.cron.trim().split(/\s+/).length !== 5) add("block", t("Cron needs five fields"), "cron");
   if (sandboxRank(d.sandbox) > sandboxRank(S().settings.maxSandbox)) add("block", t("Permission exceeds this device’s limit"), "sandbox", t("Raise it in Settings › General first"));
-  if (d.steps.some((s) => !["gate", "run", "verify"].includes(s.kind)) && S().agents.length && !S().agents.some((a) => a.name === d.agent && a.status === "available")) add("warn", t("{agent} was not detected on this device", { agent: agentLabel(d.agent) }), "agent");
+  if (d.steps.some((s) => AGENT_KINDS.includes(s.kind)) && S().agents.length && !S().agents.some((a) => a.name === d.agent && a.status === "available")) add("warn", t("{agent} was not detected on this device", { agent: agentLabel(d.agent) }), "agent");
   for (const e of d.env || []) {
     if (!/^[A-Z_][A-Z0-9_]{0,63}$/.test(e.name)) add("block", t("Environment variable names use UPPER_SNAKE_CASE"), "env");
     else if (!e.value) add(e.secret ? "warn" : "block", t("{name} has no value yet; runs are blocked until it is set", { name: e.name }), "env");
@@ -58,23 +100,34 @@ export function gaps(d) {
   if (d.workspace === "worktree" && !d.baseRef) add("warn", t("Worktree starts from HEAD of the working directory; set a base such as origin/master"), "baseRef");
   if (d.workspace === "worktree" && !d.branch && sandboxRank(d.sandbox) >= sandboxRank("workspace-write") && sandboxRank(d.sandbox) < sandboxRank("agent-config")) add("warn", t("Agents cannot commit in a worktree; set a branch so loopbee commits the changes"), "branch");
   // A command after an agent step runs code the agent may have written, as you and outside any sandbox.
-  const firstAgent = d.steps.findIndex((s) => !["run", "verify", "gate"].includes(s.kind));
+  const firstAgent = d.steps.findIndex((s) => AGENT_KINDS.includes(s.kind));
   const unreviewed = firstAgent < 0 ? -1 : d.steps.findIndex((s, i) => i > firstAgent && (s.kind === "run" || s.kind === "verify") && !d.steps.slice(firstAgent, i).some((x) => x.kind === "gate"));
   if (unreviewed >= 0 && d.sandbox !== "agent-config") add("warn", t("“{name}” runs after the agent and before any review: it executes the agent's changes on this computer outside the sandbox. Fine for your own tasks; for issues, e-mail or web content put a gate first", { name: d.steps[unreviewed].name || kindLabel(d.steps[unreviewed].kind) }), `step-${unreviewed}`);
   // MCP tools act outside the sandbox (a console, a database): someone should see the change before it happens.
   if (d.agentMcp && firstAgent >= 0 && !d.steps.some((s) => s.kind === "gate")) add("warn", t("The agent's MCP tools act outside the sandbox with your rights (a console, a database, a browser). Add a gate, or split the work into a read step, a gate and an apply step"), "agentMcp");
   if (d.agentMcp && d.intake) add("warn", t("This Loop works on issues others write and lets the agent use its MCP tools: a crafted issue could make it act through them. Keep a gate before anything changes"), "agentMcp");
   // Work from issues and pull requests (loopbee's own intake and delivery).
-  if ((d.intake || d.pullRequest) && (d.workspace !== "worktree" || !d.branch)) add("block", t("Issues and pull requests need a fresh git worktree and a branch"), "branch");
+  const deliveries = d.steps.map((s, i) => ({ s, i })).filter(({ s }) => s.kind === "deliver");
+  const hasDelivery = !!d.pullRequest || deliveries.length > 0;
+  if (deliveries.length > 1 || (deliveries.length && d.pullRequest)) add("block", t("Use one deliver step or Loop delivery, not both."), "pr");
+  for (const { s, i } of deliveries) {
+    if (!s.pullRequest) add("block", t("Choose a pull request mode for the deliver step."), `step-${i}`);
+    if (s.pullRequest?.mode === "after-review") {
+      const prior = d.steps.slice(0, i);
+      if (prior.map((x) => x.kind === "gate").lastIndexOf(true) <= prior.map((x) => AGENT_KINDS.includes(x.kind)).lastIndexOf(true)) add("block", t("Add a gate after the agent step: the pull request opens after your review"), `step-${i}`);
+    }
+    if (s.pullRequest?.mode === "draft") add("warn", t("A draft pull request pushes the agent's change to GitHub before anyone has reviewed it"), `step-${i}`);
+  }
+  if ((d.intake || hasDelivery) && (d.workspace !== "worktree" || !d.branch)) add("block", t("Issues and pull requests need a fresh git worktree and a branch"), "branch");
   if (d.branch?.includes("{issue}") && !d.intake) add("block", t("{issue} in the branch name needs GitHub issues as the work source"), "branch");
   if (d.pullRequest?.mode === "after-review") {
-    const lastAgent = d.steps.map((s) => !["run", "verify", "gate"].includes(s.kind)).lastIndexOf(true);
+    const lastAgent = d.steps.map((s) => AGENT_KINDS.includes(s.kind)).lastIndexOf(true);
     const lastGate = d.steps.map((s) => s.kind === "gate").lastIndexOf(true);
     if (lastGate < 0 || lastGate < lastAgent) add("block", t("Add a gate after the agent step: the pull request opens after your review"), "pr");
   }
   if (d.pullRequest?.mode === "draft") add("warn", t("A draft pull request pushes the agent's change to GitHub before anyone has reviewed it"), "pr");
-  if ((d.intake || d.pullRequest) && !S().github?.version) add("warn", t("GitHub CLI (gh) not found: install it, then detect again in Settings › Agents"), "intake");
-  else if ((d.intake || d.pullRequest) && !S().github?.signedIn) add("warn", t("GitHub CLI is not signed in: run gh auth login"), "intake");
+  if ((d.intake || hasDelivery) && !S().github?.version) add("warn", t("GitHub CLI (gh) not found: install it, then detect again in Settings › Agents"), "intake");
+  else if ((d.intake || hasDelivery) && !S().github?.signedIn) add("warn", t("GitHub CLI is not signed in: run gh auth login"), "intake");
   if (d.branch && d.workspace !== "worktree") add("block", t("A branch needs the fresh git worktree workspace"), "branch");
   if (!d.steps.some((s) => s.kind === "verify" || AGENT_KINDS.includes(s.kind)) && (d.doneWhen || "verify.passed") !== "true") add("warn", t("No verify step: completion relies on “{c}”", { c: d.doneWhen || "verify.passed" }), "doneWhen");
   if (d.enabled && !d.cron) add("warn", t("Enabled without a schedule only allows manual runs"), "cron");
@@ -96,21 +149,29 @@ export function editorPage(d, ui) {
   const blocking = gaps(d).filter((x) => x.level === "block");
   const sel = Math.min(ui.step ?? 0, d.steps.length - 1);
   const s = d.steps[sel];
+  const stepAgent = s?.agent || d.agent;
+  const earlierAgents = d.steps.slice(0, sel).filter((x) => AGENT_KINDS.includes(x.kind));
+  const stepAgents = [...new Set([...(S().agents || []).filter((a) => a.status === "available").map((a) => a.name), ...(s?.agent ? [s.agent] : [])])];
   const input = (f, v, attrs = "") => `<input class="inp" data-f="${f}" name="${f}" value="${esc(v)}" ${attrs}>`;
   const num = (f, v) => `<input class="inp num" type="number" min="1" data-f="${f}" name="${f}" value="${esc(v)}">`;
   const stepEditor = s
     ? `<div class="step-edit"><div class="nm">${esc(s.name || "—")} (${esc(s.kind)})</div>
       ${fld(T("Kind"), `<select class="inp narrowi" data-sf="kind" data-i="${sel}" name="kind-${sel}">${STEP_KINDS.map((k) => `<option value="${k}" ${k === s.kind ? "selected" : ""}>${esc(kindLabel(k))}</option>`).join("")}</select>`)}
       ${fld(T("Step name"), `<input class="inp" data-sf="name" data-i="${sel}" name="name-${sel}" value="${esc(s.name)}" id="step-${sel}">`)}
-      ${s.kind === "gate" ? fld(T("Gate"), `<div class="sub t2">${T(sel === d.steps.length - 1 ? "Last step: the run waits for a person, who takes over from here. Approving marks the run done." : "The run waits here until the executor approves or sends it back with a note.")}</div>`) : s.kind === "run"
+      ${s.kind === "deliver" ? pullRequestFields(s, sel) : s.kind === "gate" ? fld(T("Gate"), `<div class="sub t2">${T(sel === d.steps.length - 1 ? "Last step: the run waits for a person, who takes over from here. Approving marks the run done." : "The run waits here until the executor approves or sends it back with a note.")}</div>`) : s.kind === "run"
         ? fld(T("Command argv"), `<input class="inp mono" data-sf="argv" data-i="${sel}" name="argv-${sel}" value="${esc(JSON.stringify(s.argv || []))}">`, T("JSON array of strings; no shell. The first entry must be on the allowed tools list.")) +
           fld(T("If it fails"), toggle(!!s.continueOnError, "step-continue", t("Continue and pass the output on"), `data-i="${sel}"`), T("Off: a failing command fails the run. On: the failure is recorded and later agent steps receive its output, e.g. failing tests to report on."))
         : s.kind === "verify"
         ? fld(T("Command argv"), `<input class="inp mono" data-sf="argv" data-i="${sel}" name="argv-${sel}" value="${esc(JSON.stringify(s.argv || []))}">`, T("JSON array of strings; no shell. The first entry must be on the allowed tools list.")) +
           fld(T("Metric"), `<div class="pair"><input class="inp" data-sf="metric" data-i="${sel}" placeholder="score" value="${esc(s.metric || "")}" aria-label="${T("Metric name")}"><input class="inp mono" data-sf="metricPath" data-i="${sel}" placeholder="$.summary.score" value="${esc(s.metricPath || "")}" aria-label="${T("JSON metric path")}"></div>`, T("Parsed by loopbee from the command’s JSON output; agent claims never count."))
-        : fld(T("Prompt"), `<textarea class="inp mono" rows="5" data-sf="prompt" data-i="${sel}" name="prompt-${sel}">${esc(s.prompt || "")}</textarea>`, T("Sent to the agent as data for this step. Report language follows Settings.")) +
-          fld(T("Model"), `<input class="inp mono narrowi" data-sf="model" data-i="${sel}" value="${esc(s.model || "")}" placeholder="${esc(t("Inherit from the Loop"))}" list="f-step-model-list-${sel}"><datalist id="f-step-model-list-${sel}">${(agentModels(d.agent).length ? agentModels(d.agent).map((m) => m.id) : agentModelHint(d.agent)).map((id) => `<option value="${esc(id)}">`).join("")}</datalist>`) +
-          (agentEfforts(d.agent).length ? fld(T("Effort"), `<select class="inp narrowi" data-sf="effort" data-i="${sel}"><option value="">${esc(t("Inherit from the Loop"))}</option>${agentEfforts(d.agent).map((e) => `<option value="${esc(e)}" ${s.effort === e ? "selected" : ""}>${esc(e)}</option>`).join("")}</select>`) : "")}
+        : AGENT_KINDS.includes(s.kind) ? fld(T("Agent"), `<select class="inp narrowi" data-sf="agent" data-i="${sel}" aria-label="${T("Agent")}"><option value="">${T("Loop's agent")} · ${esc(agentLabel(d.agent))}</option>${stepAgents.map((n) => `<option value="${esc(n)}" ${s.agent === n ? "selected" : ""}>${esc(agentLabel(n))}</option>`).join("")}</select>`) +
+          fld(T("Permission"), `<select class="inp narrowi" data-sf="sandbox" data-i="${sel}" aria-label="${T("Permission")}"><option value="">${T("Loop's permission")} · ${esc(sandboxLabel(d.sandbox))}</option>${agentLevels(stepAgent).map((level) => `<option value="${esc(level)}" ${s.sandbox === level ? "selected" : ""}>${esc(sandboxLabel(level))}</option>`).join("")}</select>`) +
+          fld(T("Prompt"), `<textarea class="inp mono" rows="5" data-sf="prompt" data-i="${sel}" name="prompt-${sel}">${esc(s.prompt || "")}</textarea>`, T("Sent to the agent as data for this step. Report language follows Settings.")) +
+          fld(T("Model"), `<input class="inp mono narrowi" data-sf="model" data-i="${sel}" value="${esc(s.model || "")}" aria-label="${T("Model")}" placeholder="${esc(t("Inherit from the Loop"))}" list="f-step-model-list-${sel}"><datalist id="f-step-model-list-${sel}">${(agentModels(stepAgent).length ? agentModels(stepAgent).map((m) => m.id) : agentModelHint(stepAgent)).map((id) => `<option value="${esc(id)}">`).join("")}</datalist>`) +
+          (agentEfforts(stepAgent).length ? fld(T("Effort"), `<select class="inp narrowi" data-sf="effort" data-i="${sel}" aria-label="${T("Effort")}"><option value="">${esc(t("Inherit from the Loop"))}</option>${agentEfforts(stepAgent).map((e) => `<option value="${esc(e)}" ${s.effort === e ? "selected" : ""}>${esc(e)}</option>`).join("")}</select>`) : "") +
+          fld(T("Hand to this step"), `<div class="chips">${earlierAgents.map((x) => `<label class="check"><input type="checkbox" data-sf="inputs" data-i="${sel}" value="${esc(x.id)}" ${(s.inputs || []).includes(x.id) ? "checked" : ""}>${esc(x.name)} <span class="mono">${esc(x.id)}</span></label>`).join("") || `<span class="sub">${T("No earlier agent or review steps")}</span>`}</div>`, T("Include reports from the selected earlier steps.")) +
+          (s.kind === "review" ? fld(T("Send back to"), `<select class="inp" data-sf="sendBackTo" data-i="${sel}" aria-label="${T("Send back to")}"><option value="">${T("Choose an earlier agent step")}</option>${earlierAgents.filter((x) => x.kind !== "review").map((x) => `<option value="${esc(x.id)}" ${s.sendBackTo === x.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>`) +
+            fld(T("Max send-backs"), `<input class="inp num" type="number" min="1" max="10" step="1" data-sf="maxAttempts" data-i="${sel}" value="${esc(s.maxAttempts || "")}" placeholder="3" aria-label="${T("Max send-backs")}">`, T("1–10 attempts; empty uses 3.")) : "") : ""}
       <div class="actions mt10">${btn("Move up", "step-up", { cls: "sm", attrs: `data-i="${sel}" ${sel === 0 ? "disabled" : ""}` })}${btn("Move down", "step-down", { cls: "sm", attrs: `data-i="${sel}" ${sel === d.steps.length - 1 ? "disabled" : ""}` })}${btn("Remove step", "step-remove", { cls: "sm danger-o", attrs: `data-i="${sel}" ${d.steps.length === 1 ? "disabled" : ""}` })}</div></div>`
     : "";
   const json = ui.mode === "json";
@@ -151,16 +212,23 @@ const chipToggle = (group, value, label, on) =>
   `<button type="button" class="chip tgl ${on ? "ok" : ""}" aria-pressed="${on}" data-action="ed-notify" data-group="${group}" data-value="${value}">${on ? "✓ " : ""}${esc(label)}</button>`;
 function workSection(d) {
   const intake = d.intake ? "github-issues" : "none";
-  const mode = d.pullRequest?.mode || "none";
   const gh = S().github || {};
-  const ghRow = d.intake || d.pullRequest
+  const ghRow = d.intake || d.pullRequest || d.steps.some((s) => s.kind === "deliver")
     ? fld(T("GitHub CLI"), gh.version ? `<span class="chip ${gh.signedIn ? "ok" : "warn"}">${icon(gh.signedIn ? "ok" : "warn")}${esc(gh.version)} · ${T(gh.signedIn ? "signed in" : "not signed in")}</span>` : `<span class="chip err">${icon("err")}${T("not found")}</span>`, T("loopbee uses your own gh login; it is never stored by loopbee."))
     : "";
   return `${sec(T("Work & delivery"), { id: "ed-work" })}
   <div class="grp">${fld(T("Work comes from"), seg("intake", intake, [["none", t("The prompt")], ["github-issues", t("GitHub issues")]], { action: "ed-intake", label: t("Work comes from") }), T(intake === "none" ? "Each run does what the agent step says." : "Each run takes the oldest open issue with the label, opened by someone with write access, marks it agent-working and gives it to the agent as untrusted text. No issue: the run ends as “Nothing to do” without an agent call."))}
   ${d.intake ? `${fld(T("Issue label"), `<input class="inp mono narrowi" data-intake="label" id="f-intake-label" value="${esc(d.intake.label || "")}" placeholder="agent-ready">`)}${fld(T("Repository"), `<input class="inp mono" data-intake="repo" value="${esc(d.intake.repo || "")}" placeholder="${T("owner/name — empty: this folder's origin")}">`)}${fld(T("Also trust"), `<input class="inp mono" data-intake="trustedUsers" value="${esc((d.intake.trustedUsers || []).join(" "))}" placeholder="login another-login">`, T("Comments from people without write access never reach the agent. Add logins to trust more people."))}` : ""}
-  ${fld(T("Pull request"), `<span id="f-pr">${seg("prmode", mode, [["none", t("No, keep the branch")], ["after-review", t("After my review")], ["draft", t("Draft, review on GitHub")]], { action: "ed-pr", label: t("Pull request") })}</span>`, T(mode === "after-review" ? "You review the diff at the gate; then loopbee pushes the branch and opens the pull request. The link is sent with the notification." : mode === "draft" ? "loopbee pushes the branch and opens a draft pull request right away; you review it on GitHub. The link is sent with the notification." : "The branch stays local; push it yourself."))}
-  ${d.pullRequest ? fld(T("Target branch"), `<input class="inp mono narrowi" data-pr="base" value="${esc(d.pullRequest.base || "")}" placeholder="${T("from the base ref")}">`) : ""}${mode === "after-review" ? fld(T("Merge"), `<span id="f-merge">${seg("prmerge", d.pullRequest.merge || "", [["", t("I merge on GitHub")], ["after-checks", t("When all checks pass")]], { action: "ed-merge", label: t("Merge") })}</span>`, T(d.pullRequest.merge ? "After your approval loopbee waits for the pull request's checks and squash-merges it when all pass. Failing or missing checks leave it open and tell you why." : "The pull request stays open for you to merge.")) : ""}${ghRow}</div>`;
+  ${pullRequestFields(d)}${ghRow}</div>`;
+}
+
+// Loop delivery and explicit deliver steps use the same controls and actions.
+function pullRequestFields(owner, index = "") {
+  const mode = owner.pullRequest?.mode || "none";
+  const options = [["after-review", t("After my review")], ["draft", t("Draft, review on GitHub")]];
+  if (index === "") options.unshift(["none", t("No, keep the branch")]);
+  return `<div data-pr-owner="${index}">${fld(T("Pull request"), `<span${index === "" ? ' id="f-pr"' : ""}>${seg("prmode", mode, options, { action: "ed-pr", label: t("Pull request") })}</span>`, T(mode === "after-review" ? "You review the diff at the gate; then loopbee pushes the branch and opens the pull request. The link is sent with the notification." : mode === "draft" ? "loopbee pushes the branch and opens a draft pull request right away; you review it on GitHub. The link is sent with the notification." : "The branch stays local; push it yourself."))}
+  ${owner.pullRequest ? fld(T("Target branch"), `<input class="inp mono narrowi" data-pr="base" value="${esc(owner.pullRequest.base || "")}" placeholder="${T("from the base ref")}" aria-label="${T("Target branch")}">`) : ""}${mode === "after-review" ? fld(T("Merge"), seg("prmerge", owner.pullRequest.merge || "", [["", t("I merge on GitHub")], ["after-checks", t("When all checks pass")]], { action: "ed-merge", label: t("Merge") }), T(owner.pullRequest.merge ? "After your approval loopbee waits for the pull request's checks and squash-merges it when all pass. Failing or missing checks leave it open and tell you why." : "The pull request stays open for you to merge.")) : ""}</div>`;
 }
 
 export function definitionOnly(d) {

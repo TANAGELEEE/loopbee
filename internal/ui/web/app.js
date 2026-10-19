@@ -1,7 +1,7 @@
 // loopbee UI shell: routing, header, polling, dialogs, menus, toasts and actions.
-import { ctx, t, T, esc, $, $$, applyVars, btn, icon, icons, navIcons, active, hm, cronText, sandboxLabel, errText, agentEfforts, agentLabel, AGENT_KINDS } from "./ui.js";
+import { ctx, t, T, esc, $, $$, applyVars, btn, icon, icons, navIcons, active, hm, cronText, sandboxLabel, errText, agentLabel, AGENT_KINDS } from "./ui.js";
 import * as V from "./views.js";
-import { editorPage, gapsPanel, gaps, newDraft, definitionOnly, settingsPage, settingsTabs, onboardingPage, STEP_KINDS, kindLabel } from "./forms.js";
+import { editorPage, gapsPanel, gaps, newDraft, definitionOnly, settingsPage, settingsTabs, onboardingPage, STEP_KINDS, kindLabel, assignStepIDs, clearUnsupportedAgentOptions } from "./forms.js";
 import { chatPage, newChat, EXAMPLES, chatAnswer } from "./chat.js";
 
 const ui = { node: undefined, events: false, step: 0, mode: "form", dirty: false, channel: "" };
@@ -370,11 +370,33 @@ function editor() {
     } else {
       const l = V.loopById(route.path[1]);
       if (!l) return V.notFound(t("This Loop no longer exists."));
-      draft = structuredClone(l);
+      draft = newDraft(structuredClone(l));
       draft.allowedTools ||= [];
     }
   }
   return editorPage(draft, ui);
+}
+function pullRequestOwner(el) {
+  const index = el.closest("[data-pr-owner]")?.dataset.prOwner;
+  return index != null && index !== "" ? draft.steps[Number(index)] : draft;
+}
+function prepareDelivery(owner, mode = "after-review") {
+  owner.pullRequest = { ...(owner.pullRequest || {}), mode };
+  if (mode !== "after-review") delete owner.pullRequest.merge;
+  draft.workspace = "worktree";
+  draft.requireClean = false;
+  draft.branch ||= "loopbee/change-{date}-{run}";
+}
+function agentChanged(target, previousAgent, loop = false) {
+  const agent = target.agent || draft.agent;
+  if (previousAgent === agent) return;
+  const cleared = clearUnsupportedAgentOptions(target, agent, loop);
+  if (loop) {
+    for (const s of draft.steps) {
+      if (!s.agent && AGENT_KINDS.includes(s.kind)) cleared.push(...clearUnsupportedAgentOptions(s, agent));
+    }
+  }
+  if (cleared.length) toast(t("Cleared unsupported options for {agent}: {fields}. Choose replacements in the editor.", { agent: agentLabel(agent), fields: [...new Set(cleared)].join(", ") }), "err");
 }
 function refreshGaps() {
   $("#gaps").innerHTML = gapsPanel(draft);
@@ -399,6 +421,7 @@ function syncJson() {
     const v = JSON.parse(ta.value);
     draft = { ...draft, ...v, id: draft.id, version: draft.version };
     draft.allowedTools ||= [];
+    assignStepIDs(draft.steps);
     return true;
   } catch (e) {
     toast(t("JSON is not valid: {msg}", { msg: e.message }), "err");
@@ -801,20 +824,16 @@ const actions = {
     render();
   },
   "ed-merge": (b) => {
-    if (b.dataset.value) draft.pullRequest.merge = b.dataset.value;
-    else delete draft.pullRequest.merge;
+    const owner = pullRequestOwner(b);
+    if (b.dataset.value) owner.pullRequest.merge = b.dataset.value;
+    else delete owner.pullRequest.merge;
     markDirty();
     render();
   },
   "ed-pr": (b) => {
-    if (b.dataset.value === "none") delete draft.pullRequest;
-    else {
-      draft.pullRequest = { ...(draft.pullRequest || {}), mode: b.dataset.value };
-      if (b.dataset.value !== "after-review") delete draft.pullRequest.merge;
-      draft.workspace = "worktree";
-      draft.requireClean = false;
-      draft.branch ||= "loopbee/change-{date}-{run}";
-    }
+    const owner = pullRequestOwner(b);
+    if (b.dataset.value === "none") delete owner.pullRequest;
+    else prepareDelivery(owner, b.dataset.value);
     markDirty();
     render();
   },
@@ -853,7 +872,9 @@ const actions = {
     const step = { kind: k, name: kindLabel(k) };
     if (k === "verify" || k === "run") step.argv = [];
     else if (AGENT_KINDS.includes(k)) step.prompt = "";
+    else if (k === "deliver") prepareDelivery(step);
     draft.steps.splice(ui.step + 1, 0, step);
+    assignStepIDs(draft.steps);
     ui.step = ui.step + 1;
     markDirty();
     render();
@@ -1086,9 +1107,10 @@ document.addEventListener("input", (e) => {
     refreshGaps();
     return;
   }
-  if (el.dataset.pr && draft.pullRequest) {
-    if (el.value.trim()) draft.pullRequest.base = el.value.trim();
-    else delete draft.pullRequest.base;
+  if (el.dataset.pr) {
+    const owner = pullRequestOwner(el);
+    if (el.value.trim()) owner.pullRequest.base = el.value.trim();
+    else delete owner.pullRequest.base;
     refreshGaps();
     return;
   }
@@ -1108,22 +1130,10 @@ document.addEventListener("input", (e) => {
   }
   if (el.dataset.f) {
     const f = el.dataset.f;
+    const previousAgent = draft.agent;
     draft[f] = el.type === "number" ? Number(el.value) : f === "allowedTools" ? el.value.split(/\s+/).filter(Boolean) : f === "readPaths" || f === "copyFiles" ? el.value.split(/\r?\n/).map((x) => x.trim()).filter(Boolean) : f === "model" || f === "effort" ? el.value.trim() : el.value;
     if (f === "agent") {
-      // The permission levels on offer depend on the agent.
-      const efforts = agentEfforts(el.value);
-      let cleared = false;
-      if (draft.effort && !efforts.includes(draft.effort)) {
-        draft.effort = "";
-        cleared = true;
-      }
-      draft.steps.forEach((s) => {
-        if (s.effort && !efforts.includes(s.effort)) {
-          s.effort = "";
-          cleared = true;
-        }
-      });
-      if (cleared) toast(t("The effort was cleared: {agent} does not offer it", { agent: agentLabel(el.value) }), "err");
+      agentChanged(draft, previousAgent, true);
       markDirty();
       return render();
     }
@@ -1140,7 +1150,18 @@ document.addEventListener("input", (e) => {
       } catch {
         el.setAttribute("aria-invalid", "true");
       }
-    } else if (f === "model") s[f] = el.value.trim();
+    } else if (f === "agent") {
+      const previousAgent = s.agent || draft.agent;
+      s.agent = el.value;
+      agentChanged(s, previousAgent);
+      markDirty();
+      return render();
+    } else if (f === "inputs") {
+      const ids = new Set(s.inputs || []);
+      el.checked ? ids.add(el.value) : ids.delete(el.value);
+      s.inputs = [...ids];
+    } else if (f === "maxAttempts") s[f] = el.value === "" ? 0 : Number(el.value);
+    else if (f === "model" || f === "effort") s[f] = el.value.trim();
     else if (f !== "kind") s[f] = el.value;
     refreshGaps();
   } else if (el.id === "def-json") markDirty();
@@ -1154,6 +1175,7 @@ document.addEventListener("change", async (e) => {
       s.kind = el.value;
       if (el.value === "verify" || el.value === "run") s.argv ||= [];
       if (el.value !== "run") delete s.continueOnError;
+      if (el.value === "deliver" && !s.pullRequest) prepareDelivery(s);
       markDirty();
       render();
     } else if (el.dataset.f === "agent") {
