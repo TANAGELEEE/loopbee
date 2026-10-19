@@ -469,6 +469,13 @@ Design markup like `style="--c:…"` silently did nothing. Use data attributes a
 - Evidence: `tests/e2e.mjs`
 - Seen: 2026-10-11
 
+### Wrapped flows still need shrinkable surrounding layouts
+Eight steps fit their flow, but the editor's grid child kept its automatic minimum width and the Run footer's
+unbroken identifier overflowed a phone. Test the whole page at mobile width, not only the diagram; allow grid
+children to shrink and long evidence names and identifiers to wrap.
+- Evidence: `tests/agents-e2e.mjs#Eight steps exercise wrapping`
+- Seen: 2026-10-19
+
 ### Lifecycle and outcome are two signals
 One badge hid that “ended” is not “goal reached”. The badge shows the lifecycle; a chip shows the outcome.
 - Evidence: `tests/screens.mjs`, `tests/e2e.mjs`

@@ -446,9 +446,10 @@ export function runDetail(id, ui) {
   if (!r) return notFound(t("This run no longer exists."));
   const l = r.definition;
   const life = lifecycle(r);
-  const state = flowState(l.steps, r);
   const trace = r.trace || [];
   const sel = ui.node ?? (trace.length ? trace.length - 1 : -1);
+  const round = trace[sel]?.round || r.round || trace.at(-1)?.round || 1;
+  const state = flowState(l.steps, r, round);
   const ro = viewer();
   const actions = ro ? `<span class="chip mut">${T("Read only")}</span>` : [
     r.status === "waiting" ? `<a class="btn pri" href="#/gate/${r.id}">${T("Go to review")}</a>` : "",
@@ -461,8 +462,8 @@ export function runDetail(id, ui) {
     if (!rounds.has(x.round)) rounds.set(x.round, []);
     rounds.get(x.round).push([x, i]);
   });
-  const stIcon = { ok: "ok", approved: "ok", failed: "err", rejected: "err", running: "run", waiting: "warn", cancelled: "idle", interrupted: "lost" };
-  const stText = { ok: "Done", approved: "Approved", failed: "Failed", rejected: "Sent back", running: "Running", waiting: "Waiting", cancelled: "Cancelled", interrupted: "Interrupted" };
+  const stIcon = { ok: "ok", approved: "ok", changes_requested: "warn", failed: "err", rejected: "err", running: "run", waiting: "warn", cancelled: "idle", interrupted: "lost" };
+  const stText = { ok: "Done", approved: "Approved", changes_requested: "Sent back", failed: "Failed", rejected: "Sent back", running: "Running", waiting: "Waiting", cancelled: "Cancelled", interrupted: "Interrupted" };
   const timeline = [...rounds.entries()].map(([n, items]) => {
     const start = items[0][0].started, end = items.at(-1)[0].finished;
     const failed = items.some(([x]) => x.status === "failed");
@@ -470,12 +471,18 @@ export function runDetail(id, ui) {
   }).join("");
   const selX = trace[sel];
   const selStep = selX ? l.steps[selX.step] : null;
+  const attempts = selX ? trace.filter((x) => x.round === round && x.step === selX.step).map((x) => {
+    const stem = `round-${String(x.round).padStart(2, "0")}-step-${String(x.step + 1).padStart(2, "0")}${x.attempt > 1 ? `-attempt-${String(x.attempt).padStart(2, "0")}` : ""}`;
+    const artifacts = (r.artifacts || []).filter((name) => [stem + ".txt", stem + ".report.md", stem + ".diff"].includes(name));
+    return `<section class="step-attempt"><hr class="hair"><div class="nm">${T("attempt {n}", { n: x.attempt || 1 })} · ${T(x.kind === "review" && x.note?.startsWith("changes requested:") ? "Sent back" : stText[x.status] || x.status)}</div><div class="sub">${esc(duration((x.finished ? toDate(x.finished) : new Date()) - toDate(x.started)))}</div>${x.note ? `<div class="mono pre">${esc(x.note)}</div>` : ""}${x.usage ? `<div class="step-usage">${esc(usageLine(x.usage))}<div class="sub">${esc(usageDetail(x.usage))}</div></div>` : ""}${artifacts.map((name) => `<div><a href="#/artifact/${r.id}/${encodeURIComponent(name)}">${T("Open {name}", { name })}</a></div>`).join("")}<button type="button" class="btn sm" data-action="select-trace" data-index="${trace.indexOf(x)}">${T("Evidence")}</button></section>`;
+  }).join("") : "";
+  const selectedReport = selX?.artifact?.replace(/\.txt$/, ".report.md");
+  const selectedEvidence = (r.artifacts || []).includes(selectedReport) ? selectedReport : selX?.artifact;
   const selCard = selX
-    ? `<div class="card sm"><div class="hd">${icon(stIcon[selX.status] || "idle")}<span class="nm">${esc(selX.name)} (${esc(selX.kind)})</span><span class="chip ${selX.status === "failed" || selX.status === "rejected" ? "err" : selX.status === "ok" || selX.status === "approved" ? "ok" : "mut"}">${T(stText[selX.status] || selX.status)}</span></div><hr class="hair mt10">
+    ? `<div class="card sm node-detail"><div class="hd">${icon(stIcon[selX.status] || "idle")}<span class="nm">${esc(selX.name)} (${esc(selX.kind)})</span><span class="chip ${selX.status === "failed" || selX.status === "rejected" ? "err" : selX.status === "ok" || selX.status === "approved" ? "ok" : "mut"}">${T(stText[selX.status] || selX.status)}</span></div><hr class="hair mt10">
       <div class="kvb"><div class="sub">${T("Input")}</div><div class="mono pre">${esc(selStep?.kind === "verify" ? (selStep.argv || []).join(" ") : selStep?.kind === "gate" ? t("Human decision") : selStep?.prompt || "—")}</div>
       <div class="sub">${T("Result")}</div><div>${esc([t(stText[selX.status] || selX.status), selX.note, selX.finished ? t("took {d}", { d: duration(toDate(selX.finished) - toDate(selX.started)) }) : ""].filter(Boolean).join(" · "))}</div>
-      ${selX.usage ? `<div class="sub">${T("Usage")}</div><div class="step-usage">${esc([agentLabel(selX.usage.agent), selX.usage.model || t("model not reported")].join(" · "))}<div class="sub">${esc(usageLine(selX.usage, { model: false }))} · ${esc(usageDetail(selX.usage))}</div></div>` : ""}
-      ${selX.artifact ? `<div class="sub">${T("Evidence")}</div><pre class="ev-pre" id="ev-preview" data-run="${r.id}" data-name="${esc(selX.artifact)}">${T("Loading…")}</pre><a class="btn sm" href="#/artifact/${r.id}/${encodeURIComponent(selX.artifact)}">${T("Open {name}", { name: selX.artifact })}</a>` : ""}</div></div>`
+      ${selectedEvidence ? `<div class="sub">${T("Evidence")}</div><pre class="ev-pre" id="ev-preview" data-run="${r.id}" data-name="${esc(selectedEvidence)}">${T("Loading…")}</pre><a class="btn sm" href="#/artifact/${r.id}/${encodeURIComponent(selectedEvidence)}">${T("Open {name}", { name: selectedEvidence })}</a>` : ""}</div>${attempts}</div>`
     : `<div class="card sm">${empty(T("Nothing selected"), T(trace.length ? "Pick a step in the timeline." : "Steps appear here once the run starts."))}</div>`;
   const nextLoop = loopById(r.loopId);
   const stop = life === "ended" ? `<div class="row top">${icon(outcome(r) === "done" ? "ok" : outcome(r) === "agent_error" ? "err" : "warn")}<div class="grow"><div class="nm">${T("Stop reason: {reason}", { reason: outcomeLabel(r) })}</div><div class="sub">${esc(stopDetail(r))}</div>${["budget_exhausted", "stalled"].includes(r.status) ? `<div class="sub">${T("A normal end does not mean the goal was reached.")}</div>` : ""}</div></div>` : life === "interrupted" ? `<div class="row top">${icon("lost")}<div class="grow"><div class="nm">${T("Interrupted — review before continuing")}</div><div class="sub">${esc(errText(r.error))}</div></div></div>` : `<div class="row top">${icon(life === "waiting" ? "warn" : "run")}<div class="grow"><div class="nm">${T(life === "waiting" ? "Waiting at a human gate" : "In progress")}</div><div class="sub">${T("Round {r} / {max} · {step}", { r: r.round, max: l.maxRounds, step: stepName(r) })}</div></div></div>`;
@@ -487,7 +494,7 @@ export function runDetail(id, ui) {
     ${ro ? "" : `<div class="sub mt6">${T("“Run again” creates a new run from the current definition. Cancelling stops the process tree but does not revert file changes.")}</div>`}
   </div>
   ${sec(T("Flow"), { note: T(active(r) ? "Click a node to inspect it · the bee shows where data is going" : "Click a node to inspect it · finished runs are static") })}
-  <div class="card sm flowcard">${renderFlow(l.steps, state, { run: r, loop: l, maxRounds: l.maxRounds, selected: selX ? selX.step : -1 })}<hr class="hair">${renderTopology({ loop: l, run: r, state, agents: s.agents, activeCount: s.runs.filter(active).length, host: host() })}</div>
+  <div class="card sm flowcard">${renderFlow(l.steps, state, { run: r, loop: l, maxRounds: l.maxRounds, round, selected: selX ? selX.step : -1 })}<hr class="hair">${renderTopology({ loop: l, run: r, state, agents: s.agents, activeCount: s.runs.filter(active).length, host: host() })}</div>
   <div class="cols">
     <div class="main">
       ${sec(T("Round timeline"), { note: T("{r} rounds · {n} steps", { r: rounds.size, n: trace.length }) })}

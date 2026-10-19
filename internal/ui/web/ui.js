@@ -223,12 +223,13 @@ export function artifactKind(name) {
   const ext = (name.split(".").pop() || "").toLowerCase();
   return { md: "MD", json: "JSON", patch: "DIFF", diff: "DIFF", txt: "TXT", log: "LOG", yaml: "YAML", yml: "YAML" }[ext] || "TXT";
 }
-// Describe a step artifact ("round-02-step-03.txt") using the Run's definition.
+// Describe a step artifact ("round-02-step-03.txt", "round-02-step-03-attempt-02.txt") using the Run's definition.
 export function artifactTitle(r, name) {
-  const m = /^round-(\d+)-step-(\d+)\./.exec(name);
+  const m = /^round-(\d+)-step-(\d+)(?:-attempt-(\d+))?\./.exec(name);
   if (!m) return name;
   const step = r.definition.steps[Number(m[2]) - 1];
-  const title = t("Round {r} · {step}", { r: Number(m[1]), step: step?.name || "#" + Number(m[2]) });
+  let title = t("Round {r} · {step}", { r: Number(m[1]), step: step?.name || "#" + Number(m[2]) });
+  if (m[3]) title = t("{title} · attempt {n}", { title, n: Number(m[3]) });
   return name.endsWith(".report.md") ? t("{title} · report", { title }) : title;
 }
 export function allArtifacts(runs) {

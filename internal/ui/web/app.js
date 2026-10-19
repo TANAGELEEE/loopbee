@@ -1,6 +1,7 @@
 // loopbee UI shell: routing, header, polling, dialogs, menus, toasts and actions.
 import { ctx, t, T, esc, $, $$, applyVars, btn, icon, icons, navIcons, active, hm, cronText, sandboxLabel, errText, agentLabel, AGENT_KINDS } from "./ui.js";
 import * as V from "./views.js";
+import { mountFlows } from "./flow.js";
 import { editorPage, gapsPanel, gaps, newDraft, definitionOnly, settingsPage, settingsTabs, onboardingPage, STEP_KINDS, kindLabel, assignStepIDs, clearUnsupportedAgentOptions } from "./forms.js";
 import { chatPage, newChat, EXAMPLES, chatAnswer } from "./chat.js";
 
@@ -166,7 +167,7 @@ function render() {
 function after() {
   applyVars($("#header"));
   applyVars($("#app"));
-  for (const el of $$(".loopback[data-ml]")) el.style.marginLeft = el.dataset.ml;
+  mountFlows($("#app"));
   loadPreview();
   if (ui.events) loadEvents();
 }
@@ -768,7 +769,8 @@ const actions = {
     const i = Number(b.dataset.index);
     if (route.path[0] === "run") {
       const r = ctx.state.runs.find((x) => x.id === route.path[1]);
-      const idx = (r.trace || []).map((x, j) => [x, j]).filter(([x]) => x.step === i).at(-1)?.[1];
+      const round = Number(b.closest(".flow").dataset.round);
+      const idx = (r.trace || []).map((x, j) => [x, j]).filter(([x]) => x.step === i && x.round === round).at(-1)?.[1];
       if (idx != null) {
         ui.node = idx;
         render();
