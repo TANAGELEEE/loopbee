@@ -24,6 +24,13 @@ const keyringService = "Loopbee"
 var Version = "0.1.0-dev"
 
 type Step struct {
+	ID          string       `json:"id,omitempty"`
+	Agent       string       `json:"agent,omitempty"`
+	Sandbox     string       `json:"sandbox,omitempty"`
+	Inputs      []string     `json:"inputs,omitempty"`
+	SendBackTo  string       `json:"sendBackTo,omitempty"`
+	MaxAttempts int          `json:"maxAttempts,omitempty"`
+	PullRequest *PullRequest `json:"pullRequest,omitempty"`
 	// Kind: observe/act/summarize (agent), verify (allowlisted command; failure starts the next round),
 	// run (allowlisted command; failure fails the Run unless ContinueOnError), gate (human decision).
 	// The output of run/verify steps is passed to later agent steps of the same round.
@@ -156,6 +163,8 @@ type ChatMessage struct {
 
 // StepRecord is one executed step of one round; the UI builds the round timeline from it.
 type StepRecord struct {
+	Attempt  int        `json:"attempt,omitempty"`
+	Agent    string     `json:"agent,omitempty"`
 	Round    int        `json:"round"`
 	Step     int        `json:"step"`
 	Kind     string     `json:"kind"`
@@ -282,6 +291,17 @@ func schedule(l Loop) (cron.Schedule, error) {
 	return cron.ParseStandard("CRON_TZ=" + l.Timezone + " " + l.Cron)
 }
 
+// isAgentStep is the single classification shared by validation and execution.
+func isAgentStep(kind string) bool {
+	switch kind {
+	case "observe", "act", "summarize", "review":
+		return true
+	}
+	return false
+}
+
+var stepIDPattern = regexp.MustCompile(`^[a-z0-9-]{1,40}$`)
+
 var branchPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/{}-]{0,120}$`)
 
 func Validate(l Loop) error {
@@ -393,30 +413,93 @@ func Validate(l Loop) error {
 	if len(l.Steps) == 0 || len(l.Steps) > 50 {
 		return errors.New("flow requires 1–50 steps")
 	}
+	seenIDs := map[string]bool{}
 	for _, s := range l.Steps {
+		// Missing IDs are allowed on unsaved drafts; SaveLoop assigns them.
+		if s.ID != "" {
+			if !stepIDPattern.MatchString(s.ID) || seenIDs[s.ID] {
+				return fmt.Errorf("step %q: id must be unique within the Loop; use 1–40 lowercase letters, digits or hyphens", s.Name)
+			}
+			seenIDs[s.ID] = true
+		}
+	}
+	earlier := map[string]Step{}
+	deliveries := 0
+	for i, s := range l.Steps {
+		if !isAgentStep(s.Kind) && (s.Agent != "" || s.Sandbox != "" || len(s.Inputs) > 0 || s.Model != "" || s.Effort != "" || s.Prompt != "") {
+			return fmt.Errorf("step %q: agent, sandbox, inputs, model, effort and prompt apply only to agent or review steps; remove them or change the kind", s.Name)
+		}
+		if s.Kind != "review" && (s.SendBackTo != "" || s.MaxAttempts != 0) {
+			return fmt.Errorf("step %q: sendBackTo and maxAttempts apply only to review steps; remove them or use review", s.Name)
+		}
+		if s.Kind != "deliver" && s.PullRequest != nil {
+			return fmt.Errorf("step %q: pullRequest applies only to deliver steps; remove it or use deliver", s.Name)
+		}
+		if s.Kind != "run" && s.Kind != "verify" && len(s.Argv) > 0 {
+			return fmt.Errorf("step %q: argv applies only to run or verify steps; remove it or change the kind", s.Name)
+		}
+		if s.Kind != "verify" && (s.Metric != "" || s.MetricPath != "") {
+			return fmt.Errorf("step %q: metric and metricPath apply only to verify steps; remove them or use verify", s.Name)
+		}
+		for _, id := range s.Inputs {
+			if prior, ok := earlier[id]; !ok || !isAgentStep(prior.Kind) {
+				return fmt.Errorf("step %q: inputs %q must name an earlier agent or review step; choose its step ID", s.Name, id)
+			}
+		}
+		if s.Kind == "review" {
+			prior, ok := earlier[s.SendBackTo]
+			if !ok || !isAgentStep(prior.Kind) || prior.Kind == "review" {
+				return fmt.Errorf("step %q: sendBackTo is required; choose the ID of an earlier observe, act or summarize step", s.Name)
+			}
+			if s.MaxAttempts < 0 || s.MaxAttempts > 10 {
+				return fmt.Errorf("step %q: maxAttempts must be 1–10, or 0 to use the default 3", s.Name)
+			}
+		}
+		if s.Kind == "deliver" {
+			deliveries++
+			if deliveries > 1 || l.PullRequest != nil {
+				return errors.New("use at most one deliver step and remove Loop.pullRequest when using deliver")
+			}
+			if s.PullRequest == nil {
+				return fmt.Errorf("step %q: deliver requires pullRequest; set its mode to draft or after-review", s.Name)
+			}
+			delivery := l
+			delivery.PullRequest = s.PullRequest
+			delivery.Steps = l.Steps[:i]
+			if err := validatePullRequest(delivery); err != nil {
+				return err
+			}
+		}
+		if s.ID != "" {
+			earlier[s.ID] = s
+		}
 		if strings.TrimSpace(s.Name) == "" {
 			return errors.New("step name required")
 		}
-		switch s.Kind {
-		case "gate":
-		case "observe", "act", "summarize":
+		switch {
+		case s.Kind == "gate" || s.Kind == "deliver":
+		case isAgentStep(s.Kind):
 			if strings.TrimSpace(s.Prompt) == "" {
 				return errors.New("agent step requires a prompt")
+			}
+			agent := orDefault(s.Agent, l.Agent)
+			if !supportsLevel(agent, orDefault(s.Sandbox, l.Sandbox)) {
+				return fmt.Errorf("step %q: %w", s.Name, levelError(agent, orDefault(s.Sandbox, l.Sandbox)))
 			}
 			// Validate step-level model and effort overrides.
 			if s.Model != "" && (len(s.Model) > 120 || strings.HasPrefix(s.Model, "-") || strings.ContainsAny(s.Model, " \t\r\n")) {
 				return errors.New("model must be a model name without spaces, e.g. gpt-5.5 or claude-sonnet-4-5")
 			}
 			if s.Effort != "" {
-				if a, ok := adapterFor(l.Agent); ok && len(a.Efforts) > 0 && !slices.Contains(a.Efforts, s.Effort) {
-					return fmt.Errorf("step %q: %s does not support the %q effort level; choose %s", s.Name, agentLabel(l.Agent), s.Effort, strings.Join(a.Efforts, ", "))
+				if a, ok := adapterFor(agent); ok && len(a.Efforts) > 0 && !slices.Contains(a.Efforts, s.Effort) {
+					return fmt.Errorf("step %q: %s does not support the %q effort level; choose %s", s.Name, agentLabel(agent), s.Effort, strings.Join(a.Efforts, ", "))
 				}
 			}
-		case "run":
+		case s.Kind == "run":
 			if len(s.Argv) == 0 || !slices.Contains(l.AllowedTools, s.Argv[0]) {
 				return errors.New("command executable must be explicitly allowed")
 			}
-		case "verify":
+		case s.Kind == "verify":
 			if (s.Metric == "") != (s.MetricPath == "") {
 				return errors.New("metric name and path must be provided together")
 			}
@@ -477,26 +560,30 @@ func validateIntakeAndDelivery(l Loop) error {
 				return fmt.Errorf("invalid GitHub login %q", u)
 			}
 		}
-		if !slices.ContainsFunc(l.Steps, func(s Step) bool { return s.Kind == "act" || s.Kind == "observe" || s.Kind == "summarize" }) {
+		if !slices.ContainsFunc(l.Steps, func(s Step) bool { return isAgentStep(s.Kind) }) {
 			return errors.New("working from issues needs an agent step")
 		}
 	}
+	return validatePullRequest(l)
+}
+
+func validatePullRequest(l Loop) error {
 	if pr := l.PullRequest; pr != nil {
-		if err := needsBranch("A pull request"); err != nil {
-			return err
+		if l.Workspace != "worktree" || l.Branch == "" {
+			return errors.New("A pull request needs a fresh git worktree and a branch; set workspace to worktree and provide branch")
 		}
 		if pr.Base != "" && (strings.HasPrefix(pr.Base, "-") || strings.ContainsAny(pr.Base, " \t\n;&|$`~^:?*[\\")) {
-			return errors.New("invalid pull request base branch")
+			return errors.New("invalid pull request base branch; use a branch name without spaces or revision/shell metacharacters")
 		}
 		switch pr.Mode {
 		case "draft":
 		case "after-review":
 			lastAgent, lastGate := -1, -1
 			for i, s := range l.Steps {
-				switch s.Kind {
-				case "gate":
+				if s.Kind == "gate" {
 					lastGate = i
-				case "act", "observe", "summarize":
+				}
+				if isAgentStep(s.Kind) {
 					lastAgent = i
 				}
 			}

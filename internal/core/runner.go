@@ -340,7 +340,7 @@ func (a *App) execute(ctx context.Context, r Run) {
 			}
 			r.Step = i
 			// Compute effective model and effort once per step (for trace and invocation).
-			agentStep := s.Kind == "observe" || s.Kind == "act" || s.Kind == "summarize"
+			agentStep := isAgentStep(s.Kind)
 			var effectiveModel, effectiveEffort string
 			if agentStep {
 				effectiveModel = s.Model
