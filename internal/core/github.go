@@ -340,13 +340,7 @@ func deliverPullRequest(ctx context.Context, l Loop, r Run, ws *workspace, revie
 	if l.Intake != nil {
 		repo = l.Intake.Repo
 	}
-	remote, baseBranch := "origin", ""
-	if before, after, ok := strings.Cut(l.BaseRef, "/"); ok {
-		remote, baseBranch = before, after
-	}
-	if pr.Base != "" {
-		baseBranch = pr.Base
-	}
+	remote, baseBranch := deliveryBase(l, pr)
 	out, err := ws.git(ctx, "rev-list", "--count", ws.Base+"..HEAD")
 	if err != nil {
 		return "", fmt.Errorf("git rev-list: %s", strings.TrimSpace(string(out)))
@@ -433,4 +427,33 @@ func deliverPullRequest(ctx context.Context, l Loop, r Run, ws *workspace, revie
 	}
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 	return strings.TrimSpace(lines[len(lines)-1]), nil
+}
+
+func deliveryBase(l Loop, pr PullRequest) (string, string) {
+	remote, branch := "origin", ""
+	if before, after, ok := strings.Cut(l.BaseRef, "/"); ok {
+		remote, branch = before, after
+	}
+	if pr.Base != "" {
+		branch = pr.Base
+	}
+	return remote, branch
+}
+
+func (w *workspace) refreshMergedBase(ctx context.Context, remote, branch string) error {
+	if remote == "" || branch == "" {
+		return errors.New("cannot reset the worktree after merge: pull request base branch is unknown")
+	}
+	if out, err := w.git(ctx, "fetch", "--quiet", remote, branch); err != nil {
+		return fmt.Errorf("git fetch merged base: %s", strings.TrimSpace(string(out)))
+	}
+	if _, err := w.git(ctx, "reset", "--hard", "FETCH_HEAD"); err != nil {
+		return fmt.Errorf("git reset to merged base: %s", err)
+	}
+	out, err := w.git(ctx, "rev-parse", "HEAD")
+	if err != nil {
+		return err
+	}
+	w.Base, w.Reviewed = strings.TrimSpace(string(out)), strings.TrimSpace(string(out))
+	return nil
 }
