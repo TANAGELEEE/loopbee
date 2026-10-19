@@ -1,5 +1,5 @@
 // loopbee UI shell: routing, header, polling, dialogs, menus, toasts and actions.
-import { ctx, t, T, esc, $, $$, applyVars, btn, icon, icons, navIcons, active, hm, cronText, sandboxLabel, errText } from "./ui.js";
+import { ctx, t, T, esc, $, $$, applyVars, btn, icon, icons, navIcons, active, hm, cronText, sandboxLabel, errText, agentEfforts, agentLabel, AGENT_KINDS } from "./ui.js";
 import * as V from "./views.js";
 import { editorPage, gapsPanel, gaps, newDraft, definitionOnly, settingsPage, settingsTabs, onboardingPage, STEP_KINDS, kindLabel } from "./forms.js";
 import { chatPage, newChat, EXAMPLES, chatAnswer } from "./chat.js";
@@ -852,7 +852,7 @@ const actions = {
     // One source for step labels (kindLabel) so a new kind cannot be missing here and in the menu.
     const step = { kind: k, name: kindLabel(k) };
     if (k === "verify" || k === "run") step.argv = [];
-    else if (k !== "gate") step.prompt = "";
+    else if (AGENT_KINDS.includes(k)) step.prompt = "";
     draft.steps.splice(ui.step + 1, 0, step);
     ui.step = ui.step + 1;
     markDirty();
@@ -1108,9 +1108,22 @@ document.addEventListener("input", (e) => {
   }
   if (el.dataset.f) {
     const f = el.dataset.f;
-    draft[f] = el.type === "number" ? Number(el.value) : f === "allowedTools" ? el.value.split(/\s+/).filter(Boolean) : f === "readPaths" || f === "copyFiles" ? el.value.split(/\r?\n/).map((x) => x.trim()).filter(Boolean) : f === "model" ? el.value.trim() : el.value;
+    draft[f] = el.type === "number" ? Number(el.value) : f === "allowedTools" ? el.value.split(/\s+/).filter(Boolean) : f === "readPaths" || f === "copyFiles" ? el.value.split(/\r?\n/).map((x) => x.trim()).filter(Boolean) : f === "model" || f === "effort" ? el.value.trim() : el.value;
     if (f === "agent") {
       // The permission levels on offer depend on the agent.
+      const efforts = agentEfforts(el.value);
+      let cleared = false;
+      if (draft.effort && !efforts.includes(draft.effort)) {
+        draft.effort = "";
+        cleared = true;
+      }
+      draft.steps.forEach((s) => {
+        if (s.effort && !efforts.includes(s.effort)) {
+          s.effort = "";
+          cleared = true;
+        }
+      });
+      if (cleared) toast(t("The effort was cleared: {agent} does not offer it", { agent: agentLabel(el.value) }), "err");
       markDirty();
       return render();
     }
@@ -1127,7 +1140,8 @@ document.addEventListener("input", (e) => {
       } catch {
         el.setAttribute("aria-invalid", "true");
       }
-    } else if (f !== "kind") s[f] = el.value;
+    } else if (f === "model") s[f] = el.value.trim();
+    else if (f !== "kind") s[f] = el.value;
     refreshGaps();
   } else if (el.id === "def-json") markDirty();
 });

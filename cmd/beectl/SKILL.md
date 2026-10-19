@@ -68,7 +68,9 @@ Rules:
   the directory's Git origin, or else the folder name.
 - `agent`: `codex`, `claude`, `opencode` or `pi` (see `beectl status` for what is installed). OpenCode and
   pi have no sandbox: loopbee runs them only at `read-only` or `agent-config`. `model` is optional (empty = the
-  agent's own default).
+  agent's own default). Loop `effort` is optional too (empty = CLI default); use a level the agent offers.
+  Agent steps (`act`, `observe`, `summarize`) may set `model` and `effort` independently to override the Loop;
+  empty step fields inherit the Loop, then the CLI default.
 - `sandbox`: the lowest that works — `read-only`, `workspace-write` (no network), `workspace-network` (git push,
   deploys, databases, APIs), `agent-config` (the agent's own configuration decides; only when asked). The device has
   a ceiling set in loopbee; drafts above it are rejected.

@@ -18,6 +18,27 @@ The first available agent (in the order above) becomes the **default agent** (`s
 Loops in the chat and is preselected for new Loops; each Loop can still choose its own agent and, optionally, a
 `model` (passed as `--model`; empty = the CLI's own default).
 
+## Models and effort
+
+Each agent step can override `model` and `effort` independently: **step → Loop → CLI default**. Empty fields
+inherit the next level. Settings › Agents lists the available choices; the Run's flow strip shows each step's
+model and effort.
+
+| CLI | Effort flag and offered levels | Model choices |
+|---|---|---|
+| Claude Code | `--effort`: low, medium, high, xhigh, max | aliases from `--help` |
+| pi | `--thinking`: off, minimal, low, medium, high, xhigh, max | `pi --list-models` |
+| Codex | `-c model_reasoning_effort=…`; no levels offered because the CLI does not tell which it accepts | none listed |
+| OpenCode | none; variants are not listed | `opencode models`, with one retry if the first listing fails or is empty |
+
+A failure to list models never fails agent detection. Models may still be entered directly; an empty model uses
+the CLI's own default.
+
+OpenCode's list comes from its background service and depends on how far that service has loaded its providers: on
+the developer's Mac (2026-10-19) the same `opencode models` returned 0, 12, 84 and 184 models at different times,
+and `--standalone` returned none. Detection keeps whatever it got, so the list can be partial; “List models again”
+in Settings › Agents asks again, and any model name can still be typed.
+
 ## Permission levels are a promise
 
 A permission level tells the person reading a Loop what the agent can do unattended. Each adapter lists the levels

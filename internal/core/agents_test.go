@@ -51,6 +51,21 @@ func TestFakeAgent(t *testing.T) {
 		fmt.Println(orDefault(os.Getenv("LOOPBEE_FAKE_MCP_LIST"), "[]"))
 		os.Exit(0)
 	}
+	// Model listing for pi and opencode (must not log or read stdin).
+	if name == "pi" && has("--list-models") {
+		fmt.Println("provider      model                                        context  max-out  thinking  images")
+		fmt.Println("magpie        cc-proxy/claude-opus-5                       1M       128K     yes       yes")
+		fmt.Println("magpie        cc-proxy/claude-sonnet-5                     1M       128K     yes       yes")
+		fmt.Println("magpie        codex/gpt-6-sol                              272K     128K     yes       yes")
+		os.Exit(0)
+	}
+	if name == "opencode" && has("models") {
+		fmt.Println("magpie/cc-proxy/claude-opus-5")
+		fmt.Println("magpie/cc-proxy/claude-sonnet-5")
+		fmt.Println("opencode/cat-jam-free")
+		fmt.Println("opencode/deepseek-v4.1-flash-free")
+		os.Exit(0)
+	}
 	prompt, _ := io.ReadAll(os.Stdin)
 	cwd, _ := os.Getwd()
 	if log := os.Getenv("LOOPBEE_FAKE_LOG"); log != "" {
@@ -290,6 +305,19 @@ func TestBuildAgentArgs(t *testing.T) {
 	if !sandboxWithin("workspace-network", "agent-config") || sandboxWithin("agent-config", "workspace-network") || sandboxWithin("bogus", "agent-config") {
 		t.Fatal("permission ordering")
 	}
+	// Test model and effort in invocation.
+	codexWithEffort := join(buildAgentArgs([]string{"codex"}, codexCaps, agentInvocation{Name: "codex", Dir: "/w", Sandbox: "read-only", Model: "gpt-6", Effort: "high"}))
+	if !strings.Contains(codexWithEffort, "--model gpt-6") || !strings.Contains(codexWithEffort, `-c model_reasoning_effort="high"`) {
+		t.Errorf("codex with model and effort: %q", codexWithEffort)
+	}
+	claudeWithEffort := join(buildAgentArgs([]string{"claude"}, claudeCaps, agentInvocation{Name: "claude", Dir: "/w", Sandbox: "read-only", Model: "sonnet", Effort: "xhigh"}))
+	if !strings.Contains(claudeWithEffort, "--model sonnet") || !strings.Contains(claudeWithEffort, "--effort xhigh") {
+		t.Errorf("claude with model and effort: %q", claudeWithEffort)
+	}
+	piWithEffort := join(buildAgentArgs([]string{"pi"}, []string{"headless", "no-session"}, agentInvocation{Name: "pi", Dir: "/w", Sandbox: "read-only", Model: "magpie/opus", Effort: "max"}))
+	if !strings.Contains(piWithEffort, "--model magpie/opus") || !strings.Contains(piWithEffort, "--thinking max") {
+		t.Errorf("pi with model and effort: %q", piWithEffort)
+	}
 }
 
 func TestAgentFailureReason(t *testing.T) {
@@ -304,6 +332,34 @@ func TestAgentFailureReason(t *testing.T) {
 	limit := `{"type":"result","subtype":"success","is_error":true,"api_error_status":429,"api_error":"usage_limit_reached","result":"You've hit your session limit · resets 10:20pm (Asia/Taipei)"}`
 	if got := agentFailure([]byte(limit)); got != "You've hit your session limit · resets 10:20pm (Asia/Taipei)" {
 		t.Fatal(got)
+	}
+}
+
+func TestEffortValidation(t *testing.T) {
+	l := agentLoop(t, "claude")
+	l.Effort = "high"
+	if err := Validate(l); err != nil {
+		t.Fatalf("claude supports high: %v", err)
+	}
+	l.Effort = "bogus"
+	if err := Validate(l); err == nil || !strings.Contains(err.Error(), "does not support") || !strings.Contains(err.Error(), "Claude Code") {
+		t.Fatalf("unsupported effort should fail: %v", err)
+	}
+	// Step-level effort validation.
+	l.Effort = ""
+	l.Steps[0].Effort = "max"
+	if err := Validate(l); err != nil {
+		t.Fatalf("claude supports max: %v", err)
+	}
+	l.Steps[0].Effort = "invalid"
+	if err := Validate(l); err == nil || !strings.Contains(err.Error(), "step") || !strings.Contains(err.Error(), "does not support") {
+		t.Fatalf("unsupported step effort should fail: %v", err)
+	}
+	// OpenCode has no efforts.
+	l = agentLoop(t, "opencode")
+	l.Effort = "high"
+	if err := Validate(l); err != nil {
+		t.Fatalf("opencode with effort should pass (no efforts = no restriction): %v", err)
 	}
 }
 

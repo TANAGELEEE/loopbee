@@ -1,6 +1,6 @@
 // Flow strip and execution topology (spec §8). flowState is a pure function of the Run so the
 // animation never depends on event volume; render functions only consume its output.
-import { T, t, esc, bee, icon, cronText, sandboxLabel, agentLabel, agentCmd, agentColor } from "./ui.js";
+import { T, t, esc, bee, icon, cronText, sandboxLabel, agentLabel, agentCmd, agentColor, AGENT_KINDS } from "./ui.js";
 
 // steps: definition steps; run: the Run to visualise or null for an idle Loop.
 export function flowState(steps, run) {
@@ -62,7 +62,19 @@ const nodeIcon = { done: icon("ok"), on: icon("run"), wait: icon("warn"), fail: 
 const NODE = 152,
   LINK = 56;
 
-export function renderFlow(steps, state, { run, maxRounds, selected = -1 } = {}) {
+// The model and effort an agent step runs with: from the Run's trace entry when there is one, else the step or Loop.
+function stepModel(steps, run, loop, i) {
+  const s = steps[i];
+  if (!AGENT_KINDS.includes(s.kind)) return "";
+  const tr = run ? (run.trace || []).filter((x) => x.step === i).at(-1) : null;
+  const want = tr?.model || s.model || loop?.model || "";
+  const reported = tr?.usage?.model || "";
+  const model = reported && reported !== want ? `${want || t("Agent's default")} → ${reported}` : want || t("Agent's default");
+  const effort = tr?.effort || s.effort || loop?.effort || t("CLI default");
+  return `${model} · ${effort}`;
+}
+
+export function renderFlow(steps, state, { run, loop, maxRounds, selected = -1 } = {}) {
   const parts = steps.map((s, i) => {
     const cls = state.nodes[i];
     const link =
@@ -70,17 +82,18 @@ export function renderFlow(steps, state, { run, maxRounds, selected = -1 } = {})
         ? `<span class="lk ${state.links[i - 1] === "lost" ? "live lostl" : state.links[i - 1]}">${state.bee.link === i - 1 && state.bee.pose === "fly" ? bee("fly", "M0 10 L56 10") : ""}</span>`
         : "";
     const perch = state.bee.node === i && (state.bee.pose === "perch" || state.bee.pose === "lost") ? bee(state.bee.pose === "lost" ? "perch lost" : "perch") : "";
-    return `${link}<button type="button" class="node ${cls} ${selected === i ? "sel" : ""}" data-action="select-node" data-index="${i}" ${cls === "on" || cls === "wait" ? 'aria-current="step"' : ""}>${nodeIcon[cls] || ""}<span><span class="k">${esc(s.kind)}</span><span class="n">${esc(s.name)}</span></span>${perch}</button>`;
+    const mx = stepModel(steps, run, loop, i);
+    return `${link}<button type="button" class="node ${cls} ${selected === i ? "sel" : ""}" data-action="select-node" data-index="${i}" ${cls === "on" || cls === "wait" ? 'aria-current="step"' : ""}>${nodeIcon[cls] || ""}<span><span class="k">${esc(s.kind)}</span><span class="n">${esc(s.name)}</span>${mx ? `<span class="flow-model" title="${esc(mx)}">${esc(mx)}</span>` : ""}</span>${perch}</button>`;
   });
-  let loop = "";
+  let back = "";
   if (steps.length > 1 && maxRounds > 1) {
     const live = run && run.status === "running" && run.round > 1;
     const label = run && !["queued"].includes(run.status) && run.round
       ? t("Round {r} / {max}", { r: run.round, max: maxRounds })
       : t("Condition not met and rounds < {max} → back to step 1", { max: maxRounds });
-    loop = `<div class="loopback ${live ? "live" : ""}" data-ml="${NODE / 2}px" data-w="${(steps.length - 1) * (NODE + LINK)}px"><i></i><span>${esc(label)}</span></div>`;
+    back = `<div class="loopback ${live ? "live" : ""}" data-ml="${NODE / 2}px" data-w="${(steps.length - 1) * (NODE + LINK)}px"><i></i><span>${esc(label)}</span></div>`;
   }
-  return `<div class="flow" role="list">${parts.join("")}</div>${loop}`;
+  return `<div class="flow" role="list">${parts.join("")}</div>${back}`;
 }
 
 // Topology: schedule trigger → loopbee core → agents. Only the Loop's agent is drawn solid.
@@ -125,7 +138,8 @@ export function renderTopology({ loop, run, state, agents, activeCount, host }) 
   };
   const ags = list
     .map((a, i) => {
-      const sub = i === idx ? `${a.cmd} · ${sandboxLabel(loop.sandbox)}${loop.model ? " · " + loop.model : ""}${loop.workspace === "worktree" ? " · worktree" : ""}` : (a.others || []).map((x) => x.label || agentLabel(x.name)).join(" · ") || t("Not used by this Loop");
+      const me = [loop.model, loop.effort].filter(Boolean).join(" · ");
+      const sub = i === idx ? `${a.cmd} · ${sandboxLabel(loop.sandbox)}${me ? " · " + me : ""}${loop.workspace === "worktree" ? " · worktree" : ""}` : (a.others || []).map((x) => x.label || agentLabel(x.name)).join(" · ") || t("Not used by this Loop");
       return `<div class="ag ${i === idx ? (topo === "running" ? "on" : topo === "failed" ? "err" : "") : "off"}"><span class="idot" data-c="${a.color}"></span><div class="grow"><div class="nm">${esc(a.name)}</div><div class="sub mono">${esc(sub)}</div></div>${agentStatus(a)}${pb(a)}</div>`;
     })
     .join("");

@@ -7,12 +7,29 @@ export async function main(name) {
   const has = (f) => args.includes(f);
   if (has("--version")) return console.log(`${name} fake 9.9.9`);
   if (name === "codex" && has("mcp") && has("list")) return console.log("[]"); // `codex mcp list --json`
+  // Model listing for pi and opencode.
+  if (name === "pi" && has("--list-models")) {
+    return console.log(
+      "provider      model                                        context  max-out  thinking  images\n" +
+      "magpie        cc-proxy/claude-opus-5                       1M       128K     yes       yes\n" +
+      "magpie        cc-proxy/claude-sonnet-5                     1M       128K     yes       yes\n" +
+      "magpie        codex/gpt-6-sol                              272K     128K     yes       yes"
+    );
+  }
+  if (name === "opencode" && has("models")) {
+    return console.log(
+      "magpie/cc-proxy/claude-opus-5\n" +
+      "magpie/cc-proxy/claude-sonnet-5\n" +
+      "opencode/cat-jam-free\n" +
+      "opencode/deepseek-v4.1-flash-free"
+    );
+  }
   if (has("--help")) {
     return console.log({
       codex: "--json --sandbox --output-last-message --output-schema --add-dir --skip-git-repo-check --model",
-      claude: "--print --output-format stream-json --json-schema --add-dir --tools --settings --permission-mode --model",
+      claude: "--print --output-format stream-json --json-schema --add-dir --tools --settings --permission-mode --model --effort",
       opencode: "--format json --model --auto",
-      pi: "--mode json --tools --exclude-tools --no-session --model",
+      pi: "--mode json --tools --exclude-tools --no-session --model --thinking",
     }[name]);
   }
   let prompt = "";

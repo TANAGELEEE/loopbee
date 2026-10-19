@@ -30,11 +30,14 @@ func init() {
 			"workspace-network": "--sandbox workspace-write -c sandbox_workspace_write.network_access=true",
 			"agent-config":      "(no flags — your config.toml / profile)",
 		},
-		Args:     codexArgs,
-		Classify: codexClassify,
-		Final:    codexFinal,
-		Failure:  codexFailure,
-		Usage:    codexUsage,
+		// Efforts: codex accepts model_reasoning_effort but doesn't document valid values in --help or reject
+		// invalid ones; cannot confirm the list without a model turn.
+		EffortArgs: func(level string) []string { return []string{"-c", "model_reasoning_effort=\"" + level + "\""} },
+		Args:       codexArgs,
+		Classify:   codexClassify,
+		Final:      codexFinal,
+		Failure:    codexFailure,
+		Usage:      codexUsage,
 		DefaultModel: func(home string) string {
 			return tomlTopLevel(filepath.Join(envHome("CODEX_HOME", home, ".codex"), "config.toml"), "model")
 		},
@@ -250,6 +253,11 @@ func codexArgs(inv agentInvocation, caps []string) ([]string, []string) {
 	}
 	if inv.Model != "" {
 		argv = append(argv, "--model", inv.Model)
+	}
+	if inv.Effort != "" {
+		if ad, ok := adapterFor(inv.Name); ok && ad.EffortArgs != nil {
+			argv = append(argv, ad.EffortArgs(inv.Effort)...)
+		}
 	}
 	if hasCap(caps, "add-dir") {
 		for _, d := range inv.AddDirs {

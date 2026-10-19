@@ -28,6 +28,16 @@ type adapter struct {
 	Levels      []string
 	Enforcement map[string]string
 	Flags       map[string]string // what loopbee passes per level, shown in Settings › Agents
+	// Efforts lists thinking/reasoning effort levels this CLI accepts, lowest to highest; empty = not supported.
+	// EffortArgs converts a level to CLI arguments (e.g. --effort high, --thinking high, -c model_reasoning_effort="high").
+	Efforts    []string
+	EffortArgs func(level string) []string
+	// ListModels asks the CLI to list its available models; nil when the CLI cannot list them.
+	// Returns Model with ID ("provider/model" as the CLI prints it), Label (for display), and Efforts (this model's
+	// effort levels when known; empty = use the adapter's Efforts).
+	ListModels func(ctx context.Context, base []string, env []string) ([]Model, error)
+	// ModelHint lists common model names/aliases when the CLI cannot list them (from the CLI's help; never invented).
+	ModelHint []string
 	// Args returns the arguments after the executable and extra environment variables for one turn. The prompt is
 	// always written to stdin.
 	Args func(inv agentInvocation, caps []string) ([]string, []string)
@@ -54,6 +64,13 @@ type adapter struct {
 	// included), so the switch touches exactly those; nil when the CLI cannot say.
 	ListMCP func(ctx context.Context, base []string, dir string, env []string) ([]mcpServerState, error)
 	Explain func(reason, goos string) string // adds how to fix a failure the CLI reported; nil = keep the reason
+}
+
+// Model is one model the CLI reported from ListModels.
+type Model struct {
+	ID      string   `json:"id"`                // provider/model as the CLI prints it
+	Label   string   `json:"label,omitempty"`   // display name; empty = use ID
+	Efforts []string `json:"efforts,omitempty"` // effort levels this model supports; empty = use adapter.Efforts
 }
 
 var (

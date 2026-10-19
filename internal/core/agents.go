@@ -26,6 +26,13 @@ type Agent struct {
 	Levels      []string          `json:"levels"`
 	Enforcement map[string]string `json:"enforcement,omitempty"`
 	Flags       map[string]string `json:"flags,omitempty"`
+	// Efforts lists thinking/reasoning effort levels this CLI accepts.
+	Efforts []string `json:"efforts,omitempty"`
+	// Models lists models this CLI reported; ModelHint lists common aliases when the CLI cannot list them.
+	Models       []Model    `json:"models,omitempty"`
+	ModelHint    []string   `json:"modelHint,omitempty"`
+	ModelsAt     *time.Time `json:"modelsAt,omitempty"`     // when Models was listed; nil = not listed or failed
+	ModelsReason string     `json:"modelsReason,omitempty"` // why listing failed; empty when successful or not attempted
 	// MCP lists the MCP servers configured for this agent (user level); MCPFlags how a Loop allows or disables them.
 	MCP      []string          `json:"mcp,omitempty"`
 	MCPFlags map[string]string `json:"mcpFlags,omitempty"`
@@ -97,6 +104,8 @@ func (a *App) DetectAgents() {
 	for _, name := range adapterOrder {
 		ad := adapters[name]
 		ag := Agent{Name: name, Label: ad.Label, Status: "unavailable", Levels: ad.Levels, Enforcement: ad.Enforcement, Flags: ad.Flags, MCPFlags: ad.MCPFlags}
+		ag.Efforts = ad.Efforts
+		ag.ModelHint = ad.ModelHint
 		if home, _ := os.UserHomeDir(); home != "" {
 			ag.MCP = agentMCPServers(name, home, "")
 		}
@@ -133,6 +142,20 @@ func (a *App) DetectAgents() {
 										ag.MCP = append(ag.MCP, s.Name)
 									}
 								}
+							}
+						}
+						// List models with a timeout; failure does not fail detection.
+						if ad.ListModels != nil {
+							ctx, cancel := context.WithTimeout(a.ctx, 20*time.Second)
+							models, err := ad.ListModels(ctx, argv, nil)
+							cancel()
+							if err == nil && len(models) > 0 {
+								ag.Models = models
+								now := time.Now()
+								ag.ModelsAt = &now
+								ag.ModelsReason = ""
+							} else if err != nil {
+								ag.ModelsReason = err.Error()
 							}
 						}
 					} else {
@@ -207,6 +230,7 @@ type agentInvocation struct {
 	Dir      string   // working directory
 	Sandbox  string   // permission level
 	Model    string   // model to use; "" = the CLI's own default
+	Effort   string   // thinking/reasoning effort level; "" = the CLI's own default
 	AddDirs  []string // extra writable directories (e.g. the git dir of a worktree)
 	LastFile string   // codex: file for the final message
 	Schema   string   // optional JSON schema (file path for codex, inline JSON for claude)

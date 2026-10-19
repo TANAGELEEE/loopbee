@@ -35,6 +35,9 @@ type Step struct {
 	Argv       []string `json:"argv,omitempty"`
 	// ContinueOnError (run steps only): a non-zero exit is information for later steps, not a failure.
 	ContinueOnError bool `json:"continueOnError,omitempty"`
+	// Model and Effort (agent steps only): override the Loop's model and effort; empty = inherit from Loop.
+	Model  string `json:"model,omitempty"`
+	Effort string `json:"effort,omitempty"`
 }
 type Loop struct {
 	DoneWhen    string `json:"doneWhen"`
@@ -47,7 +50,8 @@ type Loop struct {
 	// owner/repo of the directory's origin remote, or else its folder name.
 	Project      string    `json:"project,omitempty"`
 	Agent        string    `json:"agent"`
-	Model        string    `json:"model,omitempty"` // model the agent CLI uses; "" = the CLI's own default
+	Model        string    `json:"model,omitempty"`  // model the agent CLI uses; "" = the CLI's own default
+	Effort       string    `json:"effort,omitempty"` // thinking/reasoning effort level; "" = the CLI's own default
 	Sandbox      string    `json:"sandbox"`
 	Cron         string    `json:"cron"`
 	Timezone     string    `json:"timezone"`
@@ -162,7 +166,9 @@ type StepRecord struct {
 	Artifact string     `json:"artifact,omitempty"`
 	Bytes    int        `json:"bytes,omitempty"`
 	Note     string     `json:"note,omitempty"`
-	Usage    *Usage     `json:"usage,omitempty"` // model and tokens of an agent step, as the CLI reported them
+	Model    string     `json:"model,omitempty"`  // requested model (agent steps only)
+	Effort   string     `json:"effort,omitempty"` // requested effort (agent steps only)
+	Usage    *Usage     `json:"usage,omitempty"`  // model and tokens of an agent step, as the CLI reported them
 }
 type Run struct {
 	Metrics    map[string]float64 `json:"metrics,omitempty"`
@@ -307,6 +313,11 @@ func Validate(l Loop) error {
 	if l.Model != "" && (len(l.Model) > 120 || strings.HasPrefix(l.Model, "-") || strings.ContainsAny(l.Model, " \t\r\n")) {
 		return errors.New("model must be a model name without spaces, e.g. gpt-5.5 or claude-sonnet-4-5")
 	}
+	if l.Effort != "" {
+		if a, ok := adapterFor(l.Agent); ok && len(a.Efforts) > 0 && !slices.Contains(a.Efforts, l.Effort) {
+			return fmt.Errorf("%s does not support the %q effort level; choose %s", agentLabel(l.Agent), l.Effort, strings.Join(a.Efforts, ", "))
+		}
+	}
 	if l.Workspace != "" && l.Workspace != "direct" && l.Workspace != "worktree" {
 		return errors.New("workspace must be direct or worktree")
 	}
@@ -391,6 +402,15 @@ func Validate(l Loop) error {
 		case "observe", "act", "summarize":
 			if strings.TrimSpace(s.Prompt) == "" {
 				return errors.New("agent step requires a prompt")
+			}
+			// Validate step-level model and effort overrides.
+			if s.Model != "" && (len(s.Model) > 120 || strings.HasPrefix(s.Model, "-") || strings.ContainsAny(s.Model, " \t\r\n")) {
+				return errors.New("model must be a model name without spaces, e.g. gpt-5.5 or claude-sonnet-4-5")
+			}
+			if s.Effort != "" {
+				if a, ok := adapterFor(l.Agent); ok && len(a.Efforts) > 0 && !slices.Contains(a.Efforts, s.Effort) {
+					return fmt.Errorf("step %q: %s does not support the %q effort level; choose %s", s.Name, agentLabel(l.Agent), s.Effort, strings.Join(a.Efforts, ", "))
+				}
 			}
 		case "run":
 			if len(s.Argv) == 0 || !slices.Contains(l.AllowedTools, s.Argv[0]) {

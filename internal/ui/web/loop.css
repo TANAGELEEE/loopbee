@@ -267,6 +267,7 @@ textarea.inp{resize:none;line-height:1.55}
 .node.lost{border:1.5px dashed var(--warn);padding:7.5px 11.5px}
 .node.done .n{color:var(--fg)}
 .node.todo .n,.node.todo .k{color:var(--muted)}
+.flow-model{display:block;font-size:10px;color:var(--muted);line-height:1.2;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .loopback.live i{border-color:var(--acc)}
 .loopback .bee{top:6px}
 
