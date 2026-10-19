@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -99,8 +100,12 @@ func Open(dir string) (*App, error) {
 		return nil, err
 	}
 	for _, l := range loops {
+		changed := assignStepIDs(l.Steps)
 		if l.Project == "" {
 			l.Project = projectName(l.Directory)
+			changed = true
+		}
+		if changed {
 			if err = a.put("loop", l.ID, l); err != nil {
 				a.Close()
 				return nil, err
@@ -324,7 +329,44 @@ func (a *App) SaveSettings(c Settings) error {
 	}
 	return nil
 }
+
+// assignStepIDs reserves existing IDs before assigning missing ones, including IDs on later steps.
+func assignStepIDs(steps []Step) bool {
+	used := map[string]bool{}
+	for _, s := range steps {
+		if s.ID != "" {
+			used[s.ID] = true
+		}
+	}
+	changed := false
+	for i := range steps {
+		if steps[i].ID != "" {
+			continue
+		}
+		id := strings.Join(strings.Fields(strings.ToLower(steps[i].Name)), "-")
+		if !stepIDPattern.MatchString(id) || used[id] {
+			for n := i + 1; ; n++ {
+				id = fmt.Sprintf("step-%d", n)
+				if !used[id] {
+					break
+				}
+			}
+		}
+		steps[i].ID = id
+		used[id] = true
+		changed = true
+	}
+	return changed
+}
+
 func (a *App) SaveLoop(l Loop) (Loop, error) {
+	l.Steps = append([]Step(nil), l.Steps...)
+	assignStepIDs(l.Steps)
+	for i := range l.Steps {
+		if l.Steps[i].Kind == "review" && l.Steps[i].MaxAttempts == 0 {
+			l.Steps[i].MaxAttempts = 3
+		}
+	}
 	if l.Project = strings.TrimSpace(l.Project); l.Project == "" {
 		l.Project = projectName(l.Directory)
 	}
@@ -342,6 +384,11 @@ func (a *App) SaveLoop(l Loop) (Loop, error) {
 	}
 	if !sandboxWithin(l.Sandbox, a.config.MaxSandbox) {
 		return l, errors.New("permission exceeds this device's limit")
+	}
+	for _, s := range l.Steps {
+		if isAgentStep(s.Kind) && !sandboxWithin(orDefault(s.Sandbox, l.Sandbox), a.config.MaxSandbox) {
+			return l, fmt.Errorf("step %q permission %q exceeds this device's limit %q; lower the step sandbox or raise the permission limit in Settings", s.Name, orDefault(s.Sandbox, l.Sandbox), a.config.MaxSandbox)
+		}
 	}
 	if l.ID == "" {
 		l.ID = newID()
