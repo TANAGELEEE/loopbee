@@ -130,7 +130,29 @@
 .kv b{font-weight:500;color:var(--muted);margin-right:5px}
 
 /* 流程節點與連線 */
-.flow{display:flex;align-items:center;flex-wrap:nowrap;overflow-x:auto;padding:4px 2px 2px}
+.flow{position:relative;min-width:0;max-width:100%}
+.edmain,.edside{min-width:0}
+.node-detail{overflow-wrap:anywhere}
+.node-detail a.btn{white-space:normal;height:auto;min-height:28px}
+.step-attempt{padding-top:8px}
+.flow-frame{min-width:0;margin:8px 0 0;padding:0 8px 8px;border:1px dashed var(--line);border-radius:12px}
+.flow-frame>legend{padding:0 6px;color:var(--muted);font-size:11.5px}
+.flow-nodes{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:80px 32px;align-items:start;padding:72px 8px 72px 24px}
+.flow-item{position:relative;min-width:0}
+.flow-item>.lk{position:absolute;right:100%;top:24px;width:32px}
+.flow-item>.lk::after{content:"";position:absolute;right:2px;top:6px;width:7px;height:7px;border-top:1.5px solid var(--fg2);border-right:1.5px solid var(--fg2);transform:rotate(45deg)}
+.flow-item[data-wrap="true"]>.lk{right:auto;left:calc(50% - 10px);top:-30px;width:20px;height:24px}
+.flow-item[data-wrap="true"]>.lk::before{left:9px;right:auto;top:0;bottom:0;height:auto;border:0;border-left:1.5px solid var(--line);background:none}
+.flow-item[data-wrap="true"]>.lk.done::before{border-color:var(--fg2)}
+.flow-item[data-wrap="true"]>.lk.live::before{border-left:1.5px dashed var(--acc);animation:none}
+.flow-item[data-wrap="true"]>.lk::after{top:auto;bottom:1px;right:6px;transform:rotate(135deg)}
+.flow-arcs{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:hidden}
+.flow-arcs path{fill:none;stroke:var(--warn-t);stroke-width:1.5;vector-effect:non-scaling-stroke}
+.flow-arcs .flow-return-path{stroke-dasharray:5 4}
+.flow-arcs text{fill:var(--warn-t);font-size:11px;paint-order:stroke;stroke:var(--card);stroke-width:4px;stroke-linejoin:round}
+.flow-returns{position:relative;margin:0;padding:0 8px 0 24px;list-style:none;display:grid;gap:6px;font-size:11px;color:var(--fg2)}
+.flow-returns li{display:flex;flex-wrap:wrap;gap:4px 12px;justify-content:space-between;overflow-wrap:anywhere;border-left:2px dashed var(--warn-t);padding-left:8px}
+.flow-returns b{font-weight:500;color:var(--warn-t)}
 .node{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);min-width:118px;flex:none;color:var(--fg);font:inherit;text-align:left;cursor:pointer}
 .node .k{display:block;font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:10px;color:var(--muted);line-height:1.2}
 .node .n{display:block;font-size:12.5px;font-weight:600;line-height:1.3}
@@ -166,7 +188,7 @@ textarea.inp{resize:none;line-height:1.55}
 .empty{text-align:center;padding:22px 16px}
 .empty .nm{font-size:13px}
 .hair{height:1px;background:var(--line);border:0;margin:0}
-.src{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:11px;color:var(--muted);padding:18px 0 0;display:flex;flex-wrap:wrap;gap:6px 16px}
+.src{overflow-wrap:anywhere;font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:11px;color:var(--muted);padding:18px 0 0;display:flex;flex-wrap:wrap;gap:6px 16px}
 .chart{width:100%;height:auto;display:block}
 
 /* 設定頁：左分類 + 右內容，欄位對齊 */
@@ -257,8 +279,30 @@ textarea.inp{resize:none;line-height:1.55}
 .lk.live.lostl::before{animation:none;background:repeating-linear-gradient(90deg,var(--muted) 0 3px,transparent 3px 8px)}
 @keyframes march{to{background-position:10px 0}}
 .node{position:relative}
-.flow{padding:16px 2px 2px}
-.flow .node{width:152px;min-width:152px}
+.flow .node{width:100%;min-width:0;min-height:76px;align-items:flex-start;box-shadow:inset 3px 0 var(--kind,var(--muted))}
+.flow .node .flow-content{display:block;min-width:0;flex:1;overflow-wrap:anywhere}
+.flow .node .st{margin-top:3px}
+.flow .node[data-kind="observe"],.flow .node[data-kind="act"],.flow .node[data-kind="summarize"]{--kind:var(--acc)}
+.flow .node[data-kind="review"]{--kind:var(--warn);border-radius:16px 4px}
+.flow .node[data-kind="run"]{--kind:var(--fg2);border-radius:4px}
+.flow .node[data-kind="verify"]{--kind:var(--ok);border-radius:4px 16px}
+.flow .node[data-kind="gate"]{--kind:var(--warn);border-top:3px double var(--warn)}
+.flow .node[data-kind="deliver"]{--kind:var(--ok);border-bottom:3px double var(--ok)}
+.flow .node.back{background:var(--warn-bg);border-color:var(--warn-line)}
+.flow-inherit,.flow-meta,.flow-usage,.flow-feedback,.flow-sendback{display:block;font-size:11px;line-height:1.4;margin-top:4px;color:var(--fg2)}
+.flow-inherit{color:var(--muted)}
+.flow-feedback{color:var(--warn-t)}
+.chat-side .flow[data-round] .node{width:100%;min-width:0}
+.chat-side .flow[data-round] .lk{width:32px}
+.chat-side .flow[data-round] .flow-item[data-wrap="true"]>.lk{width:20px}
+@media(max-width:599px){
+  .flow-nodes{grid-template-columns:minmax(0,1fr)}
+  .step .ev{grid-column:3;min-width:0;max-width:100%}
+  .flow .node{min-height:88px}
+  .flow-item>.lk{right:auto;left:calc(50% - 10px);top:-30px;width:20px;height:24px}
+  .flow-item>.lk::before{left:9px;right:auto;top:0;bottom:0;height:auto;border:0;border-left:1.5px solid var(--line);background:none}
+  .flow-item>.lk::after{top:auto;bottom:1px;right:6px;transform:rotate(135deg)}
+}
 .flow.cp .node{width:104px;min-width:104px;padding:7px 9px}
 .flow.cp .lk{width:24px}
 .node.on{border:1.5px solid var(--acc);padding:7.5px 11.5px;background:var(--acc-bg)}
@@ -267,7 +311,7 @@ textarea.inp{resize:none;line-height:1.55}
 .node.lost{border:1.5px dashed var(--warn);padding:7.5px 11.5px}
 .node.done .n{color:var(--fg)}
 .node.todo .n,.node.todo .k{color:var(--muted)}
-.flow-model{display:block;font-size:10px;color:var(--muted);line-height:1.2;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.flow-model{display:block;font-size:11px;color:var(--fg2);line-height:1.4;margin-top:4px;overflow-wrap:anywhere}
 .loopback.live i{border-color:var(--acc)}
 .loopback .bee{top:6px}
 
@@ -296,6 +340,16 @@ textarea.inp{resize:none;line-height:1.55}
 .ag .pb{position:absolute;left:14px;right:14px;bottom:6px;height:2px;background:var(--line);border-radius:1px;overflow:hidden}
 .ag .pb i{display:block;height:100%;background:var(--fg)}
 .ag .pb.run i{animation:pbm 2.6s ease-in-out infinite}
+.flow-topology{flex-wrap:wrap;gap:16px;overflow:visible;min-width:0}
+.topo-source{display:flex;flex-wrap:wrap;align-items:center;gap:8px;flex:1 1 300px;min-width:0}
+.topo-source>.tn,.topo-source>.tn.core{flex:1 1 120px;min-width:0;overflow-wrap:anywhere}
+.topo-source>.lk{width:24px}
+.flow-topology>.ags{flex:2 1 320px;min-width:0;max-width:100%}
+.flow-topology .ag{height:auto;min-height:76px;padding:12px 14px 16px;flex-wrap:wrap}
+.flow-topology .ag .grow{flex:1 1 160px;overflow-wrap:anywhere}
+.flow-topology .ag .sx{white-space:normal}
+.flow-topology .topo-config{margin-top:4px;color:var(--fg2)}
+@media(max-width:599px){.topo-source{gap:6px}.topo-source>.tn,.topo-source>.tn.core{padding:10px 8px}.topo-source>.lk{width:16px}}
 @keyframes pbm{0%{width:10%}50%{width:70%}100%{width:10%}}
 
 /* 原型預覽切換（純 CSS 單選）；真實應用由 run 狀態驅動，沒有這個切換 */

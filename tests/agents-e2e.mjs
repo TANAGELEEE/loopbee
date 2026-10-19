@@ -173,6 +173,12 @@ try {
   await page.goto(core.base + "/#/gate/" + editRun.id);
   await page.reload();
   await page.getByText("This gate is closed").waitFor();
+  await page.goto(core.base + "/#/run/" + editRun.id);
+  await page.locator('.flow .node[data-action="select-node"][data-index="0"]').click();
+  const diffAttempt = page.locator(".side .step-attempt");
+  assert.equal(await diffAttempt.count(), 1);
+  assert.ok(editRun.artifacts.includes("round-01-step-01.diff"));
+  await diffAttempt.locator(`a[href="#/artifact/${editRun.id}/round-01-step-01.diff"]`).waitFor();
 
   // A draft above the device limit says what it needs and links to Settings (default limit: read only).
   await page.goto(core.base + "/#/new");
@@ -329,6 +335,8 @@ try {
   await page.locator('[data-sf="agent"]').selectOption("codex");
   assert.equal(await page.locator('[data-sf="effort"]').count(), 0);
   await page.locator('[data-sf="agent"]').selectOption("claude");
+  await page.locator('[data-sf="model"]').fill("sonnet");
+  await page.locator('[data-sf="effort"]').selectOption("high");
   await page.locator('[data-sf="maxAttempts"]').fill("2");
   const backTo = page.locator('[data-sf="sendBackTo"]');
   await backTo.selectOption({ label: "Write plan" });
@@ -341,6 +349,7 @@ try {
   await page.locator('[data-sf="prompt"]').fill("Report completion");
   await page.locator('[data-action="select-step"][data-i="1"]').click();
   assert.deepEqual(await backTo.locator('option').evaluateAll((options) => options.filter((o) => o.value).map((o) => o.textContent)), ["Write plan"], "Send back to must not list itself or later steps");
+  await page.locator('.flow .node[data-index="1"] .flow-model', { hasText: "Claude Code · sonnet · high" }).waitFor();
   await page.getByRole("button", { name: "Save Loop", exact: true }).click();
   // Wait for the saved Loop's own page, not text already visible in the editor.
   await page.waitForFunction(() => /^#\/loop\/[0-9a-f]{24}$/.test(location.hash));
@@ -353,6 +362,7 @@ try {
   assert.deepEqual(reviewLoop.steps[1].inputs, [planID]);
   assert.equal(reviewLoop.steps[1].agent, "claude");
   assert.equal(reviewLoop.steps[1].maxAttempts, 2);
+  await page.locator('.flow .node[data-index="1"] .flow-model', { hasText: "Claude Code · sonnet · high" }).waitFor();
   await page.getByRole("button", { name: "Run now" }).first().click();
   await page.waitForURL(/#\/run\//);
   const reviewRun = await waitFor(core.api, (st) => st.runs.find((r) => r.loopId === reviewLoop.id && r.status === "completed"));
@@ -362,6 +372,95 @@ try {
   assert.ok(reviewRun.artifacts.includes(feedbackReport));
   const feedbackText = await page.evaluate(async ({ id, name }) => (await fetch(`/api/artifacts/${id}/${name}?inline=1`)).text(), { id: reviewRun.id, name: feedbackReport });
   assert.match(feedbackText, /Reviewer feedback \(send-back 1 of/);
+  // A second attempt's artifacts are named after the step and the attempt, like the first one's.
+  await page.goto(core.base + "/#/run/" + reviewRun.id);
+  await page.getByText("Round 1 · Write plan · attempt 2 · report", { exact: true }).first().waitFor();
+  await page.reload(); // Load the completed trace, not the state from the Run now response.
+  await page.locator('.flow .node[data-index="1"] .flow-model', { hasText: "Claude Code · sonnet · high" }).waitFor();
+  await page.locator(".flow svg text").filter({ hasText: /sent back 1×/i }).waitFor();
+  // Ignore icon paths: the review edge must be an actual, laid-out SVG path outside a node.
+  await page.waitForFunction(() => [...document.querySelectorAll(".flow svg path")].some((p) => !p.closest(".node") && /^M/i.test(p.getAttribute("d")?.trim() || "")));
+  await page.locator('.flow .node[data-action="select-node"][data-index="0"]').click();
+  const detail = page.locator(".node-detail");
+  await detail.waitFor();
+  assert.equal(await detail.locator(".step-attempt").count(), 2, "selecting a node shows both attempts, not only the latest trace");
+  for (const [index, attempt] of [1, 2].entries()) {
+    const entry = detail.locator(".step-attempt").nth(index);
+    await entry.getByText(`attempt ${attempt} · Done`, { exact: true }).waitFor();
+    const prefix = `round-01-step-01${attempt > 1 ? `-attempt-${String(attempt).padStart(2, "0")}` : ""}`;
+    const report = `${prefix}.report.md`;
+    assert.ok(reviewRun.artifacts.includes(report), report);
+    await entry.locator(`a[href="#/artifact/${reviewRun.id}/${report}"]`).waitFor();
+    for (const artifact of reviewRun.artifacts.filter((name) => name === `${prefix}.diff`)) {
+      await entry.locator(`a[href="#/artifact/${reviewRun.id}/${artifact}"]`).waitFor();
+    }
+    await entry.locator(".step-usage").waitFor();
+  }
+
+  // Selecting an older round's node must not silently jump to the latest round's attempts.
+  const roundsState = await core.api("/loops", { ...reviewLoop, id: "", version: 0, name: "Review across rounds", maxRounds: 2, stallRounds: 2, doneWhen: "false" });
+  const roundsLoop = roundsState.loops.find((l) => l.name === "Review across rounds");
+  await core.api(`/loops/${roundsLoop.id}/run`, {});
+  const roundsRun = await waitFor(core.api, (st) => st.runs.find((r) => r.loopId === roundsLoop.id && ["budget_exhausted", "stalled"].includes(r.status)));
+  assert.deepEqual(roundsRun.trace.filter((x) => x.step === 0).map((x) => [x.round, x.attempt]), [[1, 1], [1, 2], [2, 1]]);
+  await page.goto(core.base + `/#/run/${roundsRun.id}`);
+  await page.reload();
+  await page.locator('[data-action="select-trace"][data-index="0"]').click();
+  await page.locator('.flow[data-round="1"] .node[data-index="0"]').click();
+  assert.equal(await detail.locator(".step-attempt").count(), 2);
+  await detail.locator('.step-attempt a[href$="/round-01-step-01-attempt-02.report.md"]').waitFor();
+  const secondRoundIndex = roundsRun.trace.findIndex((x) => x.round === 2 && x.step === 0);
+  await page.locator(`[data-action="select-trace"][data-index="${secondRoundIndex}"]`).click();
+  await page.locator('.flow[data-round="2"] .node[data-index="0"]').click();
+  assert.equal(await detail.locator(".step-attempt").count(), 1);
+  await detail.locator('.step-attempt a[href$="/round-02-step-01.report.md"]').waitFor();
+
+  // Eight steps exercise wrapping and phone stacking with real API definitions, including a live node.
+  const longState = await core.api("/loops", { ...reviewLoop, id: "", version: 0, name: "Eight-step review flow", allowedTools: [process.execPath], steps: [
+    ...reviewLoop.steps,
+    { id: "hold", kind: "run", name: "Wait for local check", argv: [process.execPath, "-e", "setInterval(() => {}, 1000)"] },
+    ...Array.from({ length: 4 }, (_, i) => ({ id: `follow-${i}`, kind: "act", name: `Follow-up ${i + 1}`, prompt: "Report completion" })),
+  ] });
+  const longLoop = longState.loops.find((l) => l.name === "Eight-step review flow");
+  await core.api(`/loops/${longLoop.id}/run`, {});
+  const longRun = await waitFor(core.api, (st) => st.runs.find((r) => r.loopId === longLoop.id && r.status === "running" && r.step === 3));
+  try {
+    for (const hash of [`#/loop/${longLoop.id}/edit`, `#/run/${longRun.id}`]) {
+      await page.setViewportSize({ width: 1280, height: 820 });
+      await page.goto(core.base + "/" + hash);
+      await page.reload();
+      await page.locator('.flow .node[data-index="7"]').waitFor();
+      for (const width of [960, 375]) {
+        const pathsBefore = await page.locator(".flow svg path").evaluateAll((paths) => paths.filter((p) => !p.closest(".node")).map((p) => p.getAttribute("d")));
+        // Resize the mounted component: reloading would hide a missing ResizeObserver update.
+        await page.setViewportSize({ width, height: 820 });
+        await page.waitForFunction((before) => {
+          const paths = [...document.querySelectorAll(".flow svg path")].filter((p) => !p.closest(".node")).map((p) => p.getAttribute("d"));
+          return paths.some((d) => /^M/i.test(d?.trim() || "")) && JSON.stringify(paths) !== JSON.stringify(before);
+        }, pathsBefore);
+        assert.equal(await page.locator(".flow .node").count(), 8);
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${hash} overflows at ${width}px: ${await page.evaluate(() => [...document.querySelectorAll('body *')].filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => `${el.tagName}.${el.getAttribute('class')}: ${el.clientWidth}/${el.scrollWidth}`).slice(0, 30).join(', '))}`);
+        const boxes = await page.locator(".flow .node").evaluateAll((nodes) => nodes.map((n) => {
+          const { left, right, top, bottom } = n.getBoundingClientRect();
+          return { left, right, top, bottom };
+        }));
+        assert.ok(boxes.every((b) => b.left >= 0 && b.right <= width + 1), `flow nodes clipped at ${width}px`);
+        assert.ok(boxes.at(-1).top > boxes[0].top + 1, `eight steps did not wrap at ${width}px`);
+        if (width === 375) assert.ok(boxes.every((b, i) => !i || (Math.abs(b.left - boxes[0].left) <= 1 && b.top >= boxes[i - 1].bottom)), "phone flow must be vertical");
+        await page.waitForFunction(() => [...document.querySelectorAll(".flow svg path")].some((p) => !p.closest(".node") && /^M/i.test(p.getAttribute("d")?.trim() || "")));
+        if (hash.startsWith("#/run/")) {
+          const current = page.locator('.flow .node[aria-current="step"]');
+          assert.equal(await current.count(), 1);
+          assert.equal(await current.getAttribute("data-index"), "3");
+          assert.match(await current.textContent(), /Wait for local check/);
+        }
+      }
+    }
+  } finally {
+    await core.api(`/runs/${longRun.id}/cancel`, {});
+    await waitFor(core.api, (st) => st.runs.some((r) => r.id === longRun.id && r.status === "cancelled"));
+    await page.setViewportSize({ width: 1280, height: 820 });
+  }
 
   // Deliver reuses the Loop pull-request controls and saves its settings on the step, not the Loop.
   await page.goto(core.base + "/#/loop/" + reviewLoop.id + "/edit");

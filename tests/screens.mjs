@@ -2,16 +2,27 @@
 // Usage: node tests/screens.mjs [outDir]
 import { chromium } from "playwright";
 import { mkdir, rm } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import assert from "node:assert/strict";
-import { startCore, seed } from "./demo.mjs";
+import { startCore, seed, waitFor } from "./demo.mjs";
 
 const out = process.argv[2] || (process.env.LOOPBEE_EVIDENCE_DIR ? process.env.LOOPBEE_EVIDENCE_DIR + "/screens" : "docs/evidence/screens");
 await mkdir(out, { recursive: true });
-const core = await startCore(undefined, { LOOPBEE_CODEX_BIN: "/nonexistent/codex", LOOPBEE_CLAUDE_BIN: "/nonexistent/claude", LOOPBEE_OPENCODE_BIN: "/nonexistent/opencode", LOOPBEE_PI_BIN: "/nonexistent/pi", LOOPBEE_GH_BIN: "/nonexistent/gh" });
+const core = await startCore(undefined, { LOOPBEE_CODEX_BIN: resolve("tests/fake-agent/codex.mjs"), LOOPBEE_CLAUDE_BIN: resolve("tests/fake-agent/claude.mjs"), LOOPBEE_OPENCODE_BIN: "/nonexistent/opencode", LOOPBEE_PI_BIN: "/nonexistent/pi", LOOPBEE_GH_BIN: "/nonexistent/gh" });
 let browser;
 try {
   const ids = await seed(core.api, join(core.data, "work"));
+  await waitFor(core.api, (s) => ["codex", "claude"].every((name) => s.agents.some((a) => a.name === name && a.status === "available")));
+  // Real core execution and trace; only the CLI processes are fake. No model turns or external delivery.
+  const reviewState = await core.api("/loops", { ...ids.logs, id: "", version: 0, name: "Review send-back", cron: "", enabled: false, steps: [
+    { id: "plan", kind: "act", name: "Write plan", model: "gpt-fake", prompt: "REPORT_FEEDBACK" },
+    { id: "review", kind: "review", name: "Review plan", agent: "claude", model: "sonnet", effort: "high", prompt: "REVIEW_ONCE", inputs: ["plan"], sendBackTo: "plan", maxAttempts: 2 },
+    { id: "finish", kind: "summarize", name: "Summarize result", prompt: "Report completion" },
+  ] });
+  const reviewLoop = reviewState.loops.find((l) => l.name === "Review send-back");
+  await core.api(`/loops/${reviewLoop.id}/run`, {});
+  const reviewRun = await waitFor(core.api, (s) => s.runs.find((r) => r.loopId === reviewLoop.id && r.status === "completed"));
+  assert.deepEqual(reviewRun.trace.map((x) => [x.step, x.attempt]), [[0, 1], [1, 1], [0, 2], [1, 2], [2, 1]]);
   await core.api("/onboarding/done", {});
   browser = await chromium.launch({ headless: true, executablePath: process.env.LOOPBEE_CHROMIUM || undefined });
   const page = await browser.newPage({ viewport: { width: 1280, height: 820 } });
@@ -56,6 +67,20 @@ try {
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
       assert.ok(overflow <= 0, `${name} ${lang} has ${overflow}px horizontal overflow`);
       await page.screenshot({ path: join(out, `${name}.${lang}.${theme}.png`), fullPage: true });
+    }
+  }
+  for (const lang of ["en", "zh-TW"]) {
+    for (const theme of ["light", "dark"]) {
+      await setLang(lang);
+      await setTheme(theme);
+      await page.goto(core.base + `/#/run/${reviewRun.id}`);
+      await page.reload();
+      await page.locator('.flow .node[data-action="select-node"][data-index="1"]').click();
+      await page.locator(".side .step-attempt").nth(1).waitFor();
+      assert.equal(await page.locator(".side .step-attempt").count(), 2);
+      await page.waitForFunction(() => [...document.querySelectorAll(".flow svg path")].some((p) => !p.closest(".node") && /^M/i.test(p.getAttribute("d")?.trim() || "")));
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `review ${lang} ${theme} overflows`);
+      await page.screenshot({ path: join(out, `run-review-send-back.${lang}.${theme}.png`), fullPage: true });
     }
   }
   await setLang("zh-TW");
