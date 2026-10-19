@@ -339,7 +339,25 @@ func (a *App) execute(ctx context.Context, r Run) {
 				return
 			}
 			r.Step = i
-			r.Trace = append(r.Trace, StepRecord{Round: round, Step: i, Kind: s.Kind, Name: s.Name, Status: "running", Started: time.Now()})
+			// Compute effective model and effort once per step (for trace and invocation).
+			agentStep := s.Kind == "observe" || s.Kind == "act" || s.Kind == "summarize"
+			var effectiveModel, effectiveEffort string
+			if agentStep {
+				effectiveModel = s.Model
+				if effectiveModel == "" {
+					effectiveModel = l.Model
+				}
+				effectiveEffort = s.Effort
+				if effectiveEffort == "" {
+					effectiveEffort = l.Effort
+				}
+			}
+			sr := StepRecord{Round: round, Step: i, Kind: s.Kind, Name: s.Name, Status: "running", Started: time.Now()}
+			if agentStep {
+				sr.Model = effectiveModel
+				sr.Effort = effectiveEffort
+			}
+			r.Trace = append(r.Trace, sr)
 			if err := a.saveRun(r); err != nil {
 				finish("failed", err)
 				return
@@ -401,7 +419,6 @@ func (a *App) execute(ctx context.Context, r Run) {
 			}
 			var argv, agentEnv []string
 			var input io.Reader
-			agentStep := s.Kind != "verify" && s.Kind != "run"
 			lastFile := ""
 			if !agentStep {
 				argv = s.Argv
@@ -434,7 +451,7 @@ func (a *App) execute(ctx context.Context, r Run) {
 				if l.Agent == "codex" && hasCap(ag.Caps, "last-message") {
 					lastFile = filepath.Join(dir, fmt.Sprintf("round-%02d-step-%02d.report.md", round, i+1))
 				}
-				inv := agentInvocation{Name: l.Agent, Dir: workdir, Sandbox: l.Sandbox, Model: l.Model, LastFile: lastFile, ReadPaths: agentReads, Scratch: dir, MCP: l.AgentMCP, Home: home, Project: l.Directory}
+				inv := agentInvocation{Name: l.Agent, Dir: workdir, Sandbox: l.Sandbox, Model: effectiveModel, Effort: effectiveEffort, LastFile: lastFile, ReadPaths: agentReads, Scratch: dir, MCP: l.AgentMCP, Home: home, Project: l.Directory}
 				if l.AgentMCP || l.Sandbox != "agent-config" {
 					inv.MCPList, inv.MCPListed = listAgentMCP(ctx, l.Agent, base, workdir, env)
 				}
@@ -500,7 +517,7 @@ func (a *App) execute(ctx context.Context, r Run) {
 			}
 			if agentStep {
 				res := a.captureReport(&r, dir, lastFile, round, i, out)
-				if u := usageFor(l.Agent, out, l.Model, home); u != nil {
+				if u := usageFor(l.Agent, out, effectiveModel, home); u != nil {
 					r.Trace[len(r.Trace)-1].Usage = u
 					if r.Usage == nil {
 						r.Usage = &Usage{}

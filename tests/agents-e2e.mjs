@@ -48,6 +48,12 @@ try {
   await page.getByText("MCP tools allowed", { exact: true }).waitFor();
   assert.ok(await page.getByText("Codex CLI: -c mcp_servers.<server>.enabled=false (and the same for plugin servers)").isVisible());
 
+  // Models and efforts come from the CLI's advertised choices.
+  const piRow = page.locator('[data-agent="pi"]');
+  await piRow.getByText("Efforts: off, minimal, low, medium, high, xhigh, max", { exact: true }).waitFor();
+  await piRow.getByText(/magpie\/cc-proxy\/claude-opus-5/).waitFor();
+  await page.locator('[data-agent="claude"]').getByText(/fable, opus, sonnet/).waitFor();
+
   // New Loop opens the chat. Describe it, answer the agent's question, watch the preview update.
   await page.goto(core.base + "/#/loops");
   await page.getByRole("link", { name: "New Loop" }).first().click();
@@ -266,6 +272,39 @@ try {
   await page.getByRole("radio", { name: "Workspace write + network" }).click();
   await page.getByText("Permission exceeds this device’s limit").waitFor();
   assert.equal(await page.getByRole("button", { name: "Save as v3" }).isDisabled(), true);
+  // Per-Loop model/effort and a step override survive saving and appear on the Run's flow strip.
+  const modelState = await core.api("/loops", { ...loop, id: "", version: 0, name: "Model choices", agent: "pi", conversation: [], steps: [{ kind: "act", name: "Report", prompt: "Report the result" }] });
+  const modelLoop = modelState.loops.find((l) => l.name === "Model choices");
+  await page.goto(core.base + "/#/loop/" + modelLoop.id + "/edit");
+  await page.reload();
+  await page.locator("#f-effort").waitFor();
+  const model = await page.locator("#f-model-list option").first().getAttribute("value");
+  assert.ok(model, "pi offers a model in the datalist");
+  await page.locator("#f-model").fill(model);
+  await page.locator("#f-effort").selectOption("low");
+  await page.locator('[data-sf="effort"]').selectOption("high");
+  await page.getByRole("button", { name: "Save as v2" }).click();
+  await page.locator(".hd .chip", { hasText: "Version v2" }).waitFor();
+  const savedModel = (await core.api("/state")).loops.find((l) => l.id === modelLoop.id);
+  assert.equal(savedModel.model, model);
+  assert.equal(savedModel.effort, "low");
+  assert.equal(savedModel.steps[0].effort, "high");
+  await page.getByRole("button", { name: "Run now" }).first().click();
+  await page.waitForURL(/#\/run\//);
+  await page.locator(".flow-model", { hasText: `${model} · high` }).waitFor();
+  await waitFor(core.api, (st) => st.runs.some((r) => r.loopId === modelLoop.id && r.status === "completed"));
+
+  // Changing to Codex clears both unsupported efforts, and explains why.
+  await page.goto(core.base + "/#/loop/" + modelLoop.id + "/edit");
+  await page.locator("#f-agent").selectOption("codex");
+  await page.getByText("The effort was cleared", { exact: false }).waitFor();
+  assert.equal(await page.locator('#f-effort, [data-sf="effort"]').count(), 0);
+  await page.getByRole("button", { name: "Save as v3" }).click();
+  await page.locator(".hd .chip", { hasText: "Version v3" }).waitFor();
+  const clearedModel = (await core.api("/state")).loops.find((l) => l.id === modelLoop.id);
+  assert.equal(clearedModel.effort || "", "");
+  assert.equal(clearedModel.steps[0].effort || "", "");
+
   // Traditional Chinese screenshots of the chat (with history) and the agent settings for review.
   await core.api("/state").then((st) => core.api("/settings", { ...st.settings, language: "zh-TW" }));
   // The project folder is chosen in the system's chooser, not typed.

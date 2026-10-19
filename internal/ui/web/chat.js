@@ -66,6 +66,7 @@ function preview(c) {
   const facts = [
     [t("Schedule"), d.cron ? `${cronText(d.cron)} · ${d.timezone}` : t("Manual only")],
     [t("Agent"), agentLabel(d.agent)],
+    [t("Model · Effort"), `${d.model || t("Agent's default")} · ${d.effort || t("CLI default")}`],
     [t("Permission"), sandboxLabel(d.sandbox)],
     [t("Workspace"), d.workspace === "worktree" ? t("Fresh git worktree from {ref}", { ref: d.baseRef || "HEAD" }) + (d.branch ? " → " + d.branch : "") : d.directory || "—"],
     [t("Limits"), t("rounds {r} · {m} min · gate {h} h", { r: d.maxRounds, m: d.wallMinutes, h: d.gateHours || 72 })],
@@ -79,7 +80,7 @@ function preview(c) {
   if (d.copyFiles?.length) facts.push([t("Copy into the worktree"), d.copyFiles.join(", ")]);
   return `${sec(T("Preview"), { note: T(c.loop ? "Changes since v{n}" : "Draft · not saved", { n: c.loop?.version }) })}
   <div class="card sm"><div class="hd"><h1 class="h2 ell">${esc(d.name || t("Untitled Loop"))}</h1></div>${d.description ? `<div class="sub t2 mt3">${esc(d.description)}</div>` : ""}
-  ${renderFlow(d.steps, flowState(d.steps, null), { maxRounds: d.maxRounds })}
+  ${renderFlow(d.steps, flowState(d.steps, null), { loop: d, maxRounds: d.maxRounds })}
   <div class="steps-brief">${d.steps.map((s, i) => `<div class="row top"><span class="tag">${esc(kindLabel(s.kind))}</span><div class="grow min0"><div class="nm">${i + 1}. ${esc(s.name)}</div><div class="sub pre-wrap">${esc(s.kind === "run" || s.kind === "verify" ? (s.argv || []).join(" ") + (s.continueOnError ? " · " + t("continues on failure") : "") : s.kind === "gate" ? t(i === d.steps.length - 1 ? "A person takes over from here" : "Waits for your approval") : s.prompt)}</div></div></div>`).join("")}</div></div>
   <div class="grp mt10">${facts.map(([k, v]) => `<div class="row"><div class="sub dl">${esc(k)}</div><div class="grow nm wrap">${esc(v)}</div></div>`).join("")}</div>
   ${c.problem ? `<div class="bn err mt10">${icon("err")}<span>${c.problem === "permission exceeds this device's limit" ? `${T("This Loop needs “{need}”, but this device allows at most “{max}”.", { need: sandboxLabel(d.sandbox), max: sandboxLabel(S().settings.maxSandbox) })} <a href="#/settings">${T("Raise the limit in Settings")}</a>` : esc(errText(c.problem))}</span></div>` : ""}

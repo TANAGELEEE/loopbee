@@ -31,6 +31,21 @@ func TestEveryAdapterMeetsTheContract(t *testing.T) {
 			if ag.Status != "available" || ag.Label != ad.Label || !slices.Equal(ag.Levels, ad.Levels) || ag.Flags["agent-config"] == "" {
 				t.Fatalf("detection: %+v", ag)
 			}
+			// Adapters with Efforts must have EffortArgs and produce arguments for each level.
+			if len(ad.Efforts) > 0 {
+				if ad.EffortArgs == nil {
+					t.Fatalf("%s declares Efforts but has no EffortArgs", name)
+				}
+				for _, level := range ad.Efforts {
+					args := ad.EffortArgs(level)
+					if len(args) == 0 {
+						t.Fatalf("%s EffortArgs(%q) returned no arguments", name, level)
+					}
+				}
+				if !slices.Equal(ag.Efforts, ad.Efforts) {
+					t.Fatalf("%s efforts: got %v, want %v", name, ag.Efforts, ad.Efforts)
+				}
+			}
 			setMaxSandbox(t, a, "agent-config")
 			run := func(mode, level string) Run {
 				t.Helper()

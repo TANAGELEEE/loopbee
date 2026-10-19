@@ -294,7 +294,7 @@ export function loopDetail(id) {
     <div class="kv mt10"><span><b>${T("Schedule")}</b>${esc(cronText(l.cron))}${l.cron ? " · " + esc(l.timezone) : ""}</span><span><b>${T("Next run")}</b>${esc(l.enabled && l.cron ? when(l.next) : "—")}</span><span><b>${T("Last result")}</b>${last ? esc(when(last.started) + " · " + (active(last) ? t(lifecycle(last) === "waiting" ? "Waiting" : "Running") : outcomeLabel(last))) : "—"}</span><span><b>${T("Updated")}</b>${esc(when(l.updated))}</span></div>
   </div>
   ${sec(T("Flow definition"), { note: T(current ? "The bee follows the active run" : "Same definition drives the board · the bee flies while a run is active") })}
-  <div class="card sm flowcard">${renderFlow(l.steps, state, { run: current, maxRounds: l.maxRounds })}<hr class="hair">${renderTopology({ loop: l, run: current, state, agents: s.agents, activeCount, host: host() })}${current ? `<div class="sub mt6"><a href="#/run/${current.id}">${T("Open the active run")} ›</a></div>` : ""}</div>
+  <div class="card sm flowcard">${renderFlow(l.steps, state, { run: current, loop: l, maxRounds: l.maxRounds })}<hr class="hair">${renderTopology({ loop: l, run: current, state, agents: s.agents, activeCount, host: host() })}${current ? `<div class="sub mt6"><a href="#/run/${current.id}">${T("Open the active run")} ›</a></div>` : ""}</div>
   <div class="cols">
     <div class="main">
       ${sec(T("Definition summary"), { note: esc(`v${l.version} · ${short(l.id)}`) })}
@@ -487,7 +487,7 @@ export function runDetail(id, ui) {
     ${ro ? "" : `<div class="sub mt6">${T("“Run again” creates a new run from the current definition. Cancelling stops the process tree but does not revert file changes.")}</div>`}
   </div>
   ${sec(T("Flow"), { note: T(active(r) ? "Click a node to inspect it · the bee shows where data is going" : "Click a node to inspect it · finished runs are static") })}
-  <div class="card sm flowcard">${renderFlow(l.steps, state, { run: r, maxRounds: l.maxRounds, selected: selX ? selX.step : -1 })}<hr class="hair">${renderTopology({ loop: l, run: r, state, agents: s.agents, activeCount: s.runs.filter(active).length, host: host() })}</div>
+  <div class="card sm flowcard">${renderFlow(l.steps, state, { run: r, loop: l, maxRounds: l.maxRounds, selected: selX ? selX.step : -1 })}<hr class="hair">${renderTopology({ loop: l, run: r, state, agents: s.agents, activeCount: s.runs.filter(active).length, host: host() })}</div>
   <div class="cols">
     <div class="main">
       ${sec(T("Round timeline"), { note: T("{r} rounds · {n} steps", { r: rounds.size, n: trace.length }) })}
@@ -556,7 +556,7 @@ export function gatePage(id) {
       ${sec(T("Evidence from this round"), { note: T("{n} item|{n} items", { n: prior.length }) })}
       <div class="grp">${prior.length ? prior.map((x) => `<button type="button" class="row link ${x.artifact === sel ? "selrow" : ""}" data-action="gate-preview" data-name="${esc(x.artifact)}"><span class="tag">${artifactKind(x.artifact)}</span><div class="grow min0"><div class="nm ell">${esc(x.name)}</div><div class="sub ell">${esc([x.kind, x.artifact, bytes(x.bytes)].filter(Boolean).join(" · "))}</div></div>${icon(x.status === "failed" ? "err" : "ok")}</button>`).join("") : empty(T("No evidence before this gate"), T("The gate is the first step of this round."))}</div>
       ${sec(T("Flow"))}
-      <div class="card sm flowcard">${renderFlow(l.steps, flowState(l.steps, r), { run: r, maxRounds: l.maxRounds })}</div>
+      <div class="card sm flowcard">${renderFlow(l.steps, flowState(l.steps, r), { run: r, loop: l, maxRounds: l.maxRounds })}</div>
     </div>
     <div class="side wide">
       ${sec(T("Preview"), { note: T("Plain text; nothing is executed or loaded") })}

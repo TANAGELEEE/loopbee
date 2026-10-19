@@ -257,6 +257,10 @@ export const agentColor = (n) => ({ codex: "#5b8def", claude: "#c95b9a", opencod
 export const agentCmd = (n) => ({ codex: "codex exec", claude: "claude -p", opencode: "opencode run", pi: "pi --mode json" })[n] || n;
 // The permission levels an agent enforces itself (always includes agent-config).
 export const agentLevels = (n) => ctx.state?.agents?.find((a) => a.name === n)?.levels || ["read-only", "workspace-write", "workspace-network", "agent-config"];
+export const AGENT_KINDS = ["act", "observe", "summarize"];
+export const agentEfforts = (n) => ctx.state?.agents?.find((a) => a.name === n)?.efforts || [];
+export const agentModels = (n) => ctx.state?.agents?.find((a) => a.name === n)?.models || [];
+export const agentModelHint = (n) => ctx.state?.agents?.find((a) => a.name === n)?.modelHint || [];
 // Token counts as 950, 12.3k, 1.2M.
 export const tokens = (n) => (n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + "k" : String(n || 0));
 export const usageTotal = (u) => (u ? (u.input || 0) + (u.cacheRead || 0) + (u.cacheWrite || 0) + (u.output || 0) : 0);

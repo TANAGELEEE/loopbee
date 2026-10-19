@@ -1,6 +1,8 @@
 package core
 
 import (
+	"context"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -26,11 +28,14 @@ func init() {
 			"read-only":    "--tools read,grep,find,ls",
 			"agent-config": "(no flags — your ~/.pi/agent settings)",
 		},
-		Args:     piArgs,
-		Classify: piClassify,
-		Final:    piFinal,
-		Failure:  piFailure,
-		Usage:    piUsage,
+		Efforts:    []string{"off", "minimal", "low", "medium", "high", "xhigh", "max"},
+		EffortArgs: func(level string) []string { return []string{"--thinking", level} },
+		ListModels: piListModels,
+		Args:       piArgs,
+		Classify:   piClassify,
+		Final:      piFinal,
+		Failure:    piFailure,
+		Usage:      piUsage,
 		Context: func(home, _ string) []string {
 			ph := envHome("PI_CODING_AGENT_DIR", home, ".pi", "agent")
 			return []string{filepath.Join(ph, "skills"), filepath.Join(ph, "prompts"), filepath.Join(ph, "AGENTS.md"),
@@ -66,6 +71,33 @@ func piTrusted(home, project string) bool {
 	}
 }
 
+// piListModels parses `pi --list-models` table output.
+func piListModels(ctx context.Context, base []string, env []string) ([]Model, error) {
+	// Run in a temp directory to avoid side effects in the current directory.
+	dir, err := os.MkdirTemp("", "loopbee-list-models-")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(dir)
+	out, err := runCommandEnv(ctx, dir, append(append([]string{}, base...), "--list-models"), nil, nil, env)
+	if err != nil {
+		return nil, err
+	}
+	var models []Model
+	lines := strings.Split(string(out), "\n")
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) < 6 || fields[0] == "provider" {
+			continue
+		}
+		// Format: provider model context max-out thinking images
+		// ID is provider/model
+		id := fields[0] + "/" + fields[1]
+		models = append(models, Model{ID: id})
+	}
+	return models, nil
+}
+
 func piArgs(inv agentInvocation, caps []string) ([]string, []string) {
 	argv := []string{"--mode", "json"}
 	if hasCap(caps, "no-session") {
@@ -90,6 +122,11 @@ func piArgs(inv agentInvocation, caps []string) ([]string, []string) {
 	}
 	if inv.Model != "" {
 		argv = append(argv, "--model", inv.Model)
+	}
+	if inv.Effort != "" {
+		if ad, ok := adapterFor(inv.Name); ok && ad.EffortArgs != nil {
+			argv = append(argv, ad.EffortArgs(inv.Effort)...)
+		}
 	}
 	return argv, nil
 }

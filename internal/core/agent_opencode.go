@@ -1,7 +1,9 @@
 package core
 
 import (
+	"context"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -24,11 +26,12 @@ func init() {
 			"read-only":    "OPENCODE_CONFIG_CONTENT: edit, bash, webfetch, websearch, task denied",
 			"agent-config": "(no flags — your opencode.json permissions)",
 		},
-		Args:     opencodeArgs,
-		Classify: opencodeClassify,
-		Final:    opencodeFinal,
-		Failure:  opencodeFailure,
-		Usage:    opencodeUsage,
+		ListModels: opencodeListModels,
+		Args:       opencodeArgs,
+		Classify:   opencodeClassify,
+		Final:      opencodeFinal,
+		Failure:    opencodeFailure,
+		Usage:      opencodeUsage,
 		Context: func(home, _ string) []string {
 			oc := filepath.Join(envHome("XDG_CONFIG_HOME", home, ".config"), "opencode")
 			return []string{filepath.Join(oc, "skills"), filepath.Join(oc, "agents"), filepath.Join(oc, "commands"),
@@ -70,6 +73,43 @@ func opencodeToolPrefix(server string) string {
 		}
 		return '_'
 	}, server) + "_"
+}
+
+// opencodeListModels parses `opencode models` output (one provider/model per line).
+func opencodeListModels(ctx context.Context, base []string, env []string) ([]Model, error) {
+	// Run in a temp directory to avoid side effects in the current directory.
+	dir, err := os.MkdirTemp("", "loopbee-list-models-")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(dir)
+	out, err := runCommandEnv(ctx, dir, append(append([]string{}, base...), "models"), nil, nil, env)
+	if err != nil {
+		return nil, err
+	}
+	var models []Model
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		models = append(models, Model{ID: line})
+	}
+	// OpenCode's first call can come back empty while its background service starts; retry once.
+	if len(models) == 0 && ctx.Err() == nil {
+		out, err = runCommandEnv(ctx, dir, append(append([]string{}, base...), "models"), nil, nil, env)
+		if err != nil {
+			return nil, err
+		}
+		for _, line := range strings.Split(string(out), "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			models = append(models, Model{ID: line})
+		}
+	}
+	return models, nil
 }
 
 func opencodeArgs(inv agentInvocation, caps []string) ([]string, []string) {

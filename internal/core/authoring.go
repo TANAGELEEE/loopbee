@@ -55,6 +55,7 @@ func authorSchema() map[string]any {
 	step := obj(map[string]any{
 		"kind": map[string]any{"type": "string", "enum": []string{"act", "observe", "summarize", "run", "verify", "gate"}},
 		"name": str, "prompt": str, "argv": strs, "metric": str, "metricPath": str, "continueOnError": map[string]any{"type": "boolean"},
+		"model": str, "effort": str,
 	})
 	loop := obj(map[string]any{
 		"name": str, "description": str, "directory": str, "cron": str, "timezone": str,
@@ -69,7 +70,7 @@ func authorSchema() map[string]any {
 		"intake":      obj(map[string]any{"kind": map[string]any{"type": "string", "enum": []string{"", "github-issues"}}, "repo": str, "label": str, "trustedUsers": strs}),
 		"pullRequest": obj(map[string]any{"mode": map[string]any{"type": "string", "enum": []string{"", "after-review", "draft"}}, "base": str, "merge": map[string]any{"type": "string", "enum": []string{"", "after-checks"}}}),
 		"env":         map[string]any{"type": "array", "items": obj(map[string]any{"name": str, "secret": map[string]any{"type": "boolean"}, "value": str})},
-		"readPaths":   strs, "copyFiles": strs, "model": str, "agentMcp": map[string]any{"type": "boolean"},
+		"readPaths":   strs, "copyFiles": strs, "model": str, "effort": str, "agentMcp": map[string]any{"type": "boolean"},
 	})
 	return obj(map[string]any{
 		"reply":     str,
@@ -86,6 +87,27 @@ func agentToolNote(agent string) string {
 	}
 	return a.ToolNote + "\n  " + a.Label + " enforces these permission levels: " + strings.Join(a.Levels, ", ") +
 		". Never choose another level for it: loopbee refuses to run it there."
+}
+
+// modelEffortNote lists the agent's available models (from detection or hints).
+func modelEffortNote(agent string) string {
+	ag, ok := adapters[agent]
+	if !ok {
+		return ""
+	}
+	if len(ag.ModelHint) > 0 {
+		return " Common models: " + strings.Join(ag.ModelHint, ", ") + "."
+	}
+	return ""
+}
+
+// effortNote lists the agent's thinking/reasoning effort levels.
+func effortNote(agent string) string {
+	ag, ok := adapters[agent]
+	if !ok || len(ag.Efforts) == 0 {
+		return " does not support effort levels"
+	}
+	return " supports: " + strings.Join(ag.Efforts, ", ")
 }
 
 func authorPrompt(req AuthorRequest, dir, lang, tz, agent, maxSandbox string, draft Loop) string {
@@ -144,7 +166,11 @@ Design rules:
   install those with a run step before the agent step (e.g. ["npm","ci"]).
 - env: variables the workflow needs. value "env:NAME" passes the variable NAME from the user's shell
   (loopbee also looks in the login shell); otherwise leave value empty and the user fills it in loopbee.
-- model: leave empty (the agent's own default) unless the user names a model for this Loop.
+- model: leave empty (the agent's own default) unless the user names a model for this Loop.` + modelEffortNote(agent) + `
+- effort: thinking/reasoning effort level (empty = the agent's default). ` + agentLabel(agent) + effortNote(agent) + `
+  Choose by task difficulty: low for simple edits, medium for typical development work, high/xhigh for complex
+  refactoring or architecture changes, max for the hardest reasoning tasks. Steps may override the Loop's model
+  and effort (empty = inherit from the Loop).
 - agentMcp: true when the work uses the agent's own MCP tools: a browser (to operate a web console, test a site,
   fill a form), a database, a ticket system, a design tool or anything the user does through their agent's
   connected tools. Nobody can approve a tool in an unattended run, so without agentMcp every MCP tool is
@@ -196,7 +222,7 @@ func definitionForAgent(l Loop) map[string]any {
 	}
 	steps := []map[string]any{}
 	for _, s := range l.Steps {
-		steps = append(steps, map[string]any{"kind": s.Kind, "name": s.Name, "prompt": s.Prompt, "argv": nonNil(s.Argv), "metric": s.Metric, "metricPath": s.MetricPath, "continueOnError": s.ContinueOnError})
+		steps = append(steps, map[string]any{"kind": s.Kind, "name": s.Name, "prompt": s.Prompt, "argv": nonNil(s.Argv), "metric": s.Metric, "metricPath": s.MetricPath, "continueOnError": s.ContinueOnError, "model": s.Model, "effort": s.Effort})
 	}
 	env := []map[string]any{}
 	for _, e := range l.Env {
@@ -212,7 +238,7 @@ func definitionForAgent(l Loop) map[string]any {
 		"wallMinutes": l.WallMinutes, "stallRounds": l.StallRounds, "gateHours": l.GateHours, "doneWhen": l.DoneWhen,
 		"allowedTools": nonNil(l.AllowedTools), "steps": steps,
 		"notify": map[string]any{"events": nonNil(l.Notify.Events), "includeReport": l.Notify.IncludeReport, "channels": nonNil(l.Notify.Channels)}, "env": env,
-		"intake": intake, "pullRequest": pr, "readPaths": nonNil(l.ReadPaths), "copyFiles": nonNil(l.CopyFiles), "model": l.Model, "agentMcp": l.AgentMCP,
+		"intake": intake, "pullRequest": pr, "readPaths": nonNil(l.ReadPaths), "copyFiles": nonNil(l.CopyFiles), "model": l.Model, "effort": l.Effort, "agentMcp": l.AgentMCP,
 	}
 }
 func nonNil(s []string) []string {

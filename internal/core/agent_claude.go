@@ -30,11 +30,14 @@ func init() {
 			"workspace-network": "--permission-mode acceptEdits + sandbox (allowedDomains *)",
 			"agent-config":      "(no flags — your settings.json permissions)",
 		},
-		Args:     claudeArgs,
-		Classify: claudeClassify,
-		Final:    claudeFinal,
-		Failure:  claudeFailure,
-		Usage:    claudeUsage,
+		Efforts:    []string{"low", "medium", "high", "xhigh", "max"},
+		EffortArgs: func(level string) []string { return []string{"--effort", level} },
+		ModelHint:  []string{"fable", "opus", "sonnet"}, // aliases from `claude --help`
+		Args:       claudeArgs,
+		Classify:   claudeClassify,
+		Final:      claudeFinal,
+		Failure:    claudeFailure,
+		Usage:      claudeUsage,
 		Context: func(home, project string) []string {
 			ch := claudeHome(home)
 			return []string{filepath.Join(ch, "skills"), filepath.Join(ch, "plugins"), filepath.Join(ch, "agents"),
@@ -122,6 +125,11 @@ func claudeArgs(inv agentInvocation, caps []string) ([]string, []string) {
 	}
 	if inv.Model != "" {
 		argv = append(argv, "--model", inv.Model)
+	}
+	if inv.Effort != "" {
+		if ad, ok := adapterFor(inv.Name); ok && ad.EffortArgs != nil {
+			argv = append(argv, ad.EffortArgs(inv.Effort)...)
+		}
 	}
 	if hasCap(caps, "add-dir") {
 		for _, d := range inv.AddDirs {
