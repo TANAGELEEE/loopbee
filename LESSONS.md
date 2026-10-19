@@ -154,7 +154,8 @@ credentials. Now agents get no Git access, loopbee's Git runs without hooks and 
 files the agent changed, the editor warns about commands between an agent and a gate, and the example has none.
 After a person approved the change at a gate, later commands may run it (a reviewed migration or deploy script):
 refusing those too made “merge → review → migrate → deploy” impossible in one Loop.
-- Evidence: `TestHostileAgentCannotEscapeThroughLoopbee`, `TestSelfImproveExampleIsValid`, `tests/agents-e2e.mjs#runs after the agent and before any review`
+An agent review is not a person's approval: a command after a review step still refuses files an agent changed.
+- Evidence: `TestHostileReviewCannotRunChangedCommand`, `TestHostileAgentCannotEscapeThroughLoopbee`, `TestSelfImproveExampleIsValid`, `tests/agents-e2e.mjs#runs after the agent and before any review`
 - Seen: 2026-10-12
 
 ### The gate shows what will be pushed
@@ -206,6 +207,13 @@ A pushed workflow file runs with the repository's token before anyone merges it.
 Retried triggers started duplicate runs.
 - Evidence: `TestConcurrentStartAndCancel`
 - Seen: initial build
+
+### Changing a step kind drops fields from its previous kind
+The form retains old fields when a person changes a step's kind. SaveLoop removes fields that no longer apply
+before validation; Validate remains strict for definitions supplied directly. Copy the steps first so saving does
+not mutate the caller's definition.
+- Evidence: `TestSaveLoopDropsFieldsFromPreviousKind`
+- Seen: 2026-10-19
 
 ### Saving compares versions
 An old editor overwrote a newer version.

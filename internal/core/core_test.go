@@ -21,6 +21,40 @@ func testLoop(t *testing.T) Loop {
 	return Loop{Name: "Test", Directory: t.TempDir(), Agent: "codex", Sandbox: "read-only", Timezone: "UTC", MaxRounds: 1, WallMinutes: 1, StallRounds: 1, Steps: []Step{{Kind: "gate", Name: "Review"}}}
 }
 
+func TestSaveLoopDropsFieldsFromPreviousKind(t *testing.T) {
+	a := testApp(t)
+	for _, kind := range []string{"gate", "act", "review", "run", "verify", "deliver"} {
+		t.Run(kind, func(t *testing.T) {
+			l := testLoop(t)
+			l.Workspace, l.Branch = "worktree", "loopbee/test"
+			l.AllowedTools = []string{"echo"}
+			l.Steps = []Step{{ID: "code", Kind: "act", Name: "Code", Prompt: "work"}, {
+				ID: "changed", Kind: kind, Name: "Changed", Prompt: "old prompt", Agent: "codex", Sandbox: "read-only",
+				Inputs: []string{"code"}, Model: "test", Effort: "high", Argv: []string{"echo", "ok"},
+				Metric: "score", MetricPath: "$.score", ContinueOnError: true, SendBackTo: "code", MaxAttempts: 2,
+				PullRequest: &PullRequest{Mode: "draft"},
+			}}
+			if Validate(l) == nil {
+				t.Fatal("direct validation accepted stale fields")
+			}
+			saved, err := a.SaveLoop(l)
+			if err != nil {
+				t.Fatal(err)
+			}
+			s := saved.Steps[1]
+			if !isAgentStep(kind) && (s.Prompt != "" || s.Agent != "" || s.Sandbox != "" || s.Inputs != nil || s.Model != "" || s.Effort != "") {
+				t.Fatalf("stale agent fields: %+v", s)
+			}
+			if (kind != "run" && kind != "verify" && s.Argv != nil) || (kind != "verify" && (s.Metric != "" || s.MetricPath != "")) || (kind != "run" && s.ContinueOnError) || (kind != "review" && (s.SendBackTo != "" || s.MaxAttempts != 0)) || (kind != "deliver" && s.PullRequest != nil) {
+				t.Fatalf("stale kind fields: %+v", s)
+			}
+			if l.Steps[1].Prompt != "old prompt" || l.Steps[1].PullRequest == nil {
+				t.Fatal("save mutated caller's steps")
+			}
+		})
+	}
+}
+
 func TestValidation(t *testing.T) {
 	l := testLoop(t)
 	if err := Validate(l); err != nil {

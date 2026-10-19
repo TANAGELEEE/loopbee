@@ -73,6 +73,18 @@ func TestFakeGitHub(t *testing.T) {
 	}
 	out := func(v any) { b, _ := json.Marshal(v); os.Stdout.Write(b) }
 	fail := func(msg string) { save(); fmt.Fprintln(os.Stderr, msg); os.Exit(1) }
+	// Count against the server's current base, not the caller's possibly stale tracking ref.
+	commitCount := func(pr map[string]string) string {
+		remote := os.Getenv("LOOPBEE_FAKE_GH_MERGE_REMOTE")
+		if remote == "" {
+			return ""
+		}
+		out, err := exec.Command("git", "--git-dir", remote, "rev-list", "--count", "refs/heads/"+orDefault(pr["base"], st.DefaultBranch)+"..refs/heads/"+pr["head"]).CombinedOutput()
+		if err != nil {
+			fail("fake PR commit count: " + string(out))
+		}
+		return strings.TrimSpace(string(out))
+	}
 	find := func(n string) *fakeIssue {
 		for k := range st.Issues {
 			if fmt.Sprint(st.Issues[k].Number) == n {
@@ -97,6 +109,12 @@ func TestFakeGitHub(t *testing.T) {
 		out(list)
 	case args[0] == "api" && args[1] == "-X":
 		st.Deleted = append(st.Deleted, args[3])
+		if remote := os.Getenv("LOOPBEE_FAKE_GH_MERGE_REMOTE"); remote != "" {
+			ref := strings.TrimPrefix(args[3], "repos/{owner}/{repo}/git/refs/")
+			if strings.HasPrefix(ref, "heads/") {
+				exec.Command("git", "--git-dir", remote, "update-ref", "-d", "refs/"+ref).Run()
+			}
+		}
 	case args[0] == "pr" && args[1] == "checks":
 		if len(st.Checks) == 0 {
 			fail("no checks reported on the 'x' branch")
@@ -109,6 +127,36 @@ func TestFakeGitHub(t *testing.T) {
 		out(checks)
 	case args[0] == "pr" && args[1] == "merge":
 		st.Merged = append(st.Merged, args[2]+"@"+flag("--match-head-commit"))
+		for i := range st.PRs {
+			if st.PRs[i]["url"] == args[2] {
+				st.PRs[i]["commitsAtMerge"] = commitCount(st.PRs[i])
+				st.PRs[i]["merged"] = "true"
+			}
+		}
+		if remote := os.Getenv("LOOPBEE_FAKE_GH_MERGE_REMOTE"); remote != "" && len(st.PRs) > 0 {
+			pr := st.PRs[len(st.PRs)-1]
+			base := orDefault(pr["base"], "master")
+			clone := filepath.Join(os.TempDir(), "loopbee-fake-merge-"+newID())
+			defer os.RemoveAll(clone)
+			if out, err := exec.Command("git", "clone", "-q", remote, clone).CombinedOutput(); err != nil {
+				fail("fake merge clone: " + string(out))
+			}
+			if out, err := exec.Command("git", "-C", clone, "checkout", "-q", base).CombinedOutput(); err != nil {
+				fail("fake merge checkout: " + string(out))
+			}
+			if out, err := exec.Command("git", "-C", clone, "fetch", "-q", "origin", pr["head"]).CombinedOutput(); err != nil {
+				fail("fake merge fetch: " + string(out))
+			}
+			if out, err := exec.Command("git", "-C", clone, "merge", "--squash", "FETCH_HEAD").CombinedOutput(); err != nil {
+				fail("fake merge: " + string(out))
+			}
+			if out, err := exec.Command("git", "-C", clone, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-qm", "merged").CombinedOutput(); err != nil {
+				fail("fake merge commit: " + string(out))
+			}
+			if out, err := exec.Command("git", "-C", clone, "push", "-q", "origin", "HEAD:refs/heads/"+base).CombinedOutput(); err != nil {
+				fail("fake merge push: " + string(out))
+			}
+		}
 	case args[0] == "api":
 		rest := strings.TrimPrefix(args[1], "repos/{owner}/{repo}/issues/")
 		n, _, comments := strings.Cut(rest, "/comments")
@@ -139,7 +187,7 @@ func TestFakeGitHub(t *testing.T) {
 	case args[0] == "pr" && args[1] == "list":
 		var prs []map[string]string
 		for _, p := range st.PRs {
-			if p["head"] == flag("--head") {
+			if p["head"] == flag("--head") && p["merged"] != "true" {
 				prs = append(prs, map[string]string{"url": p["url"]})
 			}
 		}
@@ -149,7 +197,9 @@ func TestFakeGitHub(t *testing.T) {
 			time.Sleep(d)
 		}
 		url := fmt.Sprintf("https://github.com/acme/app/pull/%d", len(st.PRs)+1)
-		st.PRs = append(st.PRs, map[string]string{"head": flag("--head"), "base": flag("--base"), "title": flag("--title"), "body": flag("--body"), "draft": fmt.Sprint(slices.Contains(args, "--draft")), "url": url})
+		pr := map[string]string{"head": flag("--head"), "base": flag("--base"), "title": flag("--title"), "body": flag("--body"), "draft": fmt.Sprint(slices.Contains(args, "--draft")), "url": url}
+		pr["commitsAtCreation"] = commitCount(pr)
+		st.PRs = append(st.PRs, pr)
 		fmt.Println(url)
 	default:
 		fail("fake gh: unsupported " + strings.Join(args, " "))
@@ -164,6 +214,22 @@ func readFakeGitHub(t *testing.T, file string) fakeGitHub {
 	b, _ := os.ReadFile(file)
 	json.Unmarshal(b, &st)
 	return st
+}
+
+// assertFakePRCommitCounts checks history at both server-side boundaries; checking
+// only the final diff misses old commits reintroduced after a squash merge.
+func assertFakePRCommitCounts(t *testing.T, st fakeGitHub, counts ...int) {
+	t.Helper()
+	if len(st.PRs) != len(counts) {
+		t.Fatalf("PR count: got %d, want %d: %+v", len(st.PRs), len(counts), st.PRs)
+	}
+	for i, count := range counts {
+		for _, key := range []string{"commitsAtCreation", "commitsAtMerge"} {
+			if got := st.PRs[i][key]; got != fmt.Sprint(count) {
+				t.Errorf("PR %d %s: got %q, want %d; history includes stale commits: %+v", i+1, key, got, count, st.PRs[i])
+			}
+		}
+	}
 }
 
 // issueSetup: a project with a bare origin, a fake GitHub with the given issues, and an issue Loop.
@@ -470,6 +536,108 @@ func TestMergeAfterChecksOnlyWhenGreen(t *testing.T) {
 	if _, err := a.SaveLoop(l); err == nil || !strings.Contains(err.Error(), "a draft has not been reviewed") {
 		t.Fatal(err)
 	}
+}
+
+// Agent review is not human approval, and a review agent running after approval
+// must re-arm the command guard just like any other agent.
+func TestHostileReviewCannotRunChangedCommand(t *testing.T) {
+	for _, afterGate := range []bool{false, true} {
+		name := "before human review"
+		if afterGate {
+			name = "after human approval"
+		}
+		t.Run(name, func(t *testing.T) {
+			mode := "tamper"
+			if afterGate {
+				mode = "edit"
+			}
+			a, l, log, _, _ := issueSetup(t, mode, nil, func(l *Loop) {
+				l.Intake, l.PullRequest = nil, nil
+				l.Branch = "loopbee/hostile-review-{run}"
+				l.AllowedTools = []string{os.Args[0]}
+				l.Steps = []Step{{ID: "code", Kind: "act", Name: "Code", Prompt: "work"}}
+				if afterGate {
+					l.Steps = append(l.Steps, Step{Kind: "gate", Name: "Human review"})
+				}
+				l.Steps = append(l.Steps,
+					Step{ID: "review", Kind: "review", Name: "Agent review", Prompt: "Review the work", SendBackTo: "code"},
+					Step{Kind: "run", Name: "Use the tool", Argv: []string{os.Args[0], "-test.run=^TestHelperProcess$", "tool.txt"}},
+				)
+			})
+			t.Setenv("LOOPBEE_HELPER", "success")
+			r, err := a.Start(l.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if afterGate {
+				waitStatus(t, a, r.ID, "waiting")
+				t.Setenv("LOOPBEE_FAKE_MODE", "tamper")
+				if err := a.Decide(r.ID, true, "approved the implementation, not later edits"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			waitStatus(t, a, r.ID, "blocked")
+			r, _ = a.Run(r.ID)
+			if !strings.Contains(r.Error, "would run tool.txt, which the agent changed") {
+				t.Fatal(r.Error)
+			}
+			if len(fakeCalls(t, log)) != 2 {
+				t.Fatal("the review agent must execute before the command is refused")
+			}
+			review := r.Trace[len(r.Trace)-2]
+			command := r.Trace[len(r.Trace)-1]
+			if review.Kind != "review" || review.Status != "ok" || command.Kind != "run" || command.Status != "failed" || !strings.Contains(command.Note, "refused: tool.txt") {
+				t.Fatalf("review/command trace: %+v", r.Trace)
+			}
+			if command.Artifact != "" {
+				t.Fatal("refused command produced an execution artifact")
+			}
+		})
+	}
+}
+
+// Legacy end-of-run delivery must leave the recorded branch at its reviewed head.
+// Only an explicit deliver step needs a fresh base for agents that run after it.
+func TestLegacyDeliveryDoesNotFetchOrResetAfterMerge(t *testing.T) {
+	a, l, _, state, origin := issueSetup(t, "edit", []fakeIssue{trustedIssue()}, func(l *Loop) {
+		l.PullRequest.Merge = "after-checks"
+	})
+	t.Setenv("LOOPBEE_FAKE_GH_MERGE_REMOTE", origin)
+	st := readFakeGitHub(t, state)
+	st.Checks = []map[string]string{{"name": "core", "bucket": "pass"}}
+	b, err := json.Marshal(st)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(state, b, 0600); err != nil {
+		t.Fatal(err)
+	}
+	r, err := a.Start(l.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitStatus(t, a, r.ID, "waiting")
+	r, _ = a.Run(r.ID)
+	head := gitOutput(t, r.Workdir, "rev-parse", "HEAD")
+	base := gitOutput(t, r.Workdir, "rev-parse", "refs/remotes/origin/master")
+	if err := a.Decide(r.ID, true, "reviewed"); err != nil {
+		t.Fatal(err)
+	}
+	waitStatus(t, a, r.ID, "completed")
+	r, _ = a.Run(r.ID)
+	if !r.Merged || r.Phase != "" {
+		t.Fatalf("legacy delivery: merged=%t phase=%q", r.Merged, r.Phase)
+	}
+	if merged := gitOutput(t, origin, "rev-parse", "master"); merged == base || merged == head {
+		t.Fatalf("fake GitHub did not squash merge: base=%s head=%s merged=%s", base, head, merged)
+	}
+	if got := gitOutput(t, r.Workdir, "rev-parse", "HEAD"); got != head {
+		t.Fatalf("legacy delivery reset the reviewed branch: got %s, want %s", got, head)
+	}
+	if got := gitOutput(t, r.Workdir, "rev-parse", "refs/remotes/origin/master"); got != base {
+		t.Fatalf("legacy delivery fetched after merge: got %s, want %s", got, base)
+	}
+	assertFakePRCommitCounts(t, readFakeGitHub(t, state), 1)
 }
 
 func TestDraftPullRequestAndNoAutomaticCIChanges(t *testing.T) {

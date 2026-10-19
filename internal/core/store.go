@@ -361,6 +361,27 @@ func assignStepIDs(steps []Step) bool {
 
 func (a *App) SaveLoop(l Loop) (Loop, error) {
 	l.Steps = append([]Step(nil), l.Steps...)
+	for i := range l.Steps {
+		s := &l.Steps[i]
+		if !isAgentStep(s.Kind) {
+			s.Prompt, s.Agent, s.Sandbox, s.Inputs, s.Model, s.Effort = "", "", "", nil, "", ""
+		}
+		if s.Kind != "run" && s.Kind != "verify" {
+			s.Argv = nil
+		}
+		if s.Kind != "verify" {
+			s.Metric, s.MetricPath = "", ""
+		}
+		if s.Kind != "run" {
+			s.ContinueOnError = false
+		}
+		if s.Kind != "review" {
+			s.SendBackTo, s.MaxAttempts = "", 0
+		}
+		if s.Kind != "deliver" {
+			s.PullRequest = nil
+		}
+	}
 	assignStepIDs(l.Steps)
 	for i := range l.Steps {
 		if l.Steps[i].Kind == "review" && l.Steps[i].MaxAttempts == 0 {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -50,6 +51,15 @@ var sandboxRank = map[string]int{"read-only": 0, "workspace-write": 1, "workspac
 func validSandbox(s string) bool { _, ok := sandboxRank[s]; return ok }
 func sandboxWithin(level, ceiling string) bool {
 	return validSandbox(level) && validSandbox(ceiling) && sandboxRank[level] <= sandboxRank[ceiling]
+}
+
+func validateStepSandboxCeilings(l Loop, ceiling string) error {
+	for _, step := range l.Steps {
+		if isAgentStep(step.Kind) && !sandboxWithin(orDefault(step.Sandbox, l.Sandbox), ceiling) {
+			return fmt.Errorf("step %q permission exceeds this device's limit; lower the step sandbox or raise the limit in Settings", step.Name)
+		}
+	}
+	return nil
 }
 
 // agentOverride lets tests replace an agent executable with a fake (argv prefix).
@@ -258,11 +268,24 @@ func classifyAgentEvent(line string) (string, bool) {
 // Result contract appended to every agent step so loopbee can tell done from no-op or blocked.
 const resultMarker = "LOOPBEE_RESULT"
 
-func resultInstructions(lang string) string {
+func resultInstructions(lang string) string { return resultInstructionsFor(lang, false) }
+
+func resultInstructionsFor(lang string, review bool) string {
+	statuses := "done|no_action|blocked|needs_approval"
+	if review {
+		statuses += "|changes_requested"
+	}
 	return "\n\n---\nloopbee runs this step unattended. Report in " + languageName(lang) + ". " +
 		"When you finish, end your final message with exactly one line:\n" + resultMarker +
-		` {"status":"done|no_action|blocked|needs_approval","summary":"one or two sentences","links":["URLs of PRs, deployments or reports"]}` +
-		"\nUse no_action when there was nothing to do, blocked when you could not proceed (missing access, failing preconditions), and needs_approval when a person must decide before anything else happens. Never include secrets in the summary." +
+		` {"status":"` + statuses + `","summary":"one or two sentences","links":["URLs of PRs, deployments or reports"]}` +
+		"\nUse no_action when there was nothing to do, blocked when you could not proceed (missing access, failing preconditions), and needs_approval when a person must decide before anything else happens." +
+		func() string {
+			if review {
+				return " Use done when the work passes review, or changes_requested when the work needs revision; put the concrete review findings in summary."
+			}
+			return ""
+		}() +
+		" Never include secrets in the summary." +
 		"\nIf something you needed was unavailable (a file or folder, a host or service, an environment variable or credential, a command, skill, plugin or MCP tool, a permission), add \"missing\": [\"one short item per thing, naming it exactly\"] to that line, also when you could work around it."
 }
 func languageName(l string) string {
@@ -284,7 +307,11 @@ type AgentResult struct {
 	Missing []string `json:"missing,omitempty"`
 }
 
-func parseResult(text string) *AgentResult {
+func parseResult(text string) *AgentResult { return parseResultFor(text, false) }
+
+func parseReviewResult(text string) *AgentResult { return parseResultFor(text, true) }
+
+func parseResultFor(text string, review bool) *AgentResult {
 	idx := strings.LastIndex(text, resultMarker)
 	if idx < 0 {
 		return nil
@@ -300,6 +327,10 @@ func parseResult(text string) *AgentResult {
 	}
 	switch r.Status {
 	case "done", "no_action", "blocked", "needs_approval":
+	case "changes_requested":
+		if !review {
+			return nil
+		}
 	default:
 		return nil
 	}
