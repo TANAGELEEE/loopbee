@@ -5,10 +5,11 @@
 # Everything runs against a throw-away sample repository in a temp folder; your projects are not touched.
 # The full log is written to .test-data/real-smoke.log; afterwards the packaged app opens on the test data.
 #
-#   sh scripts/real-smoke.sh                      # all detected agents, both scenarios
+#   sh scripts/real-smoke.sh                      # all detected agents, all scenarios
 #   sh scripts/real-smoke.sh --agents claude      # one agent
 #   sh scripts/real-smoke.sh --agents opencode,pi
 #   sh scripts/real-smoke.sh --scenarios report   # read-only scenario only
+#   sh scripts/real-smoke.sh --agents claude,pi --scenarios review   # Claude Code writes, pi reviews
 set -u
 cd "$(dirname "$0")/.."
 export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-11.0}"

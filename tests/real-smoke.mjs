@@ -12,9 +12,11 @@
 //            → run in a fresh worktree → gate → the branch has a commit that makes the tests pass,
 //              the developer's checkout is untouched → approve → done
 //            (only for agents that enforce workspace-write; OpenCode and pi have no sandbox and skip it)
+//   review — once, not per agent: the first agent writes a plan, another agent reviews it with a rule the first plan
+//            cannot meet → the review sends it back with feedback → the revised plan passes (read-only)
 // Every run must also record the model and tokens the CLI reported.
 import { execFileSync } from "node:child_process";
-import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { startCore, waitFor } from "./demo.mjs";
@@ -26,7 +28,7 @@ const opt = (name, def) => {
 };
 const defaultBin = process.platform === "darwin" ? "bin/loopbee.app/Contents/MacOS/loopbee" : process.platform === "win32" ? "bin/loopbee.exe" : "bin/loopbee";
 const bin = resolve(opt("bin", defaultBin));
-const scenarios = opt("scenarios", "report,fix").split(",");
+const scenarios = opt("scenarios", "report,fix,review").split(",");
 const keep = args.includes("--keep");
 const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const results = [];
@@ -134,6 +136,39 @@ async function scenario(core, agent, root, name) {
   return { agent, name, checks, status: r.status };
 }
 
+// Two agents in one Loop: the review must send the plan back once, and the plan's second attempt must follow it.
+async function reviewScenario(core, writer, reviewer, root) {
+  const proj = await sampleRepo(root, `${writer}-${reviewer}-review`);
+  const checks = [];
+  const check = (ok, what) => {
+    checks.push([ok, what]);
+    log(`  ${ok ? "✓" : "✗"} ${what}`);
+  };
+  const loop = {
+    id: "", version: 0, name: `review ${writer} by ${reviewer}`, description: "", directory: proj, agent: writer, sandbox: "read-only",
+    cron: "", timezone: tz, catchUp: false, enabled: false, private: true, lock: "", doneWhen: "", maxRounds: 1, wallMinutes: 20,
+    stallRounds: 1, allowedTools: [],
+    steps: [
+      { id: "plan", kind: "act", name: "Write plan", prompt: "Read README.md and write a numbered plan of three short items for its TODO. If you received reviewer feedback, follow it exactly. Do not change any file." },
+      { id: "plan-review", kind: "review", name: "Review plan", agent: reviewer, inputs: ["plan"], sendBackTo: "plan", maxAttempts: 2,
+        prompt: "Review the plan in the results of earlier steps. It passes only if its first line is exactly PLAN v2. If the first line is anything else, answer changes_requested with the summary: Make the first line exactly PLAN v2. Do not judge anything else. Do not change any file." },
+    ],
+  };
+  const t0 = Date.now();
+  const r = await runLoop(core, loop);
+  log(`  review: run → ${r.status} in ${Math.round((Date.now() - t0) / 1000)} s ${r.error ? "— " + r.error : ""}`);
+  for (const x of r.trace || []) log(`     · step ${x.step + 1} ${x.kind.padEnd(6)} attempt ${x.attempt || 1} · ${x.agent || "-"} · ${x.usage?.model || "(model not reported)"} · ${x.status} · ${(x.note || "").replace(/\s+/g, " ").slice(0, 100)}`);
+  const trace = (r.trace || []).map((x) => `${x.step}:${x.attempt || 1}`).join(" ");
+  check(r.status === "completed", "run completed after the review passed");
+  check(trace === "0:1 1:1 0:2 1:2", `the review sent the plan back once (order ${trace || "-"})`);
+  check((r.trace || []).every((x) => x.agent === (x.step === 0 ? writer : reviewer)), "each step ran its own agent");
+  check(/changes requested/i.test(r.trace?.[1]?.note || ""), "the first review requested changes");
+  const revised = await readFile(join(core.data, "runs", r.id, "round-01-step-01-attempt-02.report.md"), "utf8").catch(() => "");
+  check(/^\s*PLAN v2/.test(revised), "the revised plan followed the feedback (its first line is PLAN v2)");
+  check((r.trace || []).every((x) => (x.usage?.input || 0) + (x.usage?.cacheRead || 0) + (x.usage?.output || 0) > 0), "every attempt recorded the tokens its CLI reported");
+  return { agent: `${writer}+${reviewer}`, name: "review", checks, status: r.status };
+}
+
 const root = await mkdtemp(join(tmpdir(), "loopbee-real-smoke-"));
 log("binary:", bin);
 log("scratch:", root);
@@ -146,7 +181,7 @@ try {
   if (!wanted.length) throw new Error("no agent CLI detected; install one (Codex CLI, Claude Code, OpenCode, pi) and sign in");
   for (const agent of wanted) {
     const levels = s.agents.find((a) => a.name === agent)?.levels || [];
-    for (const name of scenarios) {
+    for (const name of scenarios.filter((n) => n !== "review")) {
       log(`— ${agent} / ${name}`);
       if (name === "fix" && !levels.includes("workspace-write")) {
         log(`  skipped: ${agent} cannot enforce workspace-write (levels: ${levels.join(", ")})`);
@@ -158,6 +193,18 @@ try {
         log(`  ✗ ${e.message}`);
         results.push({ agent, name, checks: [[false, e.message]], status: "error" });
       }
+    }
+  }
+  if (scenarios.includes("review")) {
+    // The reviewer is another agent when one is available, so two CLIs (and their models) share one Loop.
+    const writer = wanted[0];
+    const reviewer = wanted.find((a) => a !== writer) || writer;
+    log(`— ${writer} writes, ${reviewer} reviews`);
+    try {
+      results.push(await reviewScenario(core, writer, reviewer, root));
+    } catch (e) {
+      log(`  ✗ ${e.message}`);
+      results.push({ agent: `${writer}+${reviewer}`, name: "review", checks: [[false, e.message]], status: "error" });
     }
   }
 } finally {
