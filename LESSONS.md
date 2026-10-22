@@ -519,8 +519,11 @@ race in the update test. `TestMain` turns the sleep off for every child process.
 The gate test let the gate expire after 400 ms and approved it 350 ms after it *noticed* the gate, which polling
 starts late; on a busy Linux CI runner the 50 ms margin was gone and the approved Run had already timed out. Deadlines
 in tests are now far beyond what the test waits, and the test waits for the expiry instead of sleeping past it.
-- Evidence: `TestGateWaitIsOutsideTheTimeBudgetAndExpires`
-- Seen: 2026-10-15
+A deliver-step test later waited 5 seconds for a second gate that delivery, merge and an agent step come before;
+Windows CI needed longer, the wait ended silently, and the approval found no gate. Waits end on the state they wait
+for or fail saying what they saw.
+- Evidence: `TestGateWaitIsOutsideTheTimeBudgetAndExpires`, `TestDeliverStepMergesAndResetsForLaterAgent`
+- Seen: 2026-10-15, 2026-10-22
 
 ### A macOS path is a slash path on every OS
 `Locate` took the `.app` bundle apart with `filepath`, which turns `/` into `\` on Windows, so the test for a
