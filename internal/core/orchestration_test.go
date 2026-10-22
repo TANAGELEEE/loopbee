@@ -697,11 +697,16 @@ func TestDeliverStepMergesAndResetsForLaterAgent(t *testing.T) {
 	if err := a.Decide(r.ID, true, "reviewed changes"); err != nil {
 		t.Fatal(err)
 	}
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
+	// Delivery, merge, fetch and the QA agent run before the final gate: on a busy Windows runner that took more
+	// than the 5 seconds this wait once allowed, and the approval below then found no gate. Wait for the gate itself.
+	deadline := time.Now().Add(60 * time.Second)
+	for {
 		current, _ := a.Run(r.ID)
-		if len(current.Trace) >= 5 && current.Status == "waiting" {
+		if current.Status == "waiting" && current.Step == 4 {
 			break
+		}
+		if current.Finished != nil || time.Now().After(deadline) {
+			t.Fatalf("run did not reach the final gate: status=%s step=%d trace=%+v", current.Status, current.Step, current.Trace)
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
