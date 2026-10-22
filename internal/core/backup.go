@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -17,6 +18,35 @@ type Archive struct {
 	Loops   []Loop             `json:"loops"`
 	Runs    []Run              `json:"runs"`
 	Events  map[string][]Event `json:"events"`
+}
+
+// archiveFormat is 2 when a definition uses fields loopbee before v0.1.5 does not know. Those versions read the
+// manifest leniently and do not validate imported Loops, so they would drop a review loop's fields or a step's
+// lower permission without a word; format 2 makes them refuse the archive instead. Step IDs alone stay format 1:
+// older versions lose nothing by ignoring them.
+func archiveFormat(loops []Loop, runs []Run) int {
+	newer := func(l Loop) bool {
+		if l.Effort != "" {
+			return true
+		}
+		for _, s := range l.Steps {
+			if s.Kind == "review" || s.Kind == "deliver" || s.Agent != "" || s.Sandbox != "" || len(s.Inputs) > 0 || s.Model != "" || s.Effort != "" {
+				return true
+			}
+		}
+		return false
+	}
+	for _, l := range loops {
+		if newer(l) {
+			return 2
+		}
+	}
+	for _, r := range runs {
+		if newer(r.Definition) {
+			return 2
+		}
+	}
+	return 1
 }
 
 var validID = regexp.MustCompile(`^[a-f0-9]{24}$`)
@@ -47,6 +77,7 @@ func (a *App) Export(w io.Writer) error {
 			bundle.Events[r.ID] = events
 		}
 	}
+	bundle.Version = archiveFormat(bundle.Loops, bundle.Runs)
 	data, err := json.Marshal(bundle)
 	if err != nil {
 		return err
@@ -136,7 +167,10 @@ func (a *App) ImportArchive(data []byte) error {
 	if err = json.Unmarshal(manifest, &bundle); err != nil {
 		return err
 	}
-	if bundle.Version != 1 {
+	if bundle.Version > 2 {
+		return fmt.Errorf("this archive was made by a newer loopbee (format %d); update loopbee to import it", bundle.Version)
+	}
+	if bundle.Version < 1 {
 		return errors.New("unsupported archive version")
 	}
 	ids := map[string]string{}

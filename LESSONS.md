@@ -344,6 +344,14 @@ Nested JSON escapes hid secrets from flat patterns.
 - Evidence: `TestSensitiveContentScanner`
 - Seen: initial build
 
+### An archive an older version would misread must be one it refuses
+Older loopbee reads an exported archive's manifest leniently and does not validate the Loops it imports. A Loop with
+a review loop or a step-level permission would have lost those fields without a word, and a review step meant to be
+read-only would have run with the Loop's write access. Archives whose definitions use fields older versions do not
+know are written as format 2, which they refuse; a format newer than this version says to update loopbee.
+- Evidence: `TestArchiveFormatFollowsWhatOlderVersionsWouldDrop`
+- Seen: 2026-10-22
+
 ### Archive paths, sizes and IDs are untrusted
 Enforce extraction limits and manifests; assign new IDs and disable imported Loops.
 - Evidence: `TestArchiveTraversalRejected`, `TestArchiveRoundTrip`
