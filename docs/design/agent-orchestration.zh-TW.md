@@ -221,8 +221,11 @@ QA 退回時的執行順序：`qa` → `code`（帶著 QA 的問題清單）→ 
 
 ### 相容性
 
-- 舊 Loop 沒有新欄位，行為不變。載入時補上步驟 ID，並把 `Loop.PullRequest` 轉成結尾的 `deliver` 步驟；轉換後的定義以新版本儲存。
-- 匯出的 ZIP 和團隊快照帶上新欄位；舊版 loopbee 讀到不認識的欄位時，行為待確認（目前用 `DisallowUnknownFields` 的地方要逐一檢查）。
+- 舊 Loop 沒有新欄位，行為不變。載入時補上步驟 ID，不升版本。
+- **`Loop.PullRequest` 保留，不轉成 `deliver` 步驟。** 兩者的時機不同：`Loop.PullRequest` 在所有輪次結束、驗證通過後交付一次；`deliver` 步驟在流程中途，每一輪跑到它都會交付。多輪的 Loop（例如「修到測試通過，最多三輪」）轉換後會變成每輪都開 PR，行為改變。轉換也會改寫每一個已儲存的定義，並讓所有匯出檔都變成舊版無法讀取的格式。所以兩者並存：只要在結尾交付一次，用 Loop 層級的設定；要在中途交付（例如合併到 test 再做 QA），用 `deliver` 步驟。同一個 Loop 只能用其中一種，編輯器兩者共用同一組 PR 控制項。
+- **匯出的 ZIP**：舊版（v0.1.4 以前）用寬鬆方式讀取 manifest，而且不驗證匯入的 Loop，讀到新欄位會直接丟掉，不會報錯。例如審查步驟的 `sendBackTo`、步驟較低的權限都會遺失，匯入後的 Loop 執行起來和原本不同，權限甚至可能變高。因此只要定義用到舊版不認識的欄位（`review`／`deliver` 步驟，步驟的 `agent`、`sandbox`、`inputs`、`model`、`effort`，或 Loop 的 `effort`），匯出檔的格式版本就是 2，舊版會整份拒絕（「unsupported archive version」）。只有步驟 ID 的匯出檔仍是版本 1，舊版忽略 ID 不會遺失任何行為。新版讀得了版本 1 和 2；遇到更新的版本，會說明要先更新 loopbee。
+- **團隊快照**：舊版的檢視者同樣寬鬆讀取，看不到新欄位，新的步驟種類只顯示原始名稱。檢視者是唯讀的，不會執行這些 Loop，所以只是顯示不完整；團隊成員應更新到同一個版本。
+- 定義匯入（`ParseDefinition`）、HTTP API 和 `beectl` 對不認識的欄位一律拒絕；它們和 loopbee 本身是同一個版本，新欄位都認得。
 
 ### 測試
 
@@ -234,9 +237,9 @@ QA 退回時的執行順序：`qa` → `code`（帶著 QA 的問題清單）→ 
   - `Inputs`：報告依 ID 交接，長度上限生效。
   - `deliver` 之後的步驟會執行；交付失敗時不執行。
   - 安全：agent 審查之後、人工關卡之前的指令步驟，仍拒絕執行 agent 改過的檔案（擴充 `TestHostileAgentCannotEscapeThroughLoopbee`）。
-  - 相容：舊 Loop 的 `PullRequest` 轉成 `deliver` 後，`TestIssueIntakeToPullRequestAfterReview` 照常通過。
+  - 相容：舊 Loop 的 `PullRequest` 照常交付（`TestIssueIntakeToPullRequestAfterReview`）；用到新欄位的匯出檔是格式版本 2（`TestArchiveFormatFollowsWhatOlderVersionsWouldDrop`）。
 - **瀏覽器 E2E**：在編輯器建立含審查的流程，執行到退回再通過。
-- **`real-smoke.sh`**：新增一個「規劃 → 審查退回一次 → 通過」的情境，使用兩個不同模型。
+- **`real-smoke.sh`**：新增 `review` 情境「規劃 → 審查退回一次 → 通過」，寫方案和審查各用一個不同的 agent（因此是不同模型）。
 
 ## 階段三：流程圖
 
@@ -287,7 +290,6 @@ QA 退回時的執行順序：`qa` → `code`（帶著 QA 的問題清單）→ 
 3. `deliver` 重複合併到同一個目標分支時的合併方式。
 4. 審查步驟的 `MaxAttempts` 預設值。
 5. 是否需要平行步驟。
-6. 舊版 loopbee 讀到含新欄位的匯出檔或團隊快照時的行為。
 
 ## 建議的推進方式
 
